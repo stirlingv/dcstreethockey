@@ -38,7 +38,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'core'
+    'core',
+    'suit',
+    'datetimewidget',
+    'django_countries',
+    'localflavor',
+    'widget_tweaks',
+    'reversion'
 ]
 
 MIDDLEWARE_CLASSES = [
