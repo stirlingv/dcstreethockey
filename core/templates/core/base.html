@@ -8,7 +8,10 @@
 -->
 <html>
 <!-- Latest compiled and minified CSS -->
-<!-- Latest compiled and minified CSS -->
+<script
+  src="https://code.jquery.com/jquery-1.12.4.min.js"
+  integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ="
+  crossorigin="anonymous"></script>
 <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
 
 <!-- Optional theme -->
@@ -25,11 +28,17 @@
 		<!--[if lte IE 8]><script src="{% get_static_prefix %}assets/js/ie/html5shiv.js"></script><![endif]-->
 		<link rel="stylesheet" href="{% get_static_prefix %}assets/css/main.css" />
 		<!--[if lte IE 9]><link rel="stylesheet" href="{% get_static_prefix %}assets/css/ie9.css" /><![endif]-->
+		<!--http://work.smarchal.com/twbscolor/-->
+		<link href="css/overwrite.css" rel="stylesheet"/>
 	</head>
 	<body class="subpage">
 		<div id="page-wrapper">
 
+			{% include "core/navbar.html" %}
+
 			{% include "core/header.html" %}
+
+			{% include "core/banner.html" %}
 
 				{% block content %}{% endblock %}
 
