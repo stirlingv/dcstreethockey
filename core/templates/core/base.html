@@ -12,6 +12,12 @@
   src="https://code.jquery.com/jquery-1.12.4.min.js"
   integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ="
   crossorigin="anonymous"></script>
+<script
+  src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"
+  integrity="sha256-VazP97ZCwtekAsvgPBSUwPFKdrwD3unUfSGVYrahUqU="
+  crossorigin="anonymous"></script>
+<script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+
 <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
 
 <!-- Optional theme -->
@@ -31,14 +37,12 @@
 		<!--http://work.smarchal.com/twbscolor/-->
 		<link href="css/overwrite.css" rel="stylesheet"/>
 	</head>
+
+        {% include "core/header.html" %}
 	<body class="subpage">
 		<div id="page-wrapper">
 
-			{% include "core/navbar.html" %}
 
-			{% include "core/header.html" %}
-
-			{% include "core/banner.html" %}
 
 				{% block content %}{% endblock %}
 
