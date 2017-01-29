@@ -36,15 +36,16 @@
 		<!--[if lte IE 9]><link rel="stylesheet" href="{% get_static_prefix %}assets/css/ie9.css" /><![endif]-->
 		<!--http://work.smarchal.com/twbscolor/-->
 		<link href="css/overwrite.css" rel="stylesheet"/>
-	</head>
 
         {% include "core/header.html" %}
+	</head>
+
 	<body class="subpage">
 		<div id="page-wrapper">
 
 
 
-				{% block content %}{% endblock %}
+			{% block content %}{% endblock %}
 
 			{% include "core/footer.html" %}
 
