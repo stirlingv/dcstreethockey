@@ -59,4 +59,4 @@ class Stat(models.Model):
 class Ref(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    plaer = models.ForeignKey(Player)
+    player = models.ForeignKey(Player)
