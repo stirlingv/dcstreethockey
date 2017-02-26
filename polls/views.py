@@ -25,8 +25,8 @@ def index(request):
     #return HttpResponse(output)
 
 # def index(request):
-# 	#return HttpResponse("DC Street Hockey poll index.")
-# 	return render(request, "polls/index.html", context={"latest_question_list": ["question1", "question2"]})
+#   #return HttpResponse("DC Street Hockey poll index.")
+#   return render(request, "polls/index.html", context={"latest_question_list": ["question1", "question2"]})
 
 # Create your views here.
 def detail(request, question_id):

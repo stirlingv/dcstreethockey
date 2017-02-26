@@ -10,10 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.9/ref/settings/
 """
 
-import os
+import os, sys
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 
 
 # Quick-start development settings - unsuitable for production
@@ -31,7 +31,6 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
-    'polls.apps.PollsConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -44,7 +43,8 @@ INSTALLED_APPS = [
     'django_countries',
     'localflavor',
     'widget_tweaks',
-    'reversion'
+    'reversion',
+    'leagues'
 ]
 
 MIDDLEWARE_CLASSES = [
@@ -83,12 +83,38 @@ WSGI_APPLICATION = 'dcstreethockey.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/1.9/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+#     }
+# }
+
+if 'test' in sys.argv or 'testserver' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            # path to collab sqlite3 database file
+            'NAME': '',
+            'USER': '',      # leave empty
+            'PASSWORD': '',  # leave empty
+            'HOST': '',      # leave empty
+            'PORT': '',      # leave empty
+        },
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'dcstreethockey',
+            'USER': 'user',
+            'PASSWORD': 'password',
+            'HOST': '',  # Set to empty string for localhost.
+            'PORT': '',  # Set to empty string for default.
+            'CONN_MAX_AGE': 600,  # number of seconds database connections should persist for
+        }
+    }
+
 
 
 # Password validation
