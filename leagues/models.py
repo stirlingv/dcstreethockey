@@ -36,7 +36,7 @@ class League(models.Model):
     goals_for = models.PositiveSmallIntegerField()
     goals_against = models.PositiveSmallIntegerField()
 
-class Games(models.Model):
+class Game(models.Model):
     season = models.ForeignKey(Season)
     date = models.DateField()
     time = models.TimeField()
@@ -48,15 +48,15 @@ class Games(models.Model):
     is_regularseasion = models.BooleanField()
 
 
-class Stats(models.Model):
+class Stat(models.Model):
     season = models.ForeignKey(Season)
     player = models.ForeignKey(Player)
-    game = models.ForeignKey(Games)
+    game = models.ForeignKey(Game)
     assists = models.PositiveSmallIntegerField()
     goals_against = models.PositiveSmallIntegerField()
     en = models.PositiveSmallIntegerField()
 
-class Refs(models.Model):
+class Ref(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     plaer = models.ForeignKey(Player)
