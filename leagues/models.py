@@ -20,24 +20,12 @@ class Team(models.Model):
         return "%s" % (self.team_name)
 
 class Roster(models.Model):
-    POSITION_TYPE = (
-    	(1, 'Center'),
-    	(2, 'Wing'),
-    	(3, 'Defense'),
-    	(4, 'Goalie')
-    	)
     player = models.ForeignKey(Player)
     team = models.ForeignKey(Team)
     position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
     position2 = models.PositiveIntegerField(choices=POSITION_TYPE)
     
 class Season(models.Model):
-	SEASON_TYPE = (
-        (1, 'Spring'),
-        (2, 'Summer'),
-        (3, 'Fall'),
-        (4, 'Winter')
-    )
     team = models.ForeignKey(Team)
     is_champion = models.NullBooleanField()
     season_type = models.PositiveIntegerField(choices=SEASON_TYPE)
@@ -85,3 +73,17 @@ class Ref(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     player = models.ForeignKey(Player)
+
+SEASON_TYPE = (
+    (1, 'Spring'),
+    (2, 'Summer'),
+    (3, 'Fall'),
+    (4, 'Winter')
+)
+
+POSITION_TYPE = (
+	(1, 'Center'),
+	(2, 'Wing'),
+	(3, 'Defense'),
+	(4, 'Goalie')
+)
