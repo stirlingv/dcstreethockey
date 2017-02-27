@@ -9,13 +9,13 @@
 									<!-- Box #1 -->
 										<section>
 											<header>
-												<h2>Schedule</h2>
+												<h2>Upcoming Game Times</h2>
 												<h3>Sunday D1</h3>
 											</header>
 											<ul class="check-list">
 												{% for team in league %}
-													{% if league.season == 1 and league.division == 1 %}
-														<li>{{league.team}}</li>
+													{% if league.division == 1 %}
+														<li>{{next.awayteam}} vs {{next.hometeam}} @ {{next.time}}</li>
 													{% endif %}
 												{% endfor %}
 											</ul>
@@ -27,7 +27,7 @@
 									<!-- Box #2 -->
 										<section>
 											<header>
-												<h2>Schedule</h2>
+												<h2>Upcoming Game Times</h2>
 												<h3>Sunday D2</h3>
 											</header>
 											<ul class="check-list">
@@ -45,8 +45,8 @@
 									<!-- Box #3 -->
 										<section>
 											<header>
-												<h2>Schedule Wednesday</h2>
-												<h3>And a final subheading about our clients</h3>
+												<h2>Upcoming Game Times</h2>
+												<h3>Wednesday</h3>
 											</header>
 											<ul class="quote-list">
 												<li>

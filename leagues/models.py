@@ -16,15 +16,36 @@ class Team(models.Model):
     team_color = models.CharField(max_length=30)
     is_active = models.BooleanField()
 
+    def __unicode__(self): 
+        return "%s" % (self.team_name)
+
 class Roster(models.Model):
+    POSITION_TYPE = (
+    	(1, 'Center'),
+    	(2, 'Wing'),
+    	(3, 'Defense'),
+    	(4, 'Goalie')
+    	)
     player = models.ForeignKey(Player)
     team = models.ForeignKey(Team)
-    position1 = models.CharField(max_length=30)
-    position2 = models.CharField(max_length=30)
-
+    position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
+    position2 = models.PositiveIntegerField(choices=POSITION_TYPE)
+    
 class Season(models.Model):
+	SEASON_TYPE = (
+        (1, 'Spring'),
+        (2, 'Summer'),
+        (3, 'Fall'),
+        (4, 'Winter')
+    )
     team = models.ForeignKey(Team)
     is_champion = models.NullBooleanField()
+    season_type = models.PositiveIntegerField(choices=SEASON_TYPE)
+    year = models.CharField(max_length=4)
+    is_current_season = models.BooleanField()
+
+    def __unicode__(self): 
+        return "%s: %s" % (self.season_type, self.year)
 
 class League(models.Model):
     season = models.ForeignKey(Season)
@@ -38,6 +59,7 @@ class League(models.Model):
 
 class Game(models.Model):
     season = models.ForeignKey(Season)
+    league = models.ForeignKey(League)
     date = models.DateField()
     time = models.TimeField()
     awayteam = models.ForeignKey(Team, related_name="+")
@@ -47,9 +69,12 @@ class Game(models.Model):
     notes = models.CharField(max_length=500)
     is_regularseasion = models.BooleanField()
 
+    def __unicode__(self): 
+        return "%s vs %s" % (self.awayteam, self.hometeam)
 
 class Stat(models.Model):
     season = models.ForeignKey(Season)
+    league = models.ForeignKey(League)
     player = models.ForeignKey(Player)
     game = models.ForeignKey(Game)
     assists = models.PositiveSmallIntegerField()
