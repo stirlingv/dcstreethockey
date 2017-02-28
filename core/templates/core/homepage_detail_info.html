@@ -15,7 +15,7 @@
 											<ul class="check-list">
 												{% for team in league %}
 													{% if league.division == 1 %}
-														<li>{{next.awayteam}} vs {{next.hometeam}} @ {{next.time}}</li>
+														<li>{{game.awayteam}} vs {{game.hometeam}} @ {{game.time}}</li>
 													{% endif %}
 												{% endfor %}
 											</ul>
@@ -31,11 +31,11 @@
 												<h3>Sunday D2</h3>
 											</header>
 											<ul class="check-list">
-												<li>Sed mattis quis rutrum accum</li>
-												<li>Eu varius nibh suspendisse lorem</li>
-												<li>Magna eget odio amet mollis justo</li>
-												<li>Facilisis quis sagittis mauris</li>
-												<li>Amet tellus gravida lorem ipsum</li>
+												{% for match in game %}
+													{% if league.division == 2 %}
+														<li>{{game.awayteam}} vs {{game.hometeam}} @ {{game.time}}</li>
+													{% endif %}
+												{% endfor %}
 											</ul>
 										</section>
 
@@ -49,10 +49,17 @@
 												<h3>Wednesday</h3>
 											</header>
 											<ul class="quote-list">
-												<li>
+												{% for match in game %}
+													{% if league.division == 3 %}
+														<img src="images/pic06.jpg" alt="" />
+														<p>{{game.time}}</p>
+														<span>{{game.awayteam}} vs {{game.hometeam}}</span>
+													{% endif %}
+												{% endfor %}
+												<!-- <li>
 													<img src="images/pic06.jpg" alt="" />
-													<p>"Neque nisidapibus mattis"</p>
-													<span>Jane Doe, CEO of UntitledCorp</span>
+													<p>{{game.time}}</p>
+													<span>{{game.awayteam}} vs {{game.hometeam}}</span>
 												</li>
 												<li>
 													<img src="images/pic07.jpg" alt="" />
@@ -63,7 +70,7 @@
 													<img src="images/pic08.jpg" alt="" />
 													<p>"Magna veroeros amet tempus"</p>
 													<span>Mary Smith, CFO of UntitledBiz</span>
-												</li>
+												</li> -->
 											</ul>
 										</section>
 
