@@ -10,7 +10,7 @@ class Player(models.Model):
     photo = models.ImageField(null=True, blank=True)
 
     def __unicode__(self): 
-        return "%s, %s" % (self.last_name, self.first_name)
+        return u"%s, %s" % (self.last_name, self.first_name)
 
 class Team(models.Model):
     team_name = models.CharField(max_length=30)
@@ -18,7 +18,7 @@ class Team(models.Model):
     is_active = models.BooleanField()
 
     def __unicode__(self): 
-        return "%s" % (self.team_name)
+        return u"%s" % (self.team_name)
 
 class Roster(models.Model):
     POSITION_TYPE = (
@@ -27,16 +27,16 @@ class Roster(models.Model):
     (3, 'Defense'),
     (4, 'Goalie')
     )
-    # player = models.ForeignKey(Player, related_name="+")
-    first_name = models.ForeignKey(Player, db_column='first_name', null=True, related_name="+")
-    last_name = models.ForeignKey(Player, db_column='last_name', null=True, related_name="+")
+    player = models.ForeignKey(Player, related_name="+")
     team = models.ForeignKey(Team)
     position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
     position2 = models.PositiveIntegerField(choices=POSITION_TYPE)
 
     def __unicode__(self): 
-        return "%s : %s" % (self.team, self.player)
- 
+        return u"%s : %s" % (self.team, str(self.player))
+ # first_name = models.ForeignKey(Player, db_column='first_name', null=True, related_name="+")
+ #    last_name = models.ForeignKey(Player, db_column='last_name', null=True, related_name="+")
+    
 YEAR_CHOICES = []
 for r in range(1980, (datetime.datetime.now().year+1)):
     YEAR_CHOICES.append((r,r))
@@ -55,7 +55,7 @@ class Season(models.Model):
     is_current_season = models.NullBooleanField()
 
     def __unicode__(self): 
-        return "%s: %s" % (self.get_season_type_display(), self.year)
+        return u"%s: %s" % (self.get_season_type_display(), self.year)
 
 class League(models.Model):
     DIVISION_TYPE = (
@@ -73,7 +73,7 @@ class League(models.Model):
     goals_against = models.PositiveSmallIntegerField(default=0)
 
     def __unicode__(self): 
-        return "season: %s division: %s" % (self.season, self.get_division_display())
+        return u"season: %s division: %s" % (self.season, self.get_division_display())
 
 class Game(models.Model):
     season = models.ForeignKey(Season)
@@ -88,7 +88,7 @@ class Game(models.Model):
     is_postseason = models.BooleanField(default=False)
 
     def __unicode__(self): 
-        return "%s vs %s" % (self.awayteam, self.hometeam)
+        return u"%s vs %s" % (self.awayteam, self.hometeam)
 
 class Stat(models.Model):
     season = models.ForeignKey(Season)
@@ -105,6 +105,6 @@ class Ref(models.Model):
     player = models.ForeignKey(Player)
     
     def __unicode__(self): 
-        return "%s, %s" % (self.last_name, self.first_name)
+        return u"%s, %s" % (self.player_last_name, self.player_first_name)
 
 

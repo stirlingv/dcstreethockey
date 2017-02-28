@@ -13,7 +13,7 @@
 												<h3>Sunday D1</h3>
 											</header>
 											<ul class="check-list">
-												{% for team in league %}
+												{% for match in game %}
 													{% if league.division == 1 %}
 														<li>{{game.awayteam}} vs {{game.hometeam}} @ {{game.time}}</li>
 													{% endif %}
