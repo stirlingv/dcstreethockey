@@ -105,6 +105,6 @@ class Ref(models.Model):
     player = models.ForeignKey(Player)
     
     def __unicode__(self): 
-        return "%s, %s" % (self.player_last_name, self.player_first_name)
+        return "%s, %s" % (self.last_name, self.first_name)
 
 
