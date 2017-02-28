@@ -65,7 +65,7 @@ class League(models.Model):
     )
     season = models.ForeignKey(Season)
     team = models.ForeignKey(Team)
-    division = models.IntegerField(choices=DIVISION_TYPE, max_length=30, null=True)
+    division = models.IntegerField(choices=DIVISION_TYPE, null=True)
     win = models.PositiveSmallIntegerField(default=0)
     loss = models.PositiveSmallIntegerField(default=0)
     tie = models.PositiveSmallIntegerField(default=0)
