@@ -100,8 +100,8 @@ class Stat(models.Model):
     en = models.PositiveSmallIntegerField()
 
 class Ref(models.Model):
-    first_name = models.CharField(max_length=30)
-    last_name = models.CharField(max_length=30)
+    first_name = models.CharField(max_length=30, null=True)
+    last_name = models.CharField(max_length=30, null=True)
     player = models.ForeignKey(Player)
     
     def __unicode__(self): 
