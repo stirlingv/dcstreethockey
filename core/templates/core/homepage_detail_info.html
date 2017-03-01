@@ -14,7 +14,7 @@
 											</header>
 											<ul class="check-list">
 												{% for match in game %}
-													{% if league.division == 1 %}
+													{% if game.division == 1 %}
 														<li>{{game.awayteam}} vs {{game.hometeam}} @ {{game.time}}</li>
 													{% endif %}
 												{% endfor %}
@@ -32,8 +32,8 @@
 											</header>
 											<ul class="check-list">
 												{% for match in game %}
-													{% if league.division == 2 %}
-														<li>{{game.awayteam}} vs {{game.hometeam}} @ {{game.time}}</li>
+													{% if match.division == 2 %}
+														<li>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</li>
 													{% endif %}
 												{% endfor %}
 											</ul>
@@ -50,10 +50,10 @@
 											</header>
 											<ul class="quote-list">
 												{% for match in game %}
-													{% if league.division == 3 %}
+													{% if match.division == 3 %}
 														<img src="images/pic06.jpg" alt="" />
 														<p>{{game.time}}</p>
-														<span>{{game.awayteam}} vs {{game.hometeam}}</span>
+														<span>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</span>
 													{% endif %}
 												{% endfor %}
 												<!-- <li>
