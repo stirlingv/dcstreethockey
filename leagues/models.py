@@ -33,7 +33,7 @@ class Roster(models.Model):
     position2 = models.PositiveIntegerField(choices=POSITION_TYPE)
 
     def __unicode__(self): 
-        return u"%s : %s" % (self.team, str(self.player))
+        return u"%s: %s" % (self.team, str(self.player))
  # first_name = models.ForeignKey(Player, db_column='first_name', null=True, related_name="+")
  #    last_name = models.ForeignKey(Player, db_column='last_name', null=True, related_name="+")
     
@@ -73,7 +73,7 @@ class League(models.Model):
     goals_against = models.PositiveSmallIntegerField(default=0)
 
     def __unicode__(self): 
-        return u"season: %s division: %s" % (self.season, self.get_division_display())
+        return u"%s: %s" % (self.season, self.get_division_display())
 
 class Game(models.Model):
     season = models.ForeignKey(Season)
