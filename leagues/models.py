@@ -37,8 +37,8 @@ class League(models.Model):
     (2, 'Sunday D2'),
     (3, 'Wednesday Draft League')
     )
-    season = models.ForeignKey(Season)
-    team = models.ForeignKey(Team)
+    season = models.ForeignKey(Season, null=True)
+    team = models.ForeignKey(Team, null=True)
     division = models.IntegerField(choices=DIVISION_TYPE, null=True)
     win = models.PositiveSmallIntegerField(default=0)
     loss = models.PositiveSmallIntegerField(default=0)
@@ -66,7 +66,7 @@ class Roster(models.Model):
     (4, 'Goalie')
     )
     player = models.ForeignKey(Player, related_name="+", null=True)
-    team = models.ForeignKey(Team)
+    team = models.ForeignKey(Team, null=True)
     position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
     position2 = models.PositiveIntegerField(choices=POSITION_TYPE, null=True, blank=True)
 
