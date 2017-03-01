@@ -17,6 +17,15 @@ class Player(models.Model):
     def __unicode__(self): 
         return u"%s, %s" % (self.last_name, self.first_name)
 
+class Team(models.Model):
+    team_name = models.CharField(max_length=30)
+    team_color = models.CharField(max_length=30)
+    league = models.ForeignKey(League, null=True)
+    is_active = models.BooleanField()
+
+    def __unicode__(self): 
+        return u"%s" % (self.team_name)
+        
 class Season(models.Model):
     SEASON_TYPE = (
     (1, 'Spring'),
@@ -48,15 +57,6 @@ class League(models.Model):
 
     def __unicode__(self): 
         return u"%s: %s" % (self.season, self.get_division_display())
-
-class Team(models.Model):
-    team_name = models.CharField(max_length=30)
-    team_color = models.CharField(max_length=30)
-    league = models.ForeignKey(League, null=True)
-    is_active = models.BooleanField()
-
-    def __unicode__(self): 
-        return u"%s" % (self.team_name)
 
 class Roster(models.Model):
     POSITION_TYPE = (
