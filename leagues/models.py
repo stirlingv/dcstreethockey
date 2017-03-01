@@ -27,7 +27,7 @@ class Roster(models.Model):
     (3, 'Defense'),
     (4, 'Goalie')
     )
-    player = models.ForeignKey(Player, related_name="+")
+    player = models.ForeignKey(Player, related_name="+", null=True)
     team = models.ForeignKey(Team)
     position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
     position2 = models.PositiveIntegerField(choices=POSITION_TYPE)
