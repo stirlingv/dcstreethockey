@@ -4,18 +4,14 @@ from django.template import loader
 from django.db import models
 import datetime
 
-from leagues.models import Player
-from leagues.models import League
-from leagues.models import Game
 from leagues.models import Season
+from leagues.models import Game
 # Create your views here.
 
 def home(request):
     context = {}
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
-    context["players"] = Player.objects.all()
-    context["league"] = League.objects.all()
     context["game"] = Game.objects.all()
     
     # now = datetime.datetime.now().date

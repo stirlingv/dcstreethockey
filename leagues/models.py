@@ -17,15 +17,6 @@ class Player(models.Model):
     def __unicode__(self): 
         return u"%s, %s" % (self.last_name, self.first_name)
 
-class Team(models.Model):
-    team_name = models.CharField(max_length=30)
-    team_color = models.CharField(max_length=30)
-    league = models.ForeignKey(League, null=True)
-    is_active = models.BooleanField()
-
-    def __unicode__(self): 
-        return u"%s" % (self.team_name)
-        
 class Season(models.Model):
     SEASON_TYPE = (
     (1, 'Spring'),
@@ -40,15 +31,31 @@ class Season(models.Model):
     def __unicode__(self): 
         return u"%s: %s" % (self.get_season_type_display(), self.year)
 
-class League(models.Model):
+
+class Division(models.Model):
     DIVISION_TYPE = (
     (1, 'Sunday D1'),
     (2, 'Sunday D2'),
     (3, 'Wednesday Draft League')
     )
+    division = models.IntegerField(choices=DIVISION_TYPE, null=True)
+
+    def __unicode__(self): 
+        return u"%s" % (self.get_division_display())
+
+class Team(models.Model):
+    team_name = models.CharField(max_length=30)
+    team_color = models.CharField(max_length=30)
+    division = models.ForeignKey(Division, null=True)
+    is_active = models.BooleanField()
+
+    def __unicode__(self): 
+        return u"%s" % (self.team_name)
+
+class Team_Stat(models.Model):
+    division = models.ForeignKey(Division, null=True)
     season = models.ForeignKey(Season, null=True)
     team = models.ForeignKey(Team, null=True)
-    division = models.IntegerField(choices=DIVISION_TYPE, null=True)
     win = models.PositiveSmallIntegerField(default=0)
     loss = models.PositiveSmallIntegerField(default=0)
     tie = models.PositiveSmallIntegerField(default=0)
@@ -57,7 +64,7 @@ class League(models.Model):
 
     def __unicode__(self): 
         return u"%s: %s" % (self.season, self.get_division_display())
-
+        
 class Roster(models.Model):
     POSITION_TYPE = (
     (1, 'Center'),
@@ -76,8 +83,8 @@ class Roster(models.Model):
  #    last_name = models.ForeignKey(Player, db_column='last_name', null=True, related_name="+")
 
 class Game(models.Model):
+    division = models.ForeignKey(Division, null=True)
     season = models.ForeignKey(Season)
-    league = models.ForeignKey(League, null=True)
     date = models.DateField()
     time = models.TimeField()
     awayteam = models.ForeignKey(Team, related_name="+")
@@ -91,9 +98,10 @@ class Game(models.Model):
         return u"%s vs %s" % (self.awayteam, self.hometeam)
 
 class Stat(models.Model):
+    division = models.ForeignKey(Division, null=True)
     season = models.ForeignKey(Season)
-    league = models.ForeignKey(League, null=True)
     player = models.ForeignKey(Player)
+    team = models.ForeignKey(Team, null=True)
     game = models.ForeignKey(Game)
     assists = models.PositiveSmallIntegerField()
     goals_against = models.PositiveSmallIntegerField()
