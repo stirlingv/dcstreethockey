@@ -31,7 +31,6 @@ class Season(models.Model):
     def __unicode__(self): 
         return u"%s: %s" % (self.get_season_type_display(), self.year)
 
-
 class Division(models.Model):
     DIVISION_TYPE = (
     (1, 'Sunday D1'),
@@ -79,13 +78,15 @@ class Roster(models.Model):
 
     def __unicode__(self): 
         return u"%s: %s" % (self.team, str(self.player))
- # first_name = models.ForeignKey(Player, db_column='first_name', null=True, related_name="+")
- #    last_name = models.ForeignKey(Player, db_column='last_name', null=True, related_name="+")
 
 class Game(models.Model):
+    gamenumber = models.PositiveIntegerField(default=1)
     division = models.ForeignKey(Division, null=True)
     season = models.ForeignKey(Season)
     date = models.DateField()
+
+class MatchUp(models.Model):
+    game = models.ForeignKey(Game, null=True)
     time = models.TimeField()
     awayteam = models.ForeignKey(Team, related_name="+")
     hometeam = models.ForeignKey(Team, related_name="+")
@@ -102,17 +103,15 @@ class Stat(models.Model):
     season = models.ForeignKey(Season)
     player = models.ForeignKey(Player)
     team = models.ForeignKey(Team, null=True)
-    game = models.ForeignKey(Game)
+    matchup = models.ForeignKey(MatchUp, null=True)
     assists = models.PositiveSmallIntegerField()
     goals_against = models.PositiveSmallIntegerField()
     en = models.PositiveSmallIntegerField()
 
 class Ref(models.Model):
-    first_name = models.CharField(max_length=30, null=True)
-    last_name = models.CharField(max_length=30, null=True)
     player = models.ForeignKey(Player)
     
     def __unicode__(self): 
-        return u"%s, %s" % (self.last_name, self.first_name)
+        return u"%s" % (self.player)
 
 
