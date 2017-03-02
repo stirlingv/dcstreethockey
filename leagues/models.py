@@ -37,13 +37,13 @@ class Division(models.Model):
     (2, 'Sunday D2'),
     (3, 'Wednesday Draft League')
     )
-    division = models.IntegerField(choices=DIVISION_TYPE, null=True)
+    division = models.IntegerField(choices=DIVISION_TYPE, null=True, unique=True)
 
     def __unicode__(self): 
         return u"%s" % (self.get_division_display())
 
 class Team(models.Model):
-    team_name = models.CharField(max_length=30)
+    team_name = models.CharField(max_length=30, unique=True)
     team_color = models.CharField(max_length=30)
     division = models.ForeignKey(Division, null=True)
     is_active = models.BooleanField()
