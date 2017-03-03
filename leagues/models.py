@@ -86,7 +86,7 @@ class Game(models.Model):
     date = models.DateField()
 
     def __unicode__(self): 
-        return u"Game: %s" % (self.gamenumber)
+        return u"Game: %s %s %s" % (self.gamenumber, self.division, self.season)
 
 class MatchUp(models.Model):
     game = models.ForeignKey(Game, null=True)
