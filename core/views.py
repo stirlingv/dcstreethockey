@@ -5,14 +5,14 @@ from django.db import models
 import datetime
 
 from leagues.models import Season
-from leagues.models import Game
+from leagues.models import MatchUp
 # Create your views here.
 
 def home(request):
     context = {}
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
-    context["game"] = Game.objects.all()
+    context["matchup"] = MatchUp.objects.all()
     
     # now = datetime.datetime.now().date
     # print now
