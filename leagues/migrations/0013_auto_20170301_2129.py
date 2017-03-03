@@ -71,7 +71,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='game',
             name='date',
-            field=models.DateField(default=1),
+            field=models.DateField(),
         ),
         migrations.AddField(
             model_name='matchup',
