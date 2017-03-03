@@ -6,6 +6,7 @@ import datetime
 
 from leagues.models import Season
 from leagues.models import MatchUp
+from leagues.models import Week
 # Create your views here.
 
 def home(request):
@@ -13,6 +14,7 @@ def home(request):
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
     context["matchup"] = MatchUp.objects.all()
+    context["week"] = Week.objects.all()
     
     # now = datetime.datetime.now().date
     # print now

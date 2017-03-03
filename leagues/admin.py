@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from reversion.admin import VersionAdmin
 
-from leagues.models import Player, Team, Roster, Division, Season, Team_Stat, Game, MatchUp, Stat, Ref
+from leagues.models import Player, Team, Roster, Division, Season, Team_Stat, Week, MatchUp, Stat, Ref
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
@@ -32,8 +32,8 @@ class Team_StatAdmin(admin.ModelAdmin):
 class MatchUpAdmin(admin.ModelAdmin):
     pass
 
-@admin.register(Game)
-class GameAdmin(admin.ModelAdmin):
+@admin.register(Week)
+class WeekAdmin(admin.ModelAdmin):
     pass
 
 @admin.register(Stat)

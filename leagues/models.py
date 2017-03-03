@@ -79,17 +79,17 @@ class Roster(models.Model):
     def __unicode__(self): 
         return u"%s: %s" % (self.team, str(self.player))
 
-class Game(models.Model):
-    gamenumber = models.PositiveIntegerField(default=1)
+class Week(models.Model):
+    weeknumber = models.PositiveIntegerField(default=1)
     division = models.ForeignKey(Division, null=True)
     season = models.ForeignKey(Season)
     date = models.DateField()
 
     def __unicode__(self): 
-        return u"Game: %s %s %s" % (self.gamenumber, self.division, self.season)
+        return u"Week: %s %s %s" % (self.weeknumber, self.division, self.season)
 
 class MatchUp(models.Model):
-    game = models.ForeignKey(Game, null=True)
+    week = models.ForeignKey(Week, null=True)
     time = models.TimeField()
     awayteam = models.ForeignKey(Team, related_name="+")
     hometeam = models.ForeignKey(Team, related_name="+")
