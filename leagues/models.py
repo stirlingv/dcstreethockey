@@ -99,7 +99,7 @@ class MatchUp(models.Model):
     is_postseason = models.BooleanField(default=False)
 
     def __unicode__(self): 
-        return u"%s vs %s" % (self.awayteam, self.hometeam)
+        return u"Game %s: %s vs %s" % (self.game.gamenumber, self.awayteam, self.hometeam)
 
 class Stat(models.Model):
     division = models.ForeignKey(Division, null=True)
