@@ -13,8 +13,8 @@
 												<h3>Sunday D1</h3>
 											</header>
 											<ul class="check-list">
-												{% for match in matchup %}
-													{% if match.division|stringformat:"s" = "Sunday D1" %}
+												{% for match in game %}
+													{% match.division|stringformat:"s" = "Sunday D1" %}
 														<li>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</li>
 													{% endif %}
 												{% endfor %}
@@ -31,7 +31,7 @@
 												<h3>Sunday D2</h3>
 											</header>
 											<ul class="check-list">
-												{% for match in matchup %}
+												{% for match in game %}
 													{% if match.division|stringformat:"s" = "Sunday D2" %}
 														<li>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</li>
 													{% endif %}
@@ -49,10 +49,10 @@
 												<h3>Wednesday</h3>
 											</header>
 											<ul class="quote-list">
-												{% for match in matchup %}
-													{% if match.division|stringformat:"s" = "Wednesday Draft League" %}
+												{% for match in game %}
+													{% match.division|stringformat:"s" = "Wednesday Draft League" %}
 														<img src="images/pic06.jpg" alt="" />
-														<p>{{match.time}}</p>
+														<p>{{game.time}}</p>
 														<span>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</span>
 													{% endif %}
 												{% endfor %}
