@@ -14,6 +14,9 @@ class Player(models.Model):
     email = models.EmailField(null=True, blank=True)
     photo = models.ImageField(null=True, blank=True)
 
+    class Meta:
+        unique_together = ('first_name', 'last_name',)
+
     def __unicode__(self): 
         return u"%s, %s" % (self.last_name, self.first_name)
 
