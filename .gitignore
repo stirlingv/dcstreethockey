@@ -6,4 +6,6 @@ static/assets/.sass-cache/*
 db.sqlite3
 polls/
 media/
+*.dump
+*.dump*
 
