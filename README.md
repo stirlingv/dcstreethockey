@@ -19,7 +19,7 @@
 ##Import/Export CSV file to local postgres db
 1. Copy data from CSV - You can specify the columns to read:
    - \copy leagues_player(first_name,last_name,email, photo) FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV
-1. Copy data from your CSV file to the table:
+1. Copy data from PostgreSQL table to csv file:
    - \copy leagues_player FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV
    
 ##Push local database to heroku
