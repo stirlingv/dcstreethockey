@@ -13,7 +13,8 @@
 ##Create backup of heroku database and restore in local postgres instance
 1. heroku pg:backups:capture
 1. heroku pg:backups:download
-1. pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey latest.dump
+1. Restore downloaded db to local postgres instance: 
+   - pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey latest.dump
 1. https://devcenter.heroku.com/articles/heroku-postgres-import-export
 
 ##Import/Export CSV file to local postgres db
