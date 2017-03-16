@@ -43,3 +43,17 @@ class StatAdmin(admin.ModelAdmin):
 @admin.register(Ref)
 class RefAdmin(admin.ModelAdmin):
     pass
+
+class MatchUpInline(admin.TabularInline):
+    model = MatchUp
+
+class RosterInline(admin.TabularInline):
+    model = Roster
+
+@admin.register(InputGameStats)
+class InputGameStats:
+     inlines = [
+        MatchUpInline,
+        RosterInline,
+        ]
+    pass

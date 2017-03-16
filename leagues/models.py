@@ -110,9 +110,10 @@ class Stat(models.Model):
     player = models.ForeignKey(Player)
     team = models.ForeignKey(Team, null=True)
     matchup = models.ForeignKey(MatchUp, null=True)
+    goals = models.PositiveSmallIntegerField()
     assists = models.PositiveSmallIntegerField()
     goals_against = models.PositiveSmallIntegerField()
-    en = models.PositiveSmallIntegerField()
+    empty_net = models.PositiveSmallIntegerField()
 
 class Ref(models.Model):
     player = models.ForeignKey(Player)
