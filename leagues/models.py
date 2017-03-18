@@ -108,12 +108,12 @@ class Stat(models.Model):
     division = models.ForeignKey(Division, null=True)
     season = models.ForeignKey(Season)
     player = models.ForeignKey(Player)
-    team = models.ForeignKey(Team, null=True)
-    matchup = models.ForeignKey(MatchUp, null=True)
-    goals = models.PositiveSmallIntegerField()
-    assists = models.PositiveSmallIntegerField()
-    goals_against = models.PositiveSmallIntegerField()
-    empty_net = models.PositiveSmallIntegerField()
+    team = models.ForeignKey(Team, null=True, blank=True)
+    matchup = models.ForeignKey(MatchUp, null=True, blank=True)
+    goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    assists = models.PositiveSmallIntegerField(null=True, blank=True)
+    goals_against = models.PositiveSmallIntegerField(null=True, blank=True)
+    empty_net = models.PositiveSmallIntegerField(null=True, blank=True)
 
 class Ref(models.Model):
     player = models.ForeignKey(Player)

@@ -44,16 +44,16 @@ class StatAdmin(admin.ModelAdmin):
 class RefAdmin(admin.ModelAdmin):
     pass
 
-class MatchUpInline(admin.TabularInline):
-    model = MatchUp
+# class RosterInline(admin.TabularInline):
+#     model = Roster
 
-class RosterInline(admin.TabularInline):
-    model = Roster
+# class TeamInline(admin.TabularInline):
+#     model = Team
 
-@admin.register(InputGameStats)
-class InputGameStats:
-     inlines = [
-        MatchUpInline,
-        RosterInline,
-        ]
-    pass
+
+# class MatchUpAdmin(admin.ModelAdmin):
+#      inlines = [TeamInline]
+
+# admin.site.register(MatchUp, MatchUpAdmin)
+
+    
