@@ -18,6 +18,7 @@ from django.contrib import admin
 import core.views as core_view
 from django.conf.urls.static import static
 import settings
+import leagues
 
 urlpatterns = [
 	url(r'^$', core_view.home),

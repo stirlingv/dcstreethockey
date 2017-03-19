@@ -63,7 +63,9 @@ ROOT_URLCONF = 'dcstreethockey.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            BASE_DIR + '/templates/'
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -157,10 +159,16 @@ STATIC_ROOT = 'staticfiles'
 
 STATIC_URL = '/static/'
 
+LEAGUES_URL = '/leagues/'
+
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 MEDIA_URL = '/media/'
 
 STATICFILES_DIRS = (
     os.path.join(BASE_DIR, "static"),
+)
+
+LEAGUESFILES_DIRS = (
+    os.path.join(BASE_DIR, "leagues"),
 )

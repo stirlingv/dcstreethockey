@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from django.db import models
 import datetime
 
+
     
 YEAR_CHOICES = []
 for r in range(1980, (datetime.datetime.now().year+1)):
@@ -15,6 +16,7 @@ class Player(models.Model):
     photo = models.ImageField(null=True, blank=True)
 
     class Meta:
+        ordering = ('last_name',)
         unique_together = ('first_name', 'last_name',)
 
     def __unicode__(self): 
@@ -100,6 +102,9 @@ class MatchUp(models.Model):
     ref2 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None)
     notes = models.CharField(max_length=500, null=True, blank=True, default=None)
     is_postseason = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ('time',)
 
     def __unicode__(self): 
         return u"Week %s: %s vs %s" % (self.week.weeknumber, self.awayteam, self.hometeam)
