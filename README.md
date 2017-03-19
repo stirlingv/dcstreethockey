@@ -13,14 +13,14 @@
 ## Create backup of heroku database and restore in local postgres instance
 1. heroku pg:backups:capture
 1. heroku pg:backups:download
-1. pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey latest.dump
+1. pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey latest.dump<number of latest dump>
 1. https://devcenter.heroku.com/articles/heroku-postgres-import-export
 
 ## Import/Export CSV file to local postgres db
 1. Copy data from CSV - You can specify the columns to read:
-   - \copy leagues_player(first_name,last_name,email, photo) FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV
+   - \copy leagues_player(first_name,last_name,email, photo) FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER
 1. Copy data from your CSV file to the table:
-   - \copy leagues_player FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV
+   - \copy leagues_player FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER
    
 ## Push local database to heroku
 1. Create backup! https://devcenter.heroku.com/articles/heroku-postgres-import-export 
