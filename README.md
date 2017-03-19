@@ -22,7 +22,7 @@
    - \copy leagues_player(first_name,last_name,email, photo) FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER
    - Remove HEADER if there is no header in the first row.
 1. Copy data from PostgreSQL table to csv file:
-   - \copy leagues_player FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER
+   - \copy leagues_player TO '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER
    - Remove HEADER if there is no header in the first row.
    
 ## Push local database to heroku
