@@ -36,14 +36,14 @@
 		    	{% if x.team.team_name == match.awayteam.team_name %} 
 			    	<tr>
 			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td></td>
-			    		<td></td>
-			    		<td></td>
-			    		<td></td>
-			    		<!-- <td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td> -->
+			    		{% for y in stat %}
+			    			{% if y.player == x.player %}
+				    			<td>{{y.goals}}</td>
+					    		<td>{{y.assists}}</td>
+					    		<td>{{y.goals_against}}</td>
+					    		<td>{{y.empty_net}}</td>
+			    			{% endif %}
+			    		{% endfor %}
 			    	</tr>
 			    {% endif %}
 			{% endfor %}
@@ -61,14 +61,14 @@
 		    	{% if x.team.team_name == match.hometeam.team_name %} 
 			    	<tr>
 			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td></td>
-			    		<td></td>
-			    		<td></td>
-			    		<td></td>
-			    		<!-- <td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td> -->
+			    		{% for y in stat %}
+			    			{% if y.player == x.player %}
+				    			<td>{{y.goals}}</td>
+					    		<td>{{y.assists}}</td>
+					    		<td>{{y.goals_against}}</td>
+					    		<td>{{y.empty_net}}</td>
+			    			{% endif %}
+			    		{% endfor %}
 			    	</tr>
 			    {% endif %}
 			{% endfor %}
