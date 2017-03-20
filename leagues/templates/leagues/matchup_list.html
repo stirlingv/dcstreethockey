@@ -4,16 +4,21 @@
 	<style type="text/css" media="screen">
 
 		table{
-		border-collapse:collapse;
-		border:1px solid #FF0000;
+			border-collapse:collapse;
+			border:1px solid #FF0000;
 		}
-
+		table caption{
+			text-align: left
+		}
 		table th{
-		border:1px solid #FF0000;
+			border:1px solid #FF0000;
 		}
 		table td{
-		border:1px solid #FF0000;
+			border:1px solid #FF0000;
 		}
+		.inlineTable {
+            display: inline-block;
+        }
 	</style>
 </head>
 
@@ -23,7 +28,7 @@
 	{% if match.week.weeknumber == 3 %}
 	<p></p>
 	    <li><strong>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</strong></li>
-	    <table>
+	    <table class="inlineTable">
 	    	<caption>{{match.awayteam}}</caption>
 	    		<tr>
 		    		<th>Player Name</th>
@@ -48,7 +53,7 @@
 			    {% endif %}
 			{% endfor %}
     	</table>
-    	<table>
+    	<table class="inlineTable">
 	    	<caption>{{match.hometeam}}</caption>
 	    		<tr>
 		    		<th>Player Name</th>
