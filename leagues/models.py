@@ -124,7 +124,7 @@ class Stat(models.Model):
 	empty_net = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 
 	class Meta:
-		ordering = ('matchup__week__date','matchup__time','team__team_name','player__last_name',)
+		ordering = ('matchup__week','matchup__time','team__team_name','player__last_name',)
 
 	def __unicode__(self): 
 		return u"%s - %s: G:%s A:%s " % (self.matchup__week__date, self.player__last_name, self.goals, self.assists)
