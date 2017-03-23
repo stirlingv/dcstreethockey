@@ -6,15 +6,15 @@
 		table{
 			border-collapse:collapse;
 			border:1px solid #FF0000;
+			vertical-align: top;
+			empty-cells: show
 		}
 		table caption{
 			text-align: left
 		}
-		table th{
+		table th, td{
 			border:1px solid #FF0000;
-		}
-		table td{
-			border:1px solid #FF0000;
+			display: table-cell;
 		}
 		.inlineTable {
             display: inline-block;
@@ -42,7 +42,7 @@
 			    	<tr>
 			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
 			    		{% for y in stat %}
-			    			{% if y.player == x.player %}
+			    			{% if y.player == x.player and y.matchup = match %}
 				    			<td>{{y.goals}}</td>
 					    		<td>{{y.assists}}</td>
 					    		<td>{{y.goals_against}}</td>
@@ -67,7 +67,7 @@
 			    	<tr>
 			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
 			    		{% for y in stat %}
-			    			{% if y.player == x.player %}
+			    			{% if y.player == x.player and y.matchup = match %}
 				    			<td>{{y.goals}}</td>
 					    		<td>{{y.assists}}</td>
 					    		<td>{{y.goals_against}}</td>

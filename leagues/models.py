@@ -67,7 +67,7 @@ class Team_Stat(models.Model):
     goals_against = models.PositiveSmallIntegerField(default=0)
 
     def __unicode__(self): 
-        return u"%s: %s" % (self.season, self.get_division_display())
+        return u"%s: %s - %s" % (self.team, self.win, self.loss)
         
 class Roster(models.Model):
     POSITION_TYPE = (
@@ -80,6 +80,9 @@ class Roster(models.Model):
     team = models.ForeignKey(Team, null=True)
     position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
     position2 = models.PositiveIntegerField(choices=POSITION_TYPE, null=True, blank=True)
+
+    class Meta:
+        ordering = ('team','player__last_name')
 
     def __unicode__(self): 
         return u"%s: %s" % (self.team, str(self.player))
@@ -104,7 +107,7 @@ class MatchUp(models.Model):
     is_postseason = models.BooleanField(default=False)
 
     class Meta:
-        ordering = ('time',)
+        ordering = ('week','time',)
 
     def __unicode__(self): 
         return u"Week %s: %s vs %s" % (self.week.weeknumber, self.awayteam, self.hometeam)
@@ -115,14 +118,14 @@ class Stat(models.Model):
     player = models.ForeignKey(Player)
     team = models.ForeignKey(Team, null=True, blank=True)
     matchup = models.ForeignKey(MatchUp, null=True, blank=True)
-    goals = models.PositiveSmallIntegerField(null=True, blank=True)
-    assists = models.PositiveSmallIntegerField(null=True, blank=True)
-    goals_against = models.PositiveSmallIntegerField(null=True, blank=True)
-    empty_net = models.PositiveSmallIntegerField(null=True, blank=True)
+    goals = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
+    assists = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
+    goals_against = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
+    empty_net = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 
 class Ref(models.Model):
     player = models.ForeignKey(Player)
-    
+
     def __unicode__(self): 
         return u"%s" % (self.player)
 

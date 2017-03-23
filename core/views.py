@@ -6,6 +6,7 @@ import datetime
 from django.views.generic.list import ListView
 from django.utils import timezone
 from django.utils import formats
+from django.db.models.functions import Lower
 
 from leagues.models import Season
 from leagues.models import MatchUp
@@ -46,7 +47,7 @@ class MatchUpDetailView(ListView):
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
         context["season"] = Season.objects.all()
-        context["roster"] = Roster.objects.all()
+        context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
         context["stat"] = Stat.objects.all()
         return context
 
