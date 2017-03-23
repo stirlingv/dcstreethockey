@@ -127,7 +127,7 @@ class Stat(models.Model):
 		ordering = ('matchup__week','matchup__time','team__team_name','player__last_name',)
 
 	def __unicode__(self): 
-		return u"%s - %s: G:%s A:%s " % (self.matchup__week__date, self.player__last_name, self.goals, self.assists)
+		return u"%s - %s: G:%s A:%s " % (self.matchup__week, self.player__last_name, self.goals, self.assists)
 
 class Ref(models.Model):
 	player = models.ForeignKey(Player)
