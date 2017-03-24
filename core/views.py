@@ -19,18 +19,7 @@ def home(request):
     context = {}
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
-    context["matchup"] = MatchUp.objects.all()
-    context["week"] = Week.objects.all()
-    
-    # now = datetime.datetime.now().date
-    # print now
-
-    # next_game = Game.objects.filter(date__gt=datetime.date.today()).order_by("time")[0]
-    # print next_game
-    # previous_game = Game.objects.filter(date__lt=now).order_by(time)[0]
-    
-    # context["next_game"] = next_game
-    # context["previous_game"] = previous
+    context["matchup"] = MatchUp.objects.filter(week__date__gt=datetime.date.today())
 
     return render(request, "core/home.html", context=context)
 
@@ -49,5 +38,6 @@ class MatchUpDetailView(ListView):
         context["season"] = Season.objects.all()
         context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
         context["stat"] = Stat.objects.all()
+
         return context
 
