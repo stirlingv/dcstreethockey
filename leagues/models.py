@@ -66,6 +66,9 @@ class Team_Stat(models.Model):
 	goals_for = models.PositiveSmallIntegerField(default=0)
 	goals_against = models.PositiveSmallIntegerField(default=0)
 
+	class Meta:
+		ordering = ('team__team_name',)
+
 	def __unicode__(self): 
 		return u"%s: %s - %s - %s" % (self.team, self.win, self.loss, self.tie)
 		
