@@ -67,7 +67,7 @@ class Team_Stat(models.Model):
 	goals_against = models.PositiveSmallIntegerField(default=0)
 
 	def __unicode__(self): 
-		return u"%s: %s - %s" % (self.team, self.win, self.loss)
+		return u"%s: %s - %s - %s" % (self.team, self.win, self.loss, self.tie)
 		
 class Roster(models.Model):
 	POSITION_TYPE = (
