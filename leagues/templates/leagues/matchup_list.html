@@ -7,7 +7,7 @@
 			border-collapse:collapse;
 			border:1px solid #FF0000;
 			vertical-align: top;
-			empty-cells: show
+			empty-cells: show;
 		}
 		table caption{
 			text-align: left
@@ -25,7 +25,7 @@
 <h1>Match Up</h1>
 <ul>
 {% for match in matchup_list %}
-	{% if match.week.weeknumber == 3 %}
+	{% if match.week.weeknumber == 2 %}
 	<p></p>
 	    <li><strong>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</strong></li>
 	    <table class="inlineTable">
