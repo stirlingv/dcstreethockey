@@ -25,7 +25,7 @@
 <h1>Match Up</h1>
 <ul>
 {% for match in matchup_list %}
-	{% if match.week.weeknumber == 2 %}
+	{% if match.week.date|stringformat:"s" = "2017-03-26" %}
 	<p></p>
 	    <li><strong>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</strong></li>
 	    <table class="inlineTable">
