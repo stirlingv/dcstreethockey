@@ -1,5 +1,16 @@
 # dcstreethockey
 
+## Clone and Run in localhost
+1. [download postgres](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads#linux) 
+   - [generic instructions here](https://www.postgresql.org/download/linux/)
+1. [fork](https://help.github.com/articles/fork-a-repo/) and [clone](https://help.github.com/articles/cloning-a-repository/) repo
+1. activate virtual environment 
+   - pip install virtualenv (if you don't already have virtualenv)
+   - cd to dcstreethockey folder
+   - virtualenv venv (first time only)
+   - source venv/bin/activate
+1. pip install -r requirements.txt
+
 ## Deploy - keeps dev and heroku in sync
 1. ./manage.py makemigrations
 1. ./manage.py migrate
