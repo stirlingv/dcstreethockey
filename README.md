@@ -10,6 +10,7 @@
    - virtualenv venv (first time only)
    - source venv/bin/activate
 1. pip install -r requirements.txt
+1. ./manage.py runserver
 
 ## Deploy - keeps dev and heroku in sync
 1. ./manage.py makemigrations
