@@ -91,13 +91,13 @@ class Roster(models.Model):
 		return u"%s: %s" % (self.team, str(self.player))
 
 class Week(models.Model):
-	weeknumber = models.PositiveIntegerField(default=1)
+	game_number = models.PositiveIntegerField(default=1)
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season)
 	date = models.DateField()
 
 	def __unicode__(self): 
-		return u"Week: %s %s %s" % (self.weeknumber, self.division, self.season)
+		return u"Week: %s %s %s" % (self.game_number, self.division, self.season)
 
 class MatchUp(models.Model):
 	week = models.ForeignKey(Week, null=True)
@@ -113,7 +113,7 @@ class MatchUp(models.Model):
 		ordering = ('week','time',)
 
 	def __unicode__(self): 
-		return u"Week %s: %s vs %s" % (self.week.weeknumber, self.awayteam, self.hometeam)
+		return u"Game %s: %s vs %s on %s" % (self.week.game_number, self.awayteam, self.hometeam, self.week.date)
 
 class Stat(models.Model):
 	division = models.ForeignKey(Division, null=True)

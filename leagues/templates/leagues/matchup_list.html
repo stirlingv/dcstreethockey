@@ -4,31 +4,43 @@
 	<style type="text/css" media="screen">
 
 		table{
-			border-collapse:collapse;
-			border:1px solid #FF0000;
+			border-collapse: collapse;
+			border: 1px solid #FF0000;
 			vertical-align: top;
-			empty-cells: show;
+			display: inline-block;
 		}
 		table caption{
 			text-align: left
 		}
-		table th, td{
+
+		table tr{
+			border:1px solid #FF0000;/
+			border-collapse: collapse;
+			/*display: table-cell;*/
+		}
+		table th{
 			border:1px solid #FF0000;
+			/*border-collapse: collapse;*/
 			display: table-cell;
 		}
-		.inlineTable {
+		table td{
+			border: 1px solid #FF0000;/
+			border-collapse: collapse;
+			display: table-cell;
+		}
+		/*.inlineTable {
             display: inline-block;
-        }
+        }*/
 	</style>
 </head>
 
 <h1>Match Up</h1>
 <ul>
 {% for match in matchup_list %}
-	{% if match.week.date|stringformat:"s" = "2017-03-26" %}
+	{% if match.week.date|stringformat:"s" = "2017-04-02" %}
 	<p></p>
 	    <li><strong>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</strong></li>
-	    <table class="inlineTable">
+	    <table>
 	    	<caption>{{match.awayteam}}</caption>
 	    		<tr>
 		    		<th>Player Name</th>
@@ -53,7 +65,7 @@
 			    {% endif %}
 			{% endfor %}
     	</table>
-    	<table class="inlineTable">
+    	<table>
 	    	<caption>{{match.hometeam}}</caption>
 	    		<tr>
 		    		<th>Player Name</th>
