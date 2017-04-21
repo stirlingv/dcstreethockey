@@ -35,9 +35,7 @@
         }*/
 	</style>
 </head>
-{% extends 'core/base.html' %}
-{% load static %}
-{% block content %}
+
 <h2>Match Up</h2>
 <ul>
 {% for match in matchup_list %}
@@ -99,4 +97,3 @@
     <li>No matchups entered yet.</li>
 {% endfor %}
 </ul>
-{% endblock %}
