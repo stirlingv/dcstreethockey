@@ -6,6 +6,7 @@
 			border: 1px solid #FF0000;
 			vertical-align: top;
 			display: inline-block;
+			empty-cells: show;
 		}
 		table caption{
 			text-align: left
@@ -15,27 +16,32 @@
 			border:1px solid #FF0000;/
 			border-collapse: collapse;
 			/*display: table-cell;*/
+			empty-cells: show
 		}
 		table th{
 			border:1px solid #FF0000;
 			/*border-collapse: collapse;*/
 			display: table-cell;
+			empty-cells: show
 		}
 		table td{
 			border: 1px solid #FF0000;/
 			border-collapse: collapse;
 			display: table-cell;
+			empty-cells: show
 		}
 		/*.inlineTable {
             display: inline-block;
         }*/
 	</style>
 </head>
-
-<h1>Match Up</h1>
+{% extends 'core/base.html' %}
+{% load static %}
+{% block content %}
+<h2>Match Up</h2>
 <ul>
 {% for match in matchup_list %}
-	{% if match.week.date|stringformat:"s" = "2017-04-09" %}
+	{% if match.week.date|stringformat:"s" = "2017-04-23" %}
 	<p></p>
 	    <li><strong>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</strong></li>
 	    <table>
@@ -93,3 +99,4 @@
     <li>No matchups entered yet.</li>
 {% endfor %}
 </ul>
+{% endblock %}

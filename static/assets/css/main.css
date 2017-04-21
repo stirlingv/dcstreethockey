@@ -1149,6 +1149,13 @@
 			font-weight: 400;
 		}
 
+	.table table {
+			padding: 0.7em 0 0.7em 45px;
+			border-collapse: collapse;
+			border: 1px solid #FF0000;
+			vertical-align: top;
+		}
+
 	.check-list li {
 		padding: 0.7em 0 0.7em 45px;
 		font-size: 1.2em;
@@ -1340,6 +1347,9 @@
 						#header nav a:hover {
 							color: #f6f8f8;
 						}
+					#header nav img {
+						width: 60px;
+					}
 
 		/* Banner */
 

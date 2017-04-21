@@ -1,79 +1,97 @@
-<head>
-	<style type="text/css" media="screen">
-
-		table{
-			border-collapse: collapse;
-			border: 1px solid #FF0000;
-			vertical-align: top;
-			display: inline-block;
-		}
-		table caption{
-			text-align: left
-		}
-
-		table tr{
-			border:1px solid #FF0000;/
-			border-collapse: collapse;
-			/*display: table-cell;*/
-		}
-		table th{
-			border:1px solid #FF0000;
-			/*border-collapse: collapse;*/
-			display: table-cell;
-		}
-		table td{
-			border: 1px solid #FF0000;/
-			border-collapse: collapse;
-			display: table-cell;
-		}
-		/*.inlineTable {
-            display: inline-block;
-        }*/
-	</style>
-</head>
-
-<h1>Standings</h1>
-<ul>
-    <table>
-    	<caption>{{team.team.division}}</caption>
-			<tr>
-				<th>Team Name</th>
-				<th>Wins</th>
-				<th>Losses</th>
-				<th>Ties</th>
-			</tr>
-	    	{% for team in team_list %}
-				{% if team.division|stringformat:"s" = "Sunday D1" %}
-					<tr>
-						<td>{{team.team.team_name}}</td>
-						<td>{{team.win}}</td>
-						<td>{{team.loss}}</td>
-						<td>{{team.tie}}</td>
-					</tr>
-				{% endif %}	
-			{% empty %}
-		    	<li>No team stats entered yet.</li>
-			{% endfor %}
-	</table>
-    <table>
-    	<caption>{{team.team.division}}</caption>
-			<tr>
-				<th>Team Name</th>
-				<th>Wins</th>
-				<th>Losses</th>
-				<th>Ties</th>
-			</tr>
-	    	{% for team in team_list %}
-				{% if team.division|stringformat:"s" = "Sunday D2" %}
-					<tr>
-						<td>{{team.team.team_name}}</td>
-						<td>{{team.win}}</td>
-						<td>{{team.loss}}</td>
-						<td>{{team.tie}}</td>
-					</tr>
-				{% endif %}	
-			{% empty %}
-		    	<li>No team stats entered yet.</li>
-			{% endfor %}
-	</table>
-</ul>
+{% extends 'core/base.html' %}
+{% load static %}
+{% block content %}
+<div id="content-wrapper">
+	<div id="content">
+		<div class="container">
+		<header>
+			<h2>Standings</h2>
+		</header>
+			<div class="row">
+				<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>Sunday D1</h3>
+						</header>
+					    <table class="table">
+							<!-- <tr>
+								<th>Team Name</th>
+								<th>Wins</th>
+								<th>Losses</th>
+								<th>Ties</th>
+							</tr> -->
+					    	{% for team in team_list %}
+								{% if team.division|stringformat:"s" = "Sunday D1" %}
+									<tr>
+										<td>{{team.team.team_name}}</td>
+										<td>{{team.win}}</td>
+										<td>{{team.loss}}</td>
+										<td>{{team.tie}}</td>
+									</tr>
+								{% endif %}	
+							{% empty %}
+						    	<li>No team stats entered yet.</li>
+							{% endfor %}
+						</table>
+					</section>
+					</div>
+					<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>Sunday D2</h3>
+						</header>
+					    <table class="table">
+							<!-- 	<tr>
+									<th>Team Name</th>
+									<th>Wins</th>
+									<th>Losses</th>
+									<th>Ties</th>
+								</tr> -->
+						    	{% for team in team_list %}
+									{% if team.division|stringformat:"s" = "Sunday D2" %}
+										<tr>
+											<td>{{team.team.team_name}}</td>
+											<td>{{team.win}}</td>
+											<td>{{team.loss}}</td>
+											<td>{{team.tie}}</td>
+										</tr>
+									{% endif %}	
+								{% empty %}
+							    	<li>No team stats entered yet.</li>
+								{% endfor %}
+						</table>
+					</section>
+					</div>
+					<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>Wednesday Draft League</h3>
+						</header>
+					    <table class="table">
+								<!-- <tr>
+									<th>Team Name</th>
+									<th>Wins</th>
+									<th>Losses</th>
+									<th>Ties</th>
+								</tr> -->
+						    	{% for team in team_list %}
+									{% if team.division|stringformat:"s" = "Wednesday Draft League" %}
+										<tr>
+											<td>{{team.team.team_name}}</td>
+											<td>{{team.win}}</td>
+											<td>{{team.loss}}</td>
+											<td>{{team.tie}}</td>
+										</tr>
+									{% endif %}	
+								{% empty %}
+							    	<li>No team stats entered yet.</li>
+								{% endfor %}
+						</table>
+					</section>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %}
