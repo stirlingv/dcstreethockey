@@ -1,4 +1,4 @@
-{% load static %}
+
 
 <!-- Header -->
 
@@ -9,13 +9,13 @@
 			<div class="12u">
 			
 				<!-- Logo -->
-					<h1><a href="/core/home" id="logo">DC Street Hockey</a></h1>
+					<h1><a href="{% url 'home' %}" id="logo">DC Street Hockey</a></h1>
 
 					<!-- <a href="#" class="button-big">Go on, click me!</a> -->
 					<nav id="nav">
-					<a href="/home.html">Homepage</a>
-					<a href="/leagues/team_standings/">Standings</a>
-					<a href="/leagues/roster/">Matchup</a>
+					<a href="{% url 'home' %}">Homepage</a>
+					<a href="{% url 'leagues:team_standings' %}">Standings</a>
+					<a href="{% url 'leagues:rosters' %}">Matchup</a>
 					<a href="twocolumn2.html">Two Column #2</a>
 					<a href="onecolumn.html">One Column</a>
 					</nav>

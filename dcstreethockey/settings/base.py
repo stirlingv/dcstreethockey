@@ -161,6 +161,8 @@ STATIC_ROOT = 'staticfiles'
 
 STATIC_URL = '/static/'
 
+LEAGUES_ROOT = os.path.join(BASE_DIR, "leagues")
+
 LEAGUES_URL = '/leagues/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")

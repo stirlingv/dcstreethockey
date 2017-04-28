@@ -14,20 +14,14 @@
 
 		table tr{
 			border:1px solid #FF0000;/
-			border-collapse: collapse;
-			/*display: table-cell;*/
 			empty-cells: show
 		}
 		table th{
 			border:1px solid #FF0000;
-			/*border-collapse: collapse;*/
-			display: table-cell;
 			empty-cells: show
 		}
 		table td{
 			border: 1px solid #FF0000;/
-			border-collapse: collapse;
-			display: table-cell;
 			empty-cells: show
 		}
 		/*.inlineTable {
@@ -39,7 +33,7 @@
 <h2>Match Up</h2>
 <ul>
 {% for match in matchup_list %}
-	{% if match.week.date|stringformat:"s" = "2017-04-23" %}
+	{% if match.week.date|stringformat:"s" = "2017-04-30" %}
 	<p></p>
 	    <li><strong>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</strong></li>
 	    <table>

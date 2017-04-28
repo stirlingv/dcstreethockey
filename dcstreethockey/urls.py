@@ -21,7 +21,7 @@ import settings
 import leagues
 
 urlpatterns = [
-	url(r'^$', core_view.home),
+	url(r'^$', core_view.home, name='home'),
     url(r'^admin/', admin.site.urls),
-    url(r'^leagues/', include('leagues.urls')),
+    url(r'^leagues/', include('leagues.urls', namespace='leagues')),
 ]  + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
