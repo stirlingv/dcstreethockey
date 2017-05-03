@@ -20,7 +20,7 @@ def home(request):
     context = {}
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
-    context["matchup"]  = MatchUp.objects.filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=7)))
+    context["matchup"]  = MatchUp.objects.filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=6)))
 
     return render(request, "core/home.html", context=context)
 

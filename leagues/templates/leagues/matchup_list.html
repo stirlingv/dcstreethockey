@@ -7,6 +7,7 @@
 			vertical-align: top;
 			display: inline-block;
 			empty-cells: show;
+			width: 100%;
 		}
 		table caption{
 			text-align: left
@@ -15,80 +16,108 @@
 		table tr{
 			border:1px solid #FF0000;/
 			empty-cells: show
+			white-space: nowrap;
 		}
 		table th{
 			border:1px solid #FF0000;
-			empty-cells: show
+			font-weight: bold;
+			width: 20%;
+			white-space: nowrap;
 		}
 		table td{
 			border: 1px solid #FF0000;/
-			empty-cells: show
+			border-collapse: collapse;
+			display: table-cell;
+			empty-cells: show;
+			text-align: center;
+			white-space: nowrap;
 		}
 		/*.inlineTable {
             display: inline-block;
         }*/
 	</style>
 </head>
-
-<h2>Match Up</h2>
-<ul>
-{% for match in matchup_list %}
-	{% if match.week.date|stringformat:"s" = "2017-04-30" %}
-	<p></p>
-	    <li><strong>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</strong></li>
-	    <table>
-	    	<caption>{{match.awayteam}}</caption>
-	    		<tr>
-		    		<th>Player Name</th>
-		    		<th>Goals</th>
-		    		<th>Assists</th>
-		    		<th>Goals Against</th>
-		    		<th>Empty Net</th>
-		    	</tr>
-			{% for x in roster %}  
-		    	{% if x.team.team_name == match.awayteam.team_name %} 
-			    	<tr>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		{% for y in stat %}
-			    			{% if y.player == x.player and y.matchup = match %}
-				    			<td>{{y.goals}}</td>
-					    		<td>{{y.assists}}</td>
-					    		<td>{{y.goals_against}}</td>
-					    		<td>{{y.empty_net}}</td>
-			    			{% endif %}
-			    		{% endfor %}
-			    	</tr>
-			    {% endif %}
-			{% endfor %}
-    	</table>
-    	<table>
-	    	<caption>{{match.hometeam}}</caption>
-	    		<tr>
-		    		<th>Player Name</th>
-		    		<th>Goals</th>
-		    		<th>Assists</th>
-		    		<th>Goals Against</th>
-		    		<th>Empty Net</th>
-		    	</tr>
-			{% for x in roster %}  
-		    	{% if x.team.team_name == match.hometeam.team_name %} 
-			    	<tr>
-			    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-			    		{% for y in stat %}
-			    			{% if y.player == x.player and y.matchup = match %}
-				    			<td>{{y.goals}}</td>
-					    		<td>{{y.assists}}</td>
-					    		<td>{{y.goals_against}}</td>
-					    		<td>{{y.empty_net}}</td>
-			    			{% endif %}
-			    		{% endfor %}
-			    	</tr>
-			    {% endif %}
-			{% endfor %}
-    	</table>
-	{% endif %}
+{% extends 'core/base.html' %}
+{% load static %}
+{% block content %}
+<div id="content-wrapper">
+	{% for match in matchup_list %}
+	{% if match.week.date|stringformat:"s" = "2017-05-07" %}
+	<div id="content">
+		<div class="container">
+		<header>
+			<h2>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</h2>
+		</header>
+			<div class="row">
+				<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>{{match.awayteam}}</h3>
+						</header>
+					    <table>
+					    		<tr>
+						    		<th>Player Name</th>
+						    		<th>Goals</th>
+						    		<th>Assists</th>
+						    		<th>Goals Against</th>
+						    		<th>Empty Net</th>
+						    	</tr>
+							{% for x in roster %}  
+						    	{% if x.team.team_name == match.awayteam.team_name %} 
+							    	<tr>
+							    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
+							    		{% for y in stat %}
+							    			{% if y.player == x.player and y.matchup = match %}
+								    			<td>{{y.goals}}</td>
+									    		<td>{{y.assists}}</td>
+									    		<td>{{y.goals_against}}</td>
+									    		<td>{{y.empty_net}}</td>
+							    			{% endif %}
+							    		{% endfor %}
+							    	</tr>
+							    {% endif %}
+							{% endfor %}
+				    	</table>
+					</section>
+					</div>
+					<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>{{match.hometeam}}</h3>
+						</header>
+					    <table>
+					    		<tr>
+						    		<th>Player Name</th>
+						    		<th>Goals</th>
+						    		<th>Assists</th>
+						    		<th>Goals Against</th>
+						    		<th>Empty Net</th>
+						    	</tr>
+							{% for x in roster %}  
+						    	{% if x.team.team_name == match.hometeam.team_name %} 
+							    	<tr>
+							    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
+							    		{% for y in stat %}
+							    			{% if y.player == x.player and y.matchup = match %}
+								    			<td>{{y.goals}}</td>
+									    		<td>{{y.assists}}</td>
+									    		<td>{{y.goals_against}}</td>
+									    		<td>{{y.empty_net}}</td>
+							    			{% endif %}
+							    		{% endfor %}
+							    	</tr>
+							    {% endif %}
+							{% endfor %}
+				    	</table>
+					</section>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+{% endif %}
 {% empty %}
     <li>No matchups entered yet.</li>
 {% endfor %}
-</ul>
+{% endblock %}
 
