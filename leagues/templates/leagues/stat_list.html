@@ -1,0 +1,198 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+
+<head>
+	<style type="text/css" media="screen">
+
+		table{
+			border-collapse: collapse;
+			border: 1px solid #FF0000;
+			vertical-align: top;
+			display: inline-block;
+			empty-cells: show;
+			width: 100%;
+		}
+		table caption{
+			text-align: left
+		}
+
+		table tr{
+			border:1px solid #FF0000;/
+			empty-cells: show
+		}
+		table th{
+			border:1px solid #FF0000;
+			font-weight: bold;
+			width: 25%;
+		}
+		table td{
+			border: 1px solid #FF0000;/
+			border-collapse: collapse;
+			display: table-cell;
+			empty-cells: show;
+			text-align: center;
+			white-space: nowrap
+		}
+		/*.inlineTable {
+			display: inline-block;
+		}*/
+	</style>
+</head>
+<div id="content-wrapper">
+	<div id="content">
+		<div class="container">
+		<header>
+			<h2>Standings</h2>
+		</header>
+			<div class="row">
+				<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>Sunday D1</h3>
+						</header>
+						<table class="table">
+						<caption>Forwards</caption>
+							<tr>
+								<th>Player Name</th>
+								<th>Team</th>
+								<th>Goals</th>
+								<th>Assists</th>
+							</tr>
+							{% for player in player_stat_list %}
+								{% if player.team.division|stringformat:"s" = "Sunday D1" %}
+									<tr>
+										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
+										<td>{{player.team.team_name}}</td>
+										<td>{{player.goals}}</td>
+										<td>{{player.assists}}</td>
+									</tr>
+								{% endif %}	
+							{% empty %}
+									<td>No player stats entered yet.</td>
+							{% endfor %}
+						<table class="table">
+						<caption>Goalies</caption>
+							<tr>
+								<th>Goalie Name</th>
+								<th>Team</th>
+								<th>Goals Against</th>
+								<th>Empty Net</th>
+							</tr>
+							{% for team in team_list %}
+								{% if player.team.division|stringformat:"s" = "Sunday D1" %}
+									<tr>
+										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
+										<td>{{player.team.team_name}}</td>
+										<td>{{player.goals_against}}</td>
+										<td>{{player.empty_net}}</td>
+									</tr>
+								{% endif %}	
+							{% empty %}
+									<td>No team stats entered yet.</td>
+							{% endfor %}
+						</table>
+					</section>
+					</div>
+					<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>Sunday D2</h3>
+						</header>
+						<table class="table">
+						<caption>Forwards</caption>
+							<tr>
+								<th>Player Name</th>
+								<th>Team</th>
+								<th>Goals</th>
+								<th>Assists</th>
+							</tr>
+							{% for player in player_stat_list %}
+								{% if player.team.division|stringformat:"s" = "Sunday D2" %}
+									<tr>
+										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
+										<td>{{player.team.team_name}}</td>
+										<td>{{player.goals}}</td>
+										<td>{{player.assists}}</td>
+									</tr>
+								{% endif %}	
+							{% empty %}
+									<td>No player stats entered yet.</td>
+							{% endfor %}
+						<table class="table">
+						<caption>Goalies</caption>
+							<tr>
+								<th>Goalie Name</th>
+								<th>Team</th>
+								<th>Goals Against</th>
+								<th>Empty Net</th>
+							</tr>
+							{% for team in team_list %}
+								{% if player.team.division|stringformat:"s" = "Sunday D2" %}
+									<tr>
+										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
+										<td>{{player.team.team_name}}</td>
+										<td>{{player.goals_against}}</td>
+										<td>{{player.empty_net}}</td>
+									</tr>
+								{% endif %}	
+							{% empty %}
+									<td>No team stats entered yet.</td>
+							{% endfor %}
+						</table>
+					</section>
+					</div>
+					<div class="4u 12u(mobile)">
+					<section>
+						<header>
+							<h3>Wednesday Draft League</h3>
+						</header>
+						<table class="table">
+						<caption>Forwards</caption>
+							<tr>
+								<th>Player Name</th>
+								<th>Team</th>
+								<th>Goals</th>
+								<th>Assists</th>
+							</tr>
+							{% for player in player_stat_list %}
+								{% if player.team.division|stringformat:"s" = "Wednesday Draft League" %}
+									<tr>
+										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
+										<td>{{player.team.team_name}}</td>
+										<td>{{player.goals}}</td>
+										<td>{{player.assists}}</td>
+									</tr>
+								{% endif %}	
+							{% empty %}
+									<td>No player stats entered yet.</td>
+							{% endfor %}
+						<table class="table">
+						<caption>Goalies</caption>
+							<tr>
+								<th>Goalie Name</th>
+								<th>Team</th>
+								<th>Goals Against</th>
+								<th>Empty Net</th>
+							</tr>
+							{% for team in team_list %}
+								{% if player.team.division|stringformat:"s" = "Wednesday Draft League" %}
+									<tr>
+										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
+										<td>{{player.team.team_name}}</td>
+										<td>{{player.goals_against}}</td>
+										<td>{{player.empty_net}}</td>
+									</tr>
+								{% endif %}	
+							{% empty %}
+									<td>No team stats entered yet.</td>
+							{% endfor %}
+						</table>
+					</section>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %}

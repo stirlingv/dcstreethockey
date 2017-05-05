@@ -8,6 +8,7 @@ from django.views.generic.list import ListView
 from django.utils import timezone
 from django.utils import formats
 from django.db.models.functions import Lower
+from django.db.models import Sum
 
 from leagues.models import Season
 from leagues.models import MatchUp
@@ -55,3 +56,15 @@ class TeamStatDetailView(ListView):
         # context["stat"] = Stat.objects.all()
 
         return context
+
+class PlayerStatDetailView(ListView):
+    context_object_name = 'player_stat_list'
+
+    def get_queryset(self):
+        return Stat.objects.order_by('-goals','-assists','goals_against', '-empty_net')
+
+    def get_context_data(self, **kwargs):
+        context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
+
+        return context
+
