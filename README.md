@@ -31,7 +31,7 @@
 
 ## Import/Export CSV file to local postgres db
 1. Copy data from CSV - You can specify the columns to read:
-   - \copy leagues_player(first_name,last_name,email, photo) FROM '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER
+   - \copy leagues_stat(assists,goals_against,player_id, season_id,team_id, division_id, matchup_id, empty_net, goals) FROM '/Users/stirling/Downloads/stats.csv' DELIMITER ',' CSV HEADER
    - Remove HEADER if there is no header in the first row.
 1. Copy data from PostgreSQL table to csv file:
    - \copy leagues_player TO '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER

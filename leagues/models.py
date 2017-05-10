@@ -51,6 +51,7 @@ class Team(models.Model):
 	team_name = models.CharField(max_length=30, unique=True)
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True)
+	season = models.ForeignKey(Season, null=True)
 	is_active = models.BooleanField()
 
 	def __unicode__(self): 

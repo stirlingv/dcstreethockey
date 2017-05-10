@@ -48,12 +48,10 @@
 												<h2>Wednesday</h2>
 												<h3>Upcoming Game Times</h3>
 											</header>
-											<ul class="quote-list">
+											<ul class="check-list">
 												{% for match in matchup %}
 													{% if match.week.division|stringformat:"s" = "Wednesday Draft League" %}
-														<img src="images/pic06.jpg" alt="" />
-														<p>{{match.time}}</p>
-														<span>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</span>
+														<li>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</li>
 													{% endif %}
 												{% endfor %}
 												<!-- <li>

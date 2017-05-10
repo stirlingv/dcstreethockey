@@ -42,7 +42,7 @@
 {% block content %}
 <div id="content-wrapper">
 	{% for match in matchup_list %}
-	{% if match.week.date|stringformat:"s" = "2017-05-07" %}
+	{% if match.week.date|stringformat:"s" = "2017-05-10" %}
 	<div id="content">
 		<div class="container">
 		<header>
@@ -59,8 +59,8 @@
 						    		<th>Player Name</th>
 						    		<th>Goals</th>
 						    		<th>Assists</th>
-						    		<th>Goals Against</th>
-						    		<th>Empty Net</th>
+						    		<th>GA</th>
+						    		<th>EN</th>
 						    	</tr>
 							{% for x in roster %}  
 						    	{% if x.team.team_name == match.awayteam.team_name %} 
@@ -90,8 +90,8 @@
 						    		<th>Player Name</th>
 						    		<th>Goals</th>
 						    		<th>Assists</th>
-						    		<th>Goals Against</th>
-						    		<th>Empty Net</th>
+						    		<th>GA</th>
+						    		<th>EN</th>
 						    	</tr>
 							{% for x in roster %}  
 						    	{% if x.team.team_name == match.hometeam.team_name %} 

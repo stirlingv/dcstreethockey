@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils import formats
 from django.db.models.functions import Lower
 from django.db.models import Sum
+from django.db.models import Count
 
 from leagues.models import Season
 from leagues.models import MatchUp
@@ -65,6 +66,7 @@ class PlayerStatDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
+        context["sum_goals"] = Stat.objects.values('player_id').annotate(dcount=Count('goals'))
 
         return context
 
