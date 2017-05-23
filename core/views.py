@@ -23,7 +23,7 @@ def home(request):
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
     context["matchup"]  = MatchUp.objects.filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=6)))
-
+    context["one_row"]  = MatchUp.objects.filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=6))).order_by('week__date').distinct('week__date')
     return render(request, "core/home.html", context=context)
 
 def leagues(request):
