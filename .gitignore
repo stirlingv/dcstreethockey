@@ -8,4 +8,4 @@ polls/
 media/
 *.dump
 *.dump*
-
+queries.txt
