@@ -74,10 +74,11 @@ class ScheduleDetailView(ListView):
     context_object_name = 'schedule_list'    
 
     def get_queryset(self):
-        return MatchUp.objects.order_by('time')  
+        return MatchUp.objects.order_by('week__date','time')  
 
     def get_context_data(self, **kwargs):
         context = super(ScheduleDetailView, self).get_context_data(**kwargs)
         context["one_row"]  = MatchUp.objects.order_by('week__date').distinct('week__date')
 
+        return context
 
