@@ -71,15 +71,11 @@ class PlayerStatDetailView(ListView):
 
         return context
 
-class ScheduleDetailView(ListView):
-    context_object_name = 'schedule_list'    
-
-    def get_queryset(self):
-        return MatchUp.objects.order_by('week__date','time')  
-
-    def get_context_data(self, **kwargs):
-        context = super(ScheduleDetailView, self).get_context_data(**kwargs)
-        context["one_row"]  = Week.objects.order_by('game_number').distinct('date')
-
-        return context
-
+def schedule(request):
+    context = {}
+    # context["season"] = Season.objects.get(is_current_season=1)
+    context["season"] = Season.objects.all()
+    context["matchup"]  = MatchUp.objects.order_by('week__date','time')  
+    context["game_days"]  = Week.objects.order_by('date').distinct('date')
+    return render(request, "leagues/schedule.html", context=context)
+        
