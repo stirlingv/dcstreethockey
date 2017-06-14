@@ -1,0 +1,114 @@
+<head>
+	<style type="text/css" media="screen">
+
+		table{
+			border-collapse: collapse;
+			border: 1px solid #FF0000;
+			vertical-align: top;
+			display: inline-block;
+			empty-cells: show;
+			width: 100%;
+		}
+		table caption{
+			text-align: left
+		}
+
+		table tr{
+			border:1px solid #FF0000;/
+			empty-cells: show
+			white-space: nowrap;
+		}
+		table th{
+			border:1px solid #FF0000;
+			font-weight: bold;
+			width: 20%;
+			white-space: nowrap;
+		}
+		table td{
+			border: 1px solid #FF0000;/
+			border-collapse: collapse;
+			display: table-cell;
+			empty-cells: show;
+			text-align: center;
+			white-space: nowrap;
+		}
+		/*.inlineTable {
+            display: inline-block;
+        }*/
+	</style>
+</head>
+{% extends 'core/base.html' %}
+{% load static %}
+{% block content %}
+<div id="content-wrapper">
+	<div id="content">
+		<div class="container">
+		{% for day in game_days %}
+			<section>
+				<div class="row">
+					<div class="4u 12u(mobile)">
+						<table>
+							<caption>D1 {{day.date}}</caption>
+							<tr>
+					    		<th>Away Team</th>
+					    		<th>Home Team</th>
+					    		<th>Game Time</th>
+					    	</tr>
+							{% for match in matchup %}
+							{% if match.week.date == day.date and match.week.division|stringformat:"s" = "Sunday D1" %}
+					    	<tr>
+					    		<th>{{match.awayteam.team_name}}</th>
+					    		<th>{{match.hometeam.team_name}}</th>
+					    		<th>{{match.time}}</th>
+					    	</tr>
+							{% endif %}
+							{% endfor %}
+						</table>	
+					</div>
+					<div class="4u 12u(mobile)">
+						<table>
+						<caption>D2 {{day.date}}</caption>
+							<tr>
+					    		<th>Away Team</th>
+					    		<th>Home Team</th>
+					    		<th>Game Time</th>
+					    	</tr>
+							{% for match in matchup %}
+							{% if match.week.date == day.date and match.week.division|stringformat:"s" = "Sunday D2" %}
+					    	<tr>
+					    		<th>{{match.awayteam.team_name}}</th>
+					    		<th>{{match.hometeam.team_name}}</th>
+					    		<th>{{match.time}}</th>
+					    	</tr>
+							{% endif %}
+							{% endfor %}
+						</table>	
+					</div>
+					<div class="4u 12u(mobile)">
+						<table>
+						<caption>Wednesday Draft League  {{day.date}}</caption>
+							<tr>
+					    		<th>Away Team</th>
+					    		<th>Home Team</th>
+					    		<th>Game Time</th>
+					    	</tr>
+							{% for match in matchup %}
+							{% if match.week.date == day.date and match.week.division|stringformat:"s" = "Wednesday Draft League" %}
+					    	<tr>
+					    		<th>{{match.awayteam.team_name}}</th>
+					    		<th>{{match.hometeam.team_name}}</th>
+					    		<th>{{match.time}}</th>
+					    	</tr>
+							{% endif %}
+							{% endfor %}
+						</table>	
+					</div>
+				</div>
+			</section>
+		{% endfor %}
+
+		</div>
+	</div>
+</div>
+{% endblock %}
+

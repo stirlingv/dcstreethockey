@@ -16,6 +16,7 @@ from leagues.models import MatchUp
 from leagues.models import Stat
 from leagues.models import Roster
 from leagues.models import Team_Stat
+from leagues.models import Week
 # Create your views here.
 
 def home(request):
@@ -70,3 +71,11 @@ class PlayerStatDetailView(ListView):
 
         return context
 
+def schedule(request):
+    context = {}
+    # context["season"] = Season.objects.get(is_current_season=1)
+    context["season"] = Season.objects.all()
+    context["matchup"]  = MatchUp.objects.order_by('week__date','time')  
+    context["game_days"]  = Week.objects.order_by('date').distinct('date')
+    return render(request, "leagues/schedule.html", context=context)
+        
