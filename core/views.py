@@ -16,6 +16,7 @@ from leagues.models import MatchUp
 from leagues.models import Stat
 from leagues.models import Roster
 from leagues.models import Team_Stat
+from leagues.models import Week
 # Create your views here.
 
 def home(request):
@@ -78,7 +79,7 @@ class ScheduleDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(ScheduleDetailView, self).get_context_data(**kwargs)
-        context["one_row"]  = MatchUp.objects.order_by('week__date').distinct('week__date')
+        context["one_row"]  = Week.objects.order_by('game_number').distinct('date')
 
         return context
 

@@ -43,7 +43,12 @@
 <div id="content-wrapper">
 	<div id="content">
 		<div class="container">
-		{% for row in one_row %}
+		{% for day in schedule_list %}
+		<header>
+			<h3>{{day.date}}</h3>
+		</header>
+		{% endfor %}
+		<!-- {% for row in one_row %}
 			{% for match in schedule_list %}
 				{% if row.week.date == match.week.date %}
 				<section>
@@ -65,7 +70,7 @@
 				</section>
 				{% endif %}
 			{% endfor %}
-		{% endfor %}
+		{% endfor %} -->
 		</div>
 	</div>
 </div>
