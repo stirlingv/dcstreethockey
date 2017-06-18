@@ -10,5 +10,7 @@ urlpatterns = [
 	url(r'^player_stats/$', PlayerStatDetailView.as_view(), name='player_stats'),
 	url(r'^schedule/$', core_view.schedule, name='schedule'),
 	url(r'^schedule/(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4})/$', core_view.schedule, name='schedule'),
+	url(r'^scores/$', core_view.scores, name='scores'),
+	url(r'^scores/(?P<division>[0-9])/$', core_view.scores, name='scores'),
 
 ]

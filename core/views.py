@@ -2,10 +2,9 @@ from django.shortcuts import render
 import datetime
 from datetime import timedelta
 from django.views.generic.list import ListView
-from django.db.models.functions import Lower
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum
-from django.db.models import F, Count, Value
+from django.db.models import Sum, Q, Max
+from django.db.models import F, When, IntegerField, Case
 
 from leagues.models import Season
 from leagues.models import Division
@@ -14,7 +13,6 @@ from leagues.models import Stat
 from leagues.models import Roster
 from leagues.models import Team_Stat
 from leagues.models import Week
-from leagues.models import Player
 # Create your views here.
 
 def home(request):
@@ -100,52 +98,79 @@ class PlayerStatDetailView(ListView):
 
 def get_stats_for_matchup(match):
     print "Getting stats for match: ", match.id
-    return Stat.objects.filter(matchup=match).exclude(
-            goals=None).order_by('-assists').order_by('-goals')
+    return Stat.objects.filter(matchup=match).exclude(Q(
+            goals=None) & Q(assists=None)).order_by('-assists').order_by('-goals')
 
-def get_matches_for_date(year, month, day):
+def add_goals_for_matchups(matchups):
+    return matchups.annotate(home_goals=Sum(
+                Case(
+                    When(hometeam=F('stat__team'), then=F('stat__goals')),
+                    default=0,
+                    output_field=IntegerField(),
+                    )
+                ),
+            away_goals=Sum(
+                Case(
+                    When(awayteam=F('stat__team'), then=F('stat__goals')),
+                    default=0,
+                    output_field=IntegerField(),
+                    )
+                )
+            )
+
+def get_matches_for_division(division):
     try:
         return MatchUp.objects.filter(
-                     week__date__year=int(year)).filter(
-                     week__date__month=int(month)).filter(
-                     week__date__day=int(day)).order_by(
+                     hometeam__division=division).order_by(
                      '-week__date').filter(awayteam__is_active=True)
     except:
         return []
 
-def get_schedule_for_date(year, month, day):
+def get_schedule_for_division(division):
     try:
         return MatchUp.objects.filter(
-                     week__date__year=int(year)).filter(
-                     week__date__month=int(month)).filter(
-                     week__date__day=int(day)).order_by(
+                     hometeam__division=division).order_by(
                      '-week__date').distinct('week__date').filter(
                      awayteam__is_active=True)
     except:
         return []
 
-def schedule(request, month="0", day="0", year="0"):
-    print "WOAH rendering schedule", month, day, year
+def schedule(request):
     context = {}
-    # context["season"] = Season.objects.get(is_current_season=1)
-    context["season"] = Season.objects.all()
+    context["schedule"] = {}
+
+    for match in MatchUp.objects.order_by('week__date', 'time').filter(
+            awayteam__is_active=True).filter(
+            week__date__gte=datetime.datetime.today()).annotate(
+            home_wins=Max('hometeam__team_stat__win')).annotate(
+            home_losses=Max('hometeam__team_stat__loss')).annotate(
+            home_ties=Max('hometeam__team_stat__tie')).annotate(
+            away_wins=Max('awayteam__team_stat__win')).annotate(
+            away_losses=Max('awayteam__team_stat__loss')).annotate(
+            away_ties=Max('awayteam__team_stat__tie')):
+        if not context["schedule"].get(str(match.week.date), False):
+            context["schedule"][str(match.week.date)] = {}
+        if not context["schedule"][str(match.week.date)].get(
+                str(match.awayteam.division), False):
+            context["schedule"][str(match.week.date)][str(match.awayteam.division)] = []
+        context["schedule"][str(match.week.date)][str(match.awayteam.division)].append(match)
+
+    return render(request, "leagues/schedule.html", context=context)
+
+def scores(request, division=1):
+    context = {}
     context["divisions"] = Division.objects.all()
     context["matchups"]  = MatchUp.objects.order_by('week__date','time').filter(awayteam__is_active=True)
     context["schedule"] = MatchUp.objects.order_by('-week__date').distinct(
             'week__date').filter(awayteam__is_active=True)
-    context["game_days"] =[]
     context['stats'] = []
+    context['active_division'] = int(division)
 
-    for mdate in MatchUp.objects.order_by('-week__date','time').distinct(
-                'week__date').values('week__date'):
-        context["game_days"].append({'day': '{:02d}'.format(mdate['week__date'].day),
-            'month': '{:02d}'.format(mdate['week__date'].month),
-            'year': mdate['week__date'].year, 'date': mdate['week__date']})
-    if month is not "0" and day is not "0" and year is not "0":
+    if len([i for i in Division.DIVISION_TYPE if context['active_division'] in i]):
         try:
             stats = []
-            context['matchups'] = get_matches_for_date(year, month, day)
-            context['schedule'] = get_schedule_for_date(year, month, day)
+            context['matchups'] = get_matches_for_division(context['active_division'])
+            context['schedule'] = get_schedule_for_division(context['active_division'])
             for match in context['matchups']:
                 relevant_stats = get_stats_for_matchup(match)
                 stats.extend(relevant_stats)
@@ -153,6 +178,6 @@ def schedule(request, month="0", day="0", year="0"):
 
         except Exception as e:
             print e
-            print "Invalid date: ", month, day, year
-    return render(request, "leagues/schedule.html", context=context)
+    context['matchups'] = add_goals_for_matchups(context['matchups'])
+    return render(request, "leagues/scores.html", context=context)
 
