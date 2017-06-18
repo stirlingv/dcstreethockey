@@ -10,3 +10,4 @@ media/
 *.dump*
 queries.txt
 *.json
+log.txt

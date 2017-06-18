@@ -110,6 +110,7 @@
 							<h3>Wednesday Draft League</h3>
 						</header>
 					    <table class="table">
+						<caption>East</caption>
 								<tr>
 									<th>Team Name</th>
 									<th>Wins</th>
@@ -118,7 +119,30 @@
 									<th>Points</th>
 								</tr>
 						    	{% for team in team_list %}
-									{% if team.division|stringformat:"s" = "Wednesday Draft League" %}
+									{% if team.division|stringformat:"s" = "Wednesday Draft League" and team.team.conference == 1%}
+										<tr>
+											<td>{{team.team.team_name}}</td>
+											<td>{{team.win}}</td>
+											<td>{{team.loss}}</td>
+											<td>{{team.tie}}</td>
+											<td>{{team.total_points}}</td>
+										</tr>
+									{% endif %}	
+								{% empty %}
+							    	<td>No team stats entered yet.</td>
+								{% endfor %}
+						</table>
+						<table class="table">
+						<caption>West</caption>
+								<tr>
+									<th>Team Name</th>
+									<th>Wins</th>
+									<th>Losses</th>
+									<th>Ties</th>
+									<th>Points</th>
+								</tr>
+						    	{% for team in team_list %}		
+									{% if team.division|stringformat:"s" = "Wednesday Draft League" and team.team.conference == 2%}
 										<tr>
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
