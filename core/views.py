@@ -152,7 +152,6 @@ def scores(request, division=1):
     context = {}
     context['divisions'] = Division.objects.all()
     context['matchups'] = OrderedDict()
-    context['stats'] = {}
     context['active_division'] = int(division)
     division = [i for i in Division.DIVISION_TYPE if context['active_division'] in i]
     #Check to see if the dvision from the URL is valid
@@ -168,6 +167,5 @@ def scores(request, division=1):
             context['matchups'][str(match.week.date)][str(match.id)]['match'] = match
             relevant_stats = get_stats_for_matchup(match)
             context['matchups'][str(match.week.date)][str(match.id)]['stats'] = relevant_stats
-    print "Stats: " + str(context['stats'])
     return render(request, "leagues/scores.html", context=context)
 
