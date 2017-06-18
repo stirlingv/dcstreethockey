@@ -122,16 +122,13 @@ def add_goals_for_matchups(matchups):
             )
 
 def get_matches_for_division(division):
-    try:
-        return MatchUp.objects.filter(
-                     hometeam__division=division).order_by(
-                     '-week__date').filter(awayteam__is_active=True)
-    except:
-        return []
+    return MatchUp.objects.filter(
+            hometeam__division=division).order_by(
+            '-week__date').filter(awayteam__is_active=True)
 
 def schedule(request):
     context = {}
-    context["schedule"] = OrderedDict()
+    context['schedule'] = OrderedDict()
     #Better to have a custom dictionary here than have 3 nested loops in the template
     for match in MatchUp.objects.order_by('week__date', 'time').filter(
             awayteam__is_active=True).filter(
@@ -142,18 +139,18 @@ def schedule(request):
             away_wins=Max('awayteam__team_stat__win')).annotate(
             away_losses=Max('awayteam__team_stat__loss')).annotate(
             away_ties=Max('awayteam__team_stat__tie')):
-        if not context["schedule"].get(str(match.week.date), False):
-            context["schedule"][str(match.week.date)] = OrderedDict()
-        if not context["schedule"][str(match.week.date)].get(
+        if not context['schedule'].get(str(match.week.date), False):
+            context['schedule'][str(match.week.date)] = OrderedDict()
+        if not context['schedule'][str(match.week.date)].get(
                 str(match.awayteam.division), False):
-            context["schedule"][str(match.week.date)][str(match.awayteam.division)] = []
-        context["schedule"][str(match.week.date)][str(match.awayteam.division)].append(match)
+            context['schedule'][str(match.week.date)][str(match.awayteam.division)] = []
+        context['schedule'][str(match.week.date)][str(match.awayteam.division)].append(match)
 
     return render(request, "leagues/schedule.html", context=context)
 
 def scores(request, division=1):
     context = {}
-    context["divisions"] = Division.objects.all()
+    context['divisions'] = Division.objects.all()
     context['matchups'] = OrderedDict()
     context['stats'] = {}
     context['active_division'] = int(division)

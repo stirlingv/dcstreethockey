@@ -132,22 +132,14 @@
 <div id="content-wrapper" class="schedule">
 	<div id="content">
 		<div class="container">
-        <!--<table class="divisions">
-            <tr>
-                {% for division in divisions %}
-                <td onclick="javascript:handleDivision('/leagues/scores/{{division.division}}')">{{division}}</td>
-                {% endfor %}
-            </tr>
-        </table>
-        --!>
-                {% for division in divisions %}
+            {% for division in divisions %}
                 <div class="divisionsdiv {% if division.division == active_division %}activedivision{% endif %} "
                         onclick="javascript:handleDivision('/leagues/scores/{{division.division}}')">
                     {{division}}
                 </div>
-                {% endfor %}
+            {% endfor %}
 
-		{% for day,value in matchups.items %}
+            {% for day,value in matchups.items %}
 			<section>
                 <h3>{{division_name}} | {{day}}</h3>
 			    {% for mid, value2 in value.items %}
