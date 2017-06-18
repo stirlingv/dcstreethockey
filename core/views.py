@@ -99,9 +99,10 @@ class PlayerStatDetailView(ListView):
         return context
 
 def get_stats_for_matchup(match):
-    print "Getting stats for match: ", match.id
-    return Stat.objects.filter(matchup=match).exclude(Q(
-            goals=None) & Q(assists=None)).order_by('-assists').order_by('-goals')
+    return Stat.objects.filter(matchup=match).exclude(
+            Q(goals=None) & Q(assists=None)).exclude(
+            Q(goals=0) & Q(goals=0)).order_by(
+            '-goals', '-assists')
 
 def add_goals_for_matchups(matchups):
     return matchups.annotate(home_goals=Sum(
@@ -121,26 +122,14 @@ def add_goals_for_matchups(matchups):
             )
 
 def get_matches_for_division(division):
-    try:
-        return MatchUp.objects.filter(
-                     hometeam__division=division).order_by(
-                     '-week__date').filter(awayteam__is_active=True)
-    except:
-        return []
-
-def get_schedule_for_division(division):
-    try:
-        return MatchUp.objects.filter(
-                     hometeam__division=division).order_by(
-                     '-week__date').distinct('week__date').filter(
-                     awayteam__is_active=True)
-    except:
-        return []
+    return MatchUp.objects.filter(
+            hometeam__division=division).order_by(
+            '-week__date').filter(awayteam__is_active=True)
 
 def schedule(request):
     context = {}
-    context["schedule"] = OrderedDict()
-
+    context['schedule'] = OrderedDict()
+    #Better to have a custom dictionary here than have 3 nested loops in the template
     for match in MatchUp.objects.order_by('week__date', 'time').filter(
             awayteam__is_active=True).filter(
             week__date__gte=datetime.datetime.today()).annotate(
@@ -150,38 +139,33 @@ def schedule(request):
             away_wins=Max('awayteam__team_stat__win')).annotate(
             away_losses=Max('awayteam__team_stat__loss')).annotate(
             away_ties=Max('awayteam__team_stat__tie')):
-        if not context["schedule"].get(str(match.week.date), False):
-            context["schedule"][str(match.week.date)] = OrderedDict()
-        if not context["schedule"][str(match.week.date)].get(
+        if not context['schedule'].get(str(match.week.date), False):
+            context['schedule'][str(match.week.date)] = OrderedDict()
+        if not context['schedule'][str(match.week.date)].get(
                 str(match.awayteam.division), False):
-            context["schedule"][str(match.week.date)][str(match.awayteam.division)] = []
-        context["schedule"][str(match.week.date)][str(match.awayteam.division)].append(match)
+            context['schedule'][str(match.week.date)][str(match.awayteam.division)] = []
+        context['schedule'][str(match.week.date)][str(match.awayteam.division)].append(match)
 
     return render(request, "leagues/schedule.html", context=context)
 
 def scores(request, division=1):
     context = {}
-    context["divisions"] = Division.objects.all()
-    context["matchups"]  = MatchUp.objects.order_by('week__date','time').filter(awayteam__is_active=True)
-    for match in context["matchups"]:
-        print "Match: " + str(match)
-    context["schedule"] = MatchUp.objects.order_by('-week__date').distinct(
-            'week__date').filter(awayteam__is_active=True)
-    context['stats'] = []
+    context['divisions'] = Division.objects.all()
+    context['matchups'] = OrderedDict()
     context['active_division'] = int(division)
+    division = [i for i in Division.DIVISION_TYPE if context['active_division'] in i]
     #Check to see if the dvision from the URL is valid
-    if len([i for i in Division.DIVISION_TYPE if context['active_division'] in i]):
-        try:
-            stats = []
-            context['matchups'] = get_matches_for_division(context['active_division'])
-            context['schedule'] = get_schedule_for_division(context['active_division'])
-            for match in context['matchups']:
-                relevant_stats = get_stats_for_matchup(match)
-                stats.extend(relevant_stats)
-            context['stats'] = stats
-
-        except Exception as e:
-            print e
-    context['matchups'] = add_goals_for_matchups(context['matchups'])
+    if len(division):
+        #division ex: [(1, 'Sunday D1')]
+        context['division_name'] = division[0][1]
+        matchups = get_matches_for_division(context['active_division'])
+        matchups = add_goals_for_matchups(matchups)
+        for match in matchups:
+            if not context['matchups'].get(str(match.week.date), False):
+                context['matchups'][str(match.week.date)] = OrderedDict()
+            context['matchups'][str(match.week.date)][str(match.id)] = {}
+            context['matchups'][str(match.week.date)][str(match.id)]['match'] = match
+            relevant_stats = get_stats_for_matchup(match)
+            context['matchups'][str(match.week.date)][str(match.id)]['stats'] = relevant_stats
     return render(request, "leagues/scores.html", context=context)
 
