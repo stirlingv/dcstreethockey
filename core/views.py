@@ -17,6 +17,7 @@ from leagues.models import Stat
 from leagues.models import Roster
 from leagues.models import Team_Stat
 from leagues.models import Week
+from leagues.models import Player
 # Create your views here.
 
 def home(request):
@@ -63,11 +64,12 @@ class PlayerStatDetailView(ListView):
     context_object_name = 'player_stat_list'
 
     def get_queryset(self):
-        return Stat.objects.order_by('-goals','-assists','goals_against', '-empty_net')
+        return Stat.objects.order_by('-goals','-assists')
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
-        context["sum_goals"] = Stat.objects.values('player_id').annotate(dcount=Count('goals'))
+        context["sum_goals"] = Player.objects.annotate(sum_goals=Sum('stat__goals'))
+        context["sum_assists"] = Player.objects.annotate(sum_assists=Sum('stat__assists'))
 
         return context
 

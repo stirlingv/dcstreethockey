@@ -64,8 +64,8 @@
 									<tr>
 										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
 										<td>{{player.team.team_name}}</td>
-										<td>{{player.sum_goals}}</td>
-										<td>{{player.assists}}</td>
+										<td>{{player.player.sum_goals}}</td>
+										<td>{{player.player.sum_assists}}</td>
 									</tr>
 								{% endif %}	
 							{% empty %}
@@ -76,8 +76,8 @@
 							<tr>
 								<th>Goalie Name</th>
 								<th>Team</th>
-								<th>Goals Against</th>
-								<th>Empty Net</th>
+								<th>GA</th>
+								<th>EN</th>
 							</tr>
 							{% for team in team_list %}
 								{% if player.team.division|stringformat:"s" = "Sunday D1" %}
@@ -112,8 +112,8 @@
 									<tr>
 										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
 										<td>{{player.team.team_name}}</td>
-										<td>{{player.goals}}</td>
-										<td>{{player.assists}}</td>
+										<td>{{player.sum_goals}}</td>
+										<td>{{player.sum_assists}}</td>
 									</tr>
 								{% endif %}	
 							{% empty %}
@@ -124,8 +124,8 @@
 							<tr>
 								<th>Goalie Name</th>
 								<th>Team</th>
-								<th>Goals Against</th>
-								<th>Empty Net</th>
+								<th>GA</th>
+								<th>EN</th>
 							</tr>
 							{% for team in team_list %}
 								{% if player.team.division|stringformat:"s" = "Sunday D2" %}
@@ -160,8 +160,8 @@
 									<tr>
 										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
 										<td>{{player.team.team_name}}</td>
-										<td>{{player.goals}}</td>
-										<td>{{player.assists}}</td>
+										<td>{{player.sum_goals}}</td>
+										<td>{{player.sum_assists}}</td>
 									</tr>
 								{% endif %}	
 							{% empty %}
@@ -172,8 +172,8 @@
 							<tr>
 								<th>Goalie Name</th>
 								<th>Team</th>
-								<th>Goals Against</th>
-								<th>Empty Net</th>
+								<th>GA</th>
+								<th>EN</th>
 							</tr>
 							{% for team in team_list %}
 								{% if player.team.division|stringformat:"s" = "Wednesday Draft League" %}
