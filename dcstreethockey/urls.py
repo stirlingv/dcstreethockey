@@ -17,7 +17,7 @@ from django.conf.urls import include, url
 from django.contrib import admin
 import core.views as core_view
 from django.conf.urls.static import static
-import settings
+from django.conf import settings
 import leagues
 
 urlpatterns = [
