@@ -19,8 +19,11 @@ class Player(models.Model):
 		ordering = ('last_name',)
 		unique_together = ('first_name', 'last_name',)
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s, %s" % (self.last_name, self.first_name)
+
+	def __str__(self):
+		return self.__unicode__()
 
 class Season(models.Model):
 	SEASON_TYPE = (
@@ -33,8 +36,11 @@ class Season(models.Model):
 	year = models.IntegerField(choices=YEAR_CHOICES, default=datetime.datetime.now().year)
 	is_current_season = models.NullBooleanField()
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s: %s" % (self.get_season_type_display(), self.year)
+
+	def __str__(self):
+		return self.__unicode__()
 
 class Division(models.Model):
 	DIVISION_TYPE = (
@@ -44,8 +50,11 @@ class Division(models.Model):
 	)
 	division = models.IntegerField(choices=DIVISION_TYPE, null=True, unique=True)
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s" % (self.get_division_display())
+
+	def __str__(self):
+		return self.__unicode__()
 
 class Team(models.Model):
 	team_name = models.CharField(max_length=30, unique=True)
@@ -54,8 +63,11 @@ class Team(models.Model):
 	season = models.ForeignKey(Season, null=True)
 	is_active = models.BooleanField()
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s" % (self.team_name)
+
+	def __str__(self):
+		return self.__unicode__()
 
 class Team_Stat(models.Model):
 	division = models.ForeignKey(Division, null=True)
@@ -70,9 +82,12 @@ class Team_Stat(models.Model):
 	class Meta:
 		ordering = ('team__team_name',)
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s: %s - %s - %s" % (self.team, self.win, self.loss, self.tie)
 		
+	def __str__(self):
+		return self.__unicode__()
+
 class Roster(models.Model):
 	POSITION_TYPE = (
 	(1, 'Center'),
@@ -88,8 +103,11 @@ class Roster(models.Model):
 	class Meta:
 		ordering = ('team','player__last_name')
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s: %s" % (self.team, str(self.player))
+
+	def __str__(self):
+		return self.__unicode__()
 
 class Week(models.Model):
 	game_number = models.PositiveIntegerField(default=1)
@@ -97,8 +115,11 @@ class Week(models.Model):
 	season = models.ForeignKey(Season)
 	date = models.DateField()
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"Week: %s %s %s" % (self.game_number, self.division, self.season)
+
+	def __str__(self):
+		return self.__unicode__()
 
 class MatchUp(models.Model):
 	week = models.ForeignKey(Week, null=True)
@@ -113,8 +134,11 @@ class MatchUp(models.Model):
 	class Meta:
 		ordering = ('week','time',)
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"Game %s: %s vs %s on %s" % (self.week.game_number, self.awayteam, self.hometeam, self.week.date)
+
+	def __str__(self):
+		return self.__unicode__()
 
 class Stat(models.Model):
 	division = models.ForeignKey(Division, null=True)
@@ -130,13 +154,19 @@ class Stat(models.Model):
 	class Meta:
 		ordering = ('matchup__week__date','matchup__time','team__team_name','player__last_name',)
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s - %s %s: G:%s A:%s " % (self.matchup.week.date, self.team.team_name, str(self.player), self.goals, self.assists)
+
+	def __str__(self):
+		return self.__unicode__()
 
 class Ref(models.Model):
 	player = models.ForeignKey(Player)
 
-	def __unicode__(self): 
+	def __unicode__(self):
 		return u"%s" % (self.player)
+
+	def __str__(self):
+		return self.__unicode__()
 
 
