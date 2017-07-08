@@ -60,7 +60,7 @@
 								<th>Assists</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team__division = 1 %}
+								{% if player.team__division == 1 %}
 									<tr>
 										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
 										<td>{{player.team__team_name}}</td>
@@ -80,7 +80,7 @@
 								<th>EN</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team__division = 1 %}
+								{% if player.team__division == 1 %}
 									<tr>
 									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
 									<td>{{player.team__team_name}}</td>
@@ -108,7 +108,7 @@
 								<th>Assists</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team__division = 2 %}
+								{% if player.team__division == 2 %}
 									<tr>
 										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
 										<td>{{player.team__team_name}}</td>
@@ -128,7 +128,7 @@
 								<th>EN</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team__division = 2 %}
+								{% if player.team__division == 2 %}
 									<tr>
 									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
 									<td>{{player.team__team_name}}</td>
@@ -156,7 +156,7 @@
 								<th>Assists</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team__division = 3 %}
+								{% if player.team__division == 3 %}
 									<tr>
 										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
 										<td>{{player.team__team_name}}</td>
@@ -176,7 +176,7 @@
 								<th>EN</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team__division = 3 %}
+								{% if player.team__division == 3 %}
 									<tr>
 									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
 									<td>{{player.team__team_name}}</td>
