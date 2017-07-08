@@ -104,6 +104,18 @@ if 'test' in sys.argv or 'testserver' in sys.argv:
             'PORT': '',      # leave empty
         },
     }
+elif os.environ.get('RUN_DOCKER', False):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'dcstreethockey',
+            'USER': 'dcstreethockey',
+            'PASSWORD': 'dcstreethockey',
+            'HOST': 'db',  # Set to empty string for localhost.
+            'PORT': '',  # Set to empty string for default.
+            'CONN_MAX_AGE': 600,  # number of seconds database connections should persist for
+        }
+    }
 else:
     DATABASES = {
         'default': {

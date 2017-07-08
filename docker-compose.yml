@@ -1,0 +1,25 @@
+version: "2"
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_DB: dcstreethockey
+      POSTGRES_PASSWORD: dcstreethockey
+      POSTGRES_USER: dcstreethockey
+    expose:
+      - "5432"
+    ports:
+      - "5432:5432"
+
+  web:
+    build: .
+    command: sh -c /app/run_app.sh
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"
