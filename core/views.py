@@ -5,6 +5,7 @@ from django.views.generic.list import ListView
 from django.db.models.functions import Lower
 from django.db.models.functions import Lower, Coalesce
 from django.db.models import Sum
+from django.db.models import F, Count, Value
 
 from leagues.models import Season
 from leagues.models import MatchUp
@@ -53,10 +54,12 @@ class TeamStatDetailView(ListView):
     context_object_name = 'team_list'
 
     def get_queryset(self):
-        return Team_Stat.objects.order_by('-win','loss','-tie')
+        return Team_Stat.objects.order_by('-total_points','-win','loss','-tie')
 
     def get_context_data(self, **kwargs):
         context = super(TeamStatDetailView, self).get_context_data(**kwargs)
+        
+        context['team_list'] = context['team_list'].annotate(total_points = Coalesce((Sum('win') * 2) + Sum('tie'),0))
         # context["season"] = Season.objects.all()
         # context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
         # context["stat"] = Stat.objects.all()
