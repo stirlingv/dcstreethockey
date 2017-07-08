@@ -1,15 +1,9 @@
 from django.shortcuts import render
-from django.http import HttpResponse
-from django.template import loader
-from django.db import models
 import datetime
 from datetime import timedelta
 from django.views.generic.list import ListView
-from django.utils import timezone
-from django.utils import formats
 from django.db.models.functions import Lower
 from django.db.models import Sum
-from django.db.models import Count
 
 from leagues.models import Season
 from leagues.models import MatchUp
@@ -35,11 +29,19 @@ def leagues(request):
 class MatchUpDetailView(ListView):
     context_object_name = 'matchup_list'
 
+    def __init__(self):
+        super(MatchUpDetailView, self).__init__()
+        self._next_week = None
+
     def get_queryset(self):
-        return MatchUp.objects.order_by('time')
+        self._next_week = Week.objects.order_by('date').filter(date__gte=datetime.datetime.today())
+        if self._next_week:
+            self._next_week = self._next_week[0]
+        return MatchUp.objects.order_by('-time').filter(week=self._next_week)
 
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
+        context["date_of_week"] = self._next_week.date
         context["season"] = Season.objects.all()
         context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
         context["stat"] = Stat.objects.all()
