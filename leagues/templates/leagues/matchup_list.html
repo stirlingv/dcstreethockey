@@ -41,8 +41,12 @@
 {% load static %}
 {% block content %}
 <div id="content-wrapper">
+    <div>
+		<div class="container">
+            <h1>{{date_of_week|date:"D d M Y"}}</h1>
+        </div>
+    </div>
 	{% for match in matchup_list %}
-	{% if match.week.date|stringformat:"s" = "2017-07-05" %}
 	<div id="content">
 		<div class="container">
 		<header>
@@ -115,7 +119,6 @@
 		</div>
 	</div>
 </div>
-{% endif %}
 {% empty %}
     <li>No matchups entered yet.</li>
 {% endfor %}
