@@ -57,6 +57,7 @@
 								<th>Wins</th>
 								<th>Losses</th>
 								<th>Ties</th>
+								<th>Points</th>
 							</tr>
 					    	{% for team in team_list %}
 								{% if team.division|stringformat:"s" = "Sunday D1" %}
@@ -65,6 +66,7 @@
 										<td>{{team.win}}</td>
 										<td>{{team.loss}}</td>
 										<td>{{team.tie}}</td>
+										<td>{{team.total_points}}</td>
 									</tr>
 								{% endif %}	
 							{% empty %}
@@ -84,6 +86,7 @@
 									<th>Wins</th>
 									<th>Losses</th>
 									<th>Ties</th>
+									<th>Points</th>
 								</tr>
 						    	{% for team in team_list %}
 									{% if team.division|stringformat:"s" = "Sunday D2" %}
@@ -92,6 +95,7 @@
 											<td>{{team.win}}</td>
 											<td>{{team.loss}}</td>
 											<td>{{team.tie}}</td>
+											<td>{{team.total_points}}</td>
 										</tr>
 									{% endif %}	
 								{% empty %}
@@ -111,6 +115,7 @@
 									<th>Wins</th>
 									<th>Losses</th>
 									<th>Ties</th>
+									<th>Points</th>
 								</tr>
 						    	{% for team in team_list %}
 									{% if team.division|stringformat:"s" = "Wednesday Draft League" %}
@@ -119,6 +124,7 @@
 											<td>{{team.win}}</td>
 											<td>{{team.loss}}</td>
 											<td>{{team.tie}}</td>
+											<td>{{team.total_points}}</td>
 										</tr>
 									{% endif %}	
 								{% empty %}
