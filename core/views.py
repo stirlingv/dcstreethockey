@@ -3,6 +3,7 @@ import datetime
 from datetime import timedelta
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower
+from django.db.models.functions import Lower, Coalesce
 from django.db.models import Sum
 
 from leagues.models import Season
@@ -66,13 +67,22 @@ class PlayerStatDetailView(ListView):
     context_object_name = 'player_stat_list'
 
     def get_queryset(self):
-        return Stat.objects.order_by('-goals','-assists')
+        #return Stat.objects.filter(team__season__is_current_season=True)
+        return Stat.objects.all()
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
-        context["stat"] = Stat.objects.all()
-        context["sum_goals"] = Player.objects.annotate(sum_goals=Sum('stat__goals'))
-        context["sum_assists"] = Player.objects.annotate(sum_assists=Sum('stat__assists'))
+
+        context['player_stat_list'] = context['player_stat_list'].values(
+            'player__first_name',
+            'player__last_name',
+            'team__division',
+            'team__team_name'
+        ).annotate(sum_goals=Coalesce(Sum('goals'), 0),
+                   sum_assists=Coalesce(Sum('assists'), 0),
+                   sum_goals_against=Coalesce(Sum('goals_against'), 0),
+                   sum_empty_net=Coalesce(Sum('empty_net'), 0),
+        ).order_by('-sum_goals', '-sum_assists')
 
         return context
 
