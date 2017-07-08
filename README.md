@@ -29,6 +29,9 @@
    - pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey latest.dump.[backup number]
 1. https://devcenter.heroku.com/articles/heroku-postgres-import-export
 
+### Dump Heroku data to json file
+1. heroku run ./manage.py dumpdata > herokudump.json --indent 2
+
 ## Import/Export CSV file to local postgres db
 1. Copy data from CSV - You can specify the columns to read:
    - \copy leagues_stat(assists,goals_against,player_id, season_id,team_id, division_id, matchup_id, empty_net, goals) FROM '/Users/stirling/Downloads/stats.csv' DELIMITER ',' CSV HEADER
