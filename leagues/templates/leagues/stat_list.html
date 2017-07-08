@@ -60,16 +60,14 @@
 								<th>Assists</th>
 							</tr>
 							{% for player in player_stat_list %}
-							{% for y in stat %}
-								{% if player.team.division|stringformat:"s" = "Sunday D1" and y.player == player.player%}
+								{% if player.team__division == 1 %}
 									<tr>
-										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
-										<td>{{player.team.team_name}}</td>
-						    			<td>{{y.goals_sum}}</td>
-							    		<td>{{y.assists_sum}}</td>
-						    		</tr>
-				    			{% endif %}
-				    		{% endfor %}
+										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
+										<td>{{player.team__team_name}}</td>
+										<td>{{player.sum_goals}}</td>
+										<td>{{player.sum_assists}}</td>
+									</tr>
+							    {% endif %}
 							{% empty %}
 									<td>No player stats entered yet.</td>
 							{% endfor %}
@@ -81,13 +79,13 @@
 								<th>GA</th>
 								<th>EN</th>
 							</tr>
-							{% for team in team_list %}
-								{% if player.team.division|stringformat:"s" = "Sunday D1" %}
+							{% for player in player_stat_list %}
+								{% if player.team__division == 1 %}
 									<tr>
-										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
-										<td>{{player.team.team_name}}</td>
-										<td>{{player.goals_against}}</td>
-										<td>{{player.empty_net}}</td>
+									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
+									<td>{{player.team__team_name}}</td>
+									<td>{{player.sum_goals_against}}</td>
+									<td>{{player.sum_empty_net}}</td>
 									</tr>
 								{% endif %}	
 							{% empty %}
@@ -110,14 +108,14 @@
 								<th>Assists</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team.division|stringformat:"s" = "Sunday D2" %}
+								{% if player.team__division == 2 %}
 									<tr>
-										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
-										<td>{{player.team.team_name}}</td>
+										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
+										<td>{{player.team__team_name}}</td>
 										<td>{{player.sum_goals}}</td>
 										<td>{{player.sum_assists}}</td>
 									</tr>
-								{% endif %}	
+							    {% endif %}
 							{% empty %}
 									<td>No player stats entered yet.</td>
 							{% endfor %}
@@ -129,13 +127,13 @@
 								<th>GA</th>
 								<th>EN</th>
 							</tr>
-							{% for team in team_list %}
-								{% if player.team.division|stringformat:"s" = "Sunday D2" %}
+							{% for player in player_stat_list %}
+								{% if player.team__division == 2 %}
 									<tr>
-										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
-										<td>{{player.team.team_name}}</td>
-										<td>{{player.goals_against}}</td>
-										<td>{{player.empty_net}}</td>
+									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
+									<td>{{player.team__team_name}}</td>
+									<td>{{player.sum_goals_against}}</td>
+									<td>{{player.sum_empty_net}}</td>
 									</tr>
 								{% endif %}	
 							{% empty %}
@@ -158,14 +156,14 @@
 								<th>Assists</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team.division|stringformat:"s" = "Wednesday Draft League" %}
+								{% if player.team__division == 3 %}
 									<tr>
-										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
-										<td>{{player.team.team_name}}</td>
+										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
+										<td>{{player.team__team_name}}</td>
 										<td>{{player.sum_goals}}</td>
 										<td>{{player.sum_assists}}</td>
 									</tr>
-								{% endif %}	
+							    {% endif %}
 							{% empty %}
 									<td>No player stats entered yet.</td>
 							{% endfor %}
@@ -177,13 +175,13 @@
 								<th>GA</th>
 								<th>EN</th>
 							</tr>
-							{% for team in team_list %}
-								{% if player.team.division|stringformat:"s" = "Wednesday Draft League" %}
+							{% for player in player_stat_list %}
+								{% if player.team__division == 3 %}
 									<tr>
-										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
-										<td>{{player.team.team_name}}</td>
-										<td>{{player.goals_against}}</td>
-										<td>{{player.empty_net}}</td>
+									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
+									<td>{{player.team__team_name}}</td>
+									<td>{{player.sum_goals_against}}</td>
+									<td>{{player.sum_empty_net}}</td>
 									</tr>
 								{% endif %}	
 							{% empty %}
