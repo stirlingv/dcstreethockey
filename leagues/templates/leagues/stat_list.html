@@ -60,14 +60,16 @@
 								<th>Assists</th>
 							</tr>
 							{% for player in player_stat_list %}
-								{% if player.team.division|stringformat:"s" = "Sunday D1" %}
+							{% for y in stat %}
+								{% if player.team.division|stringformat:"s" = "Sunday D1" and y.player == player.player%}
 									<tr>
 										<td>{{player.player.first_name}} {{player.player.last_name}}</td>
 										<td>{{player.team.team_name}}</td>
-										<td>{{player.player.sum_goals}}</td>
-										<td>{{player.player.sum_assists}}</td>
-									</tr>
-								{% endif %}	
+						    			<td>{{y.goals_sum}}</td>
+							    		<td>{{y.assists_sum}}</td>
+						    		</tr>
+				    			{% endif %}
+				    		{% endfor %}
 							{% empty %}
 									<td>No player stats entered yet.</td>
 							{% endfor %}

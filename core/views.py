@@ -68,6 +68,7 @@ class PlayerStatDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
+        context["stat"] = Stat.objects.all()
         context["sum_goals"] = Player.objects.annotate(sum_goals=Sum('stat__goals'))
         context["sum_assists"] = Player.objects.annotate(sum_assists=Sum('stat__assists'))
 
