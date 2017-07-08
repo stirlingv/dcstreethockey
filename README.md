@@ -1,6 +1,15 @@
 # dcstreethockey
 
 ## Clone and Run in localhost
+1. [install_docker](https://docs.docker.com/engine/installation/)
+1. [install_docker-compose](https://docs.docker.com/compose/install/)
+1. [fork](https://help.github.com/articles/fork-a-repo/) and [clone](https://help.github.com/articles/cloning-a-repository/) repo
+1. docker-compose up
+1. Stop that process Ctrl+c
+1. Download test data set
+1. docker-compose run --rm web python manage.py loaddata working-herokudump.json
+1. docker-compose up 
+or
 1. [download postgres](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads#linux) 
    - [generic instructions here](https://www.postgresql.org/download/linux/)
 1. [fork](https://help.github.com/articles/fork-a-repo/) and [clone](https://help.github.com/articles/cloning-a-repository/) repo
