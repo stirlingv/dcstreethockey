@@ -52,6 +52,6 @@
    
 ## Push local database to heroku
 1. Create backup! https://devcenter.heroku.com/articles/heroku-postgres-import-export 
-1. export DATABASE_URL=$(heroku config:get DATABASE_URL -a dcstreethockey 
+1. export DATABASE_URL=$(heroku config:get DATABASE_URL -a dcstreethockey) 
 1. heroku pg:reset DATABASE_URL
 1. heroku pg:push dcstreethockey DATABASE_URL --app dcstreethockey
