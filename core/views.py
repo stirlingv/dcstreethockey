@@ -46,7 +46,7 @@ class MatchUpDetailView(ListView):
         context["date_of_week"] = self._next_week.date
         context["season"] = Season.objects.all()
         context["roster"] = Roster.objects.order_by(Lower('player__last_name')).filter(team__is_active=True)
-        context["stat"] = Stat.objects.all()
+        context["stat"] = Stat.objects.all().filter(team__is_active=True)
 
         return context
 
