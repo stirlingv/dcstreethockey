@@ -39,7 +39,7 @@ class MatchUpDetailView(ListView):
         self._next_week = Week.objects.order_by('date').filter(date__gte=datetime.datetime.today())
         if self._next_week:
             self._next_week = self._next_week[0]
-        return MatchUp.objects.order_by('time').filter(week=self._next_week)
+        return MatchUp.objects.order_by('time').filter(week__date=self._next_week.date)
 
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
