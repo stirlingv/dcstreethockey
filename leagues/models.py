@@ -57,14 +57,17 @@ class Division(models.Model):
 		return self.__unicode__()
 
 class Team(models.Model):
-	team_name = models.CharField(max_length=30, unique=True)
+	team_name = models.CharField(max_length=30)
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season, null=True)
 	is_active = models.BooleanField()
 
+	class Meta:
+		unique_together = ('team_name', 'season',)
+
 	def __unicode__(self):
-		return u"%s" % (self.team_name)
+		return u"%s, %s" % (self.team_name, self.season)
 
 	def __str__(self):
 		return self.__unicode__()
@@ -146,6 +149,7 @@ class Stat(models.Model):
 	player = models.ForeignKey(Player)
 	team = models.ForeignKey(Team, null=True, blank=True)
 	matchup = models.ForeignKey(MatchUp, null=True, blank=True)
+	roster = models.ForeignKey(Roster, null=True, blank=True)
 	goals = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 	assists = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 	goals_against = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
