@@ -56,8 +56,8 @@
 							<tr>
 								<th>Player Name</th>
 								<th>Team</th>
-								<th>Goals</th>
-								<th>Assists</th>
+								<th>G</th>
+								<th>A</th>
 							</tr>
 							{% for player in player_stat_list %}
 								{% if player.team__division == 1 %}
@@ -81,12 +81,14 @@
 							</tr>
 							{% for player in player_stat_list %}
 								{% if player.team__division == 1 %}
+									{% if player.roster__position1|stringformat:"s" = "Goalie" or player.roser__position2 == 4 %}
 									<tr>
 									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
 									<td>{{player.team__team_name}}</td>
 									<td>{{player.sum_goals_against}}</td>
 									<td>{{player.sum_empty_net}}</td>
 									</tr>
+									{% endif %}
 								{% endif %}	
 							{% empty %}
 									<td>No team stats entered yet.</td>
@@ -104,8 +106,8 @@
 							<tr>
 								<th>Player Name</th>
 								<th>Team</th>
-								<th>Goals</th>
-								<th>Assists</th>
+								<th>G</th>
+								<th>A</th>
 							</tr>
 							{% for player in player_stat_list %}
 								{% if player.team__division == 2 %}
@@ -152,8 +154,8 @@
 							<tr>
 								<th>Player Name</th>
 								<th>Team</th>
-								<th>Goals</th>
-								<th>Assists</th>
+								<th>G</th>
+								<th>A</th>
 							</tr>
 							{% for player in player_stat_list %}
 								{% if player.team__division == 3 %}

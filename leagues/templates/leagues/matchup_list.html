@@ -41,22 +41,22 @@
 {% load static %}
 {% block content %}
 <div id="content-wrapper">
-    <div>
+    <div id="content">
 		<div class="container">
-            <h1>{{date_of_week|date:"D d M Y"}}</h1>
+            <h3>{{date_of_week|date:"D d M Y"}}</h3>
         </div>
     </div>
 	{% for match in matchup_list %}
 	<div id="content">
 		<div class="container">
 		<header>
-			<h2>{{match.awayteam}} vs {{match.hometeam}} @ {{match.time}}</h2>
+			<h2>{{match.awayteam.team_name}} vs {{match.hometeam.team_name}} @ {{match.time}}</h2>
 		</header>
 			<div class="row">
 				<div class="4u 12u(mobile)">
 					<section>
 						<header>
-							<h3>{{match.awayteam}}</h3>
+							<h3>{{match.awayteam.team_name}}</h3>
 						</header>
 					    <table>
 					    		<tr>
@@ -87,7 +87,7 @@
 					<div class="4u 12u(mobile)">
 					<section>
 						<header>
-							<h3>{{match.hometeam}}</h3>
+							<h3>{{match.hometeam.team_name}}</h3>
 						</header>
 					    <table>
 					    		<tr>

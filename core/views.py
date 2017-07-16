@@ -39,13 +39,13 @@ class MatchUpDetailView(ListView):
         self._next_week = Week.objects.order_by('date').filter(date__gte=datetime.datetime.today())
         if self._next_week:
             self._next_week = self._next_week[0]
-        return MatchUp.objects.order_by('-time').filter(week=self._next_week)
+        return MatchUp.objects.order_by('time').filter(week=self._next_week)
 
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
         context["date_of_week"] = self._next_week.date
         context["season"] = Season.objects.all()
-        context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
+        context["roster"] = Roster.objects.order_by(Lower('player__last_name')).filter(team__is_active=True)
         context["stat"] = Stat.objects.all()
 
         return context
@@ -80,12 +80,16 @@ class PlayerStatDetailView(ListView):
             'player__first_name',
             'player__last_name',
             'team__division',
-            'team__team_name'
+            'team__team_name',
+            'team__season',
+            'season__is_current_season',
+            'roster__position1',
+            'roster__position2'
         ).annotate(sum_goals=Coalesce(Sum('goals'), 0),
                    sum_assists=Coalesce(Sum('assists'), 0),
                    sum_goals_against=Coalesce(Sum('goals_against'), 0),
                    sum_empty_net=Coalesce(Sum('empty_net'), 0),
-        ).order_by('-sum_goals', '-sum_assists')
+        ).order_by('-sum_goals', '-sum_assists').filter(season__is_current_season=True)
 
         return context
 

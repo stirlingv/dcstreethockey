@@ -8,8 +8,27 @@ from leagues.models import Player, Team, Roster, Division, Season, Team_Stat, We
 class PlayerAdmin(admin.ModelAdmin):
     pass
 
+# @admin.register(Team, Season)
+
+# class SeasonInline(admin.TabularInline):
+#         model = Season
+# class TeamAdmin(admin.ModelAdmin):
+#     actions = ['start_new_season']
+#     inlines = [
+#         SeasonInLine,
+#     ]
+#     start_new_season.short_description = "Start new season"
+
+#     pass    
+def start_new_season(modeladmin, request, queryset):
+    for obj in queryset:
+        do_something_with(obj)
+start_new_season.short_description = "Register selected teams for a new season"
+
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
+    actions = ['start_new_season']
+# admin.site.register(Team, TeamAdmin)
     pass
 
 @admin.register(Roster)
@@ -43,6 +62,9 @@ class StatAdmin(admin.ModelAdmin):
 @admin.register(Ref)
 class RefAdmin(admin.ModelAdmin):
     pass
+
+
+
 
 # class RosterInline(admin.TabularInline):
 #     model = Roster
