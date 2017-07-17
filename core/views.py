@@ -97,7 +97,7 @@ def schedule(request):
     context = {}
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
-    context["matchup"]  = MatchUp.objects.order_by('week__date','time')  
-    context["game_days"]  = Week.objects.order_by('date').distinct('date')
+    context["matchup"]  = MatchUp.objects.order_by('week__date','time').filter(awayteam__is_active=True)  
+    context["game_days"]  = MatchUp.objects.order_by('week__date').distinct('week__date').filter(awayteam__is_active=True)
     return render(request, "leagues/schedule.html", context=context)
         

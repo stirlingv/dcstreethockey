@@ -48,33 +48,33 @@
 				<div class="row">
 					<div class="4u 12u(mobile)">
 						<table>
-							<caption>D1 {{day.date}}</caption>
+							<caption>D1 {{day.week.date}}</caption>
 							<tr>
 					    		<th>Away Team</th>
 					    		<th>Home Team</th>
 					    		<th>Game Time</th>
 					    	</tr>
 							{% for match in matchup %}
-							{% if match.week.date == day.date and match.week.division|stringformat:"s" = "Sunday D1" %}
+							{% if match.week.date == day.week.date and match.week.division|stringformat:"s" = "Sunday D1" %}
 					    	<tr>
 					    		<th>{{match.awayteam.team_name}}</th>
 					    		<th>{{match.hometeam.team_name}}</th>
 					    		<th>{{match.time}}</th>
 					    	</tr>
-							{% endif %}
+					    	{% endif %}
 							{% endfor %}
 						</table>	
 					</div>
 					<div class="4u 12u(mobile)">
 						<table>
-						<caption>D2 {{day.date}}</caption>
+						<caption>D2 {{day.week.date}}</caption>
 							<tr>
 					    		<th>Away Team</th>
 					    		<th>Home Team</th>
 					    		<th>Game Time</th>
 					    	</tr>
 							{% for match in matchup %}
-							{% if match.week.date == day.date and match.week.division|stringformat:"s" = "Sunday D2" %}
+							{% if match.week.date == day.week.date and match.week.division|stringformat:"s" = "Sunday D2" %}
 					    	<tr>
 					    		<th>{{match.awayteam.team_name}}</th>
 					    		<th>{{match.hometeam.team_name}}</th>
@@ -93,7 +93,7 @@
 					    		<th>Game Time</th>
 					    	</tr>
 							{% for match in matchup %}
-							{% if match.week.date == day.date and match.week.division|stringformat:"s" = "Wednesday Draft League" %}
+							{% if match.week.date == day.week.date and match.week.division|stringformat:"s" = "Wednesday Draft League" %}
 					    	<tr>
 					    		<th>{{match.awayteam.team_name}}</th>
 					    		<th>{{match.hometeam.team_name}}</th>
