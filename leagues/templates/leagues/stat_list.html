@@ -58,6 +58,7 @@
 								<th>Team</th>
 								<th>G</th>
 								<th>A</th>
+								<th>Points</th>
 							</tr>
 							{% for player in player_stat_list %}
 								{% if player.team__division == 1 %}
@@ -66,6 +67,7 @@
 										<td>{{player.team__team_name}}</td>
 										<td>{{player.sum_goals}}</td>
 										<td>{{player.sum_assists}}</td>
+										<td>{{player.total_points}}</td>
 									</tr>
 							    {% endif %}
 							{% empty %}
@@ -108,6 +110,7 @@
 								<th>Team</th>
 								<th>G</th>
 								<th>A</th>
+								<th>Points</th>
 							</tr>
 							{% for player in player_stat_list %}
 								{% if player.team__division == 2 %}
@@ -116,6 +119,7 @@
 										<td>{{player.team__team_name}}</td>
 										<td>{{player.sum_goals}}</td>
 										<td>{{player.sum_assists}}</td>
+										<td>{{player.total_points}}</td>
 									</tr>
 							    {% endif %}
 							{% empty %}
@@ -156,6 +160,7 @@
 								<th>Team</th>
 								<th>G</th>
 								<th>A</th>
+								<th>Points</th>
 							</tr>
 							{% for player in player_stat_list %}
 								{% if player.team__division == 3 %}
@@ -164,6 +169,7 @@
 										<td>{{player.team__team_name}}</td>
 										<td>{{player.sum_goals}}</td>
 										<td>{{player.sum_assists}}</td>
+										<td>{{player.total_points}}</td>	
 									</tr>
 							    {% endif %}
 							{% empty %}

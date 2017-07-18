@@ -89,7 +89,8 @@ class PlayerStatDetailView(ListView):
                    sum_assists=Coalesce(Sum('assists'), 0),
                    sum_goals_against=Coalesce(Sum('goals_against'), 0),
                    sum_empty_net=Coalesce(Sum('empty_net'), 0),
-        ).order_by('-sum_goals', '-sum_assists').filter(season__is_current_season=True)
+                   total_points=Coalesce((Sum('goals') * 2) + Sum('assists'),0),
+        ).order_by('-total_points', '-sum_goals', '-sum_assists').filter(season__is_current_season=True)
 
         return context
 
