@@ -1,143 +1,204 @@
 <head>
 	<style type="text/css" media="screen">
+		#datepicker{
+			margin-bottom: 20px;
+		}
 
-		table{
-			border-collapse: collapse;
-			border: 1px solid #FF0000;
-			vertical-align: top;
-			display: inline-block;
+		@media screen and (min-width: 737px){
+			.schedule #content section{
+				margin-bottom: 20px;
+			}
+		}
+
+		section .game{
+			padding-top: 20px;
+		}
+
+		section .game:first-of-type{
+			padding-top: 0;
+		}
+
+		.game-overview{
+			margin: 10px 0;
+			width: 100%;
+		}
+
+		.game-overview tr{
+			font-size: 1.8em;
+			line-height: 1.3em;
+		}
+
+		.game-overview tr td:first-child{
+			width: 30%;
+		}
+
+		.expand{
+			color: #ff0000;
+			font-size: 80px;
+			position: relative;
+			top: -30px;
+			height: 25px;
+		}
+
+		.expand p{
+			margin-bottom: 0;
+			display: none;
+			text-align: center;
+		}
+
+		.game:hover .expand p{
+			display: block;
+		}
+
+		.collapse{
+			clear: both;
+			padding-top: 5px;
+			margin-bottom: 10px;
+			font-size: 50px;
+			text-align: center;
+			display: block;
+			width: 100%;
+			color: #96a9b5;
+		}
+
+		.stats table{
 			empty-cells: show;
 			width: 100%;
 		}
-		table caption{
-			text-align: left
+		.stats table caption{
+			text-align: left;
+			margin-bottom: 10px;
+			margin-top: 10px;
 		}
 
-		table tr{
-			border:1px solid #FF0000;/
-			empty-cells: show
+		.stats table tr{
+			empty-cells: show;
 			white-space: nowrap;
 		}
-		table th{
-			border:1px solid #FF0000;
+		.stats table th{
+			border-bottom:1px solid #FF0000;
 			font-weight: bold;
 			width: 20%;
 			white-space: nowrap;
 		}
-		table td{
-			border: 1px solid #FF0000;/
+		.stats table td{
+			border-bottom: 1px solid #FF0000;/
 			border-collapse: collapse;
 			display: table-cell;
 			empty-cells: show;
 			text-align: center;
 			white-space: nowrap;
 		}
-		/*.inlineTable {
-            display: inline-block;
-        }*/
 	</style>
 </head>
 {% extends 'core/base.html' %}
 {% load static %}
+
 {% block content %}
-<div id="content-wrapper">
+<div id="content-wrapper" class="schedule">
 	<div id="content">
-        <div align="center">
-            <form name="dateselect">
-                <select name="dates" onchange="javascript:handleSelect(this)">
-                    <option value="">Pick a date</option>
-                    {% for day in game_days %}
-                    <option value="/leagues/schedule/{{day.month}}/{{day.day}}/{{day.year}}">{{day.date}}</option>
-                    {% endfor %}
-                </select>
-            </form>
-        </div>
+		<div align="center" id="datepicker">
+      <form name="dateselect">
+      	<select name="dates" onchange="javascript:handleSelect(this)">
+         	<option value="">Pick a date</option>
+          {% for day in game_days %}
+            <option value="/leagues/schedule/{{day.month}}/{{day.day}}/{{day.year}}">{{day.date}}</option>
+          {% endfor %}
+      	</select>
+      </form>
+		</div>
+
 		<div class="container">
 		{% for day in schedule %}
-			<section>
-				<div class="row">
-                    {% for division in divisions %}
-					<div class="4u 12u(mobile)">
-						<table>
-                            <caption>{{division}} {{day.week.date}}</caption>
-							<tr>
-					    		<th>Away Team</th>
-					    		<th>Home Team</th>
-					    		<th>Game Time</th>
-					    	</tr>
-							{% for match in matchups %}
-							{% if match.week.date == day.week.date and match.week.division == division %}
-                            <tr onclick="javascript:toggleTable({{match.id}})">
-					    		<th>{{match.awayteam.team_name}}</th>
-					    		<th>{{match.hometeam.team_name}}</th>
-					    		<th>{{match.time}}</th>
-					    	</tr>
-					    	{% endif %}
-							{% endfor %}
-						</table>
+			{% for division in divisions %}
+				<section>
+				 	<h3>{{division}} | {{day.week.date}}</h3>
+
 						{% for match in matchups %}
 						{% if match.week.date == day.week.date and match.week.division == division %}
-                        <table id="home{{match.id}}" style="display:none">
-                        <caption>Home Stats: {{match.hometeam.team_name}}</caption>
-                        <tr>
-                            <th>Player</th>
-							<th>Goals</th>
-					    	<th>Assists</th>
-					    </tr>
-					    {% for stat in stats %}
-					    {% if match.id == stat.matchup.id and match.hometeam == stat.team %}
-					   	<tr>
-					   		<th>{{stat.player}}</th>
-					   		<th>{{stat.goals}}</th>
-					   		<th>{{stat.assists}}</th>
-                        </tr>
-					   	{% endif %}
-						{% endfor %}
-                    </table>
-					{% endif %}
-                    {% endfor %}
-					{% for match in matchups %}
-					{% if match.week.date == day.week.date and match.week.division == division %}
-                    <table id="away{{match.id}}" style="display:none">
-                        <caption>Away Stats: {{match.awayteam.team_name}}</caption>
-                        <tr>
-                            <th>Player</th>
-					  		<th>Goals</th>
-					   		<th>Assists</th>
-					   	</tr>
-					    {% for stat in stats %}
-					    {% if match.id == stat.matchup.id and match.awayteam == stat.team %}
-				    	<tr>
-				    		<th>{{stat.player}}</th>
-				    		<th>{{stat.goals}}</th>
-				    		<th>{{stat.assists}}</th>
-                        </tr>
-				    	{% endif %}
-						{% endfor %}
-                    </table>
-					{% endif %}
-					{% endfor %}
-					</div>
-	                {% endfor %}
-                </div>
-			</section>
-		{% endfor %}
+							<div class="game" onclick="javascript:toggleTable({{match.id}})">
+								<h3>{{match.time}}</h3>
+
+								<table class="game-overview">
+									<tr>
+										<td>{{match.hometeam.team_name}} (H)</td>
+										<td>0</td>
+									</tr>
+									<tr>
+										<td>{{match.awayteam.team_name}}</td>
+										<td>0</td>
+									</tr>
+								</table>
+
+								<div class="row stats" id="stats-{{match.id}}" style="display:none;">
+									<div class="6u 12u(mobile)">
+										<table>
+										<caption>Home Stats: {{match.hometeam.team_name}}</caption>
+										<tr>
+											<th>Player</th>
+											<th>Goals</th>
+											<th>Assists</th>
+										</tr>
+										{% for stat in stats %}
+										{% if match.id == stat.matchup.id and match.hometeam == stat.team %}
+										<tr>
+											<td>{{stat.player}}</td>
+											<td>{{stat.goals}}</td>
+											<td>{{stat.assists}}</td>
+										</tr>
+										{% endif %}
+										{% endfor %}
+									</table>
+									</div>
+
+									<div class="6u 12u(mobile)">
+										<table>
+										<caption>Away Stats: {{match.awayteam.team_name}}</caption>
+										<tr>
+											<th>Player</th>
+											<th>Goals</th>
+											<th>Assists</th>
+										</tr>
+										{% for stat in stats %}
+										{% if match.id == stat.matchup.id and match.awayteam == stat.team %}
+										<tr>
+											<td>{{stat.player}}</td>
+											<td>{{stat.goals}}</td>
+											<td>{{stat.assists}}</td>
+										</tr>
+										{% endif %}
+										{% endfor %}
+									</table>
+									</div>
+									<p class="collapse">^</p>
+								</div> <!-- row (stats)-->
+
+								<div class="expand" id="ex-{{match.id}}">
+									<p>...</p>
+								</div>
+
+								<hr/>
+							</div> <!-- /game -->
+						{% endif %}
+						{% endfor %} <!-- match -->
+
+					</section>
+				{% endfor %} <!-- division -->
+			{% endfor %} <!-- day -->
 
 		</div>
 	</div>
 </div>
+
 <script type="text/javascript">
     function toggleTable(id) {
-        var lTable = document.getElementById("home"+id);
-        lTable.style.display = (lTable.style.display == "table") ? "none" : "table";
-        var lTable = document.getElementById("away"+id);
-        lTable.style.display = (lTable.style.display == "table") ? "none" : "table";
+        var stats = document.getElementById("stats-"+id);
+				var showstats = stats.style.display == "block";
+        stats.style.display = showstats ? "none" : "block";
+				document.getElementById("ex-"+id).style.display = showstats ? "block" : "none";
     }
+		function handleSelect(elm){
+	  	window.location = elm.value;
+	  }
 </script>
-                <script type="text/javascript">
-                    function handleSelect(elm)
-                    {
-                    window.location = elm.value;
-                    }
-                </script>
 {% endblock %}
