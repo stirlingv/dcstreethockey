@@ -9,5 +9,6 @@ urlpatterns = [
 	url(r'^team_standings/$', TeamStatDetailView.as_view(), name='team_standings'),
 	url(r'^player_stats/$', PlayerStatDetailView.as_view(), name='player_stats'),
 	url(r'^schedule/$', core_view.schedule, name='schedule'),
+	url(r'^schedule/(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4})/$', core_view.schedule, name='schedule'),
 
 ]

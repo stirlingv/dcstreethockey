@@ -8,6 +8,7 @@ from django.db.models import Sum
 from django.db.models import F, Count, Value
 
 from leagues.models import Season
+from leagues.models import Division
 from leagues.models import MatchUp
 from leagues.models import Stat
 from leagues.models import Roster
@@ -39,6 +40,9 @@ class MatchUpDetailView(ListView):
         self._next_week = Week.objects.order_by('date').filter(date__gte=datetime.datetime.today())
         if self._next_week:
             self._next_week = self._next_week[0]
+        else:
+            #No upcoming matches so use most recent.
+            self._next_week = Week.objects.latest('date')
         return MatchUp.objects.order_by('time').filter(week__date=self._next_week.date)
 
     def get_context_data(self, **kwargs):
@@ -58,7 +62,7 @@ class TeamStatDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(TeamStatDetailView, self).get_context_data(**kwargs)
-        
+
         context['team_list'] = context['team_list'].annotate(total_points = Coalesce((Sum('win') * 2) + Sum('tie'),0)).filter(team__is_active=True)
         # context["season"] = Season.objects.all()
         # context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
@@ -94,11 +98,61 @@ class PlayerStatDetailView(ListView):
 
         return context
 
-def schedule(request):
+def get_stats_for_matchup(match):
+    print "Getting stats for match: ", match.id
+    return Stat.objects.filter(matchup=match).exclude(
+            goals=None).order_by('-assists').order_by('-goals')
+
+def get_matches_for_date(year, month, day):
+    try:
+        return MatchUp.objects.filter(
+                     week__date__year=int(year)).filter(
+                     week__date__month=int(month)).filter(
+                     week__date__day=int(day)).order_by(
+                     '-week__date').filter(awayteam__is_active=True)
+    except:
+        return []
+
+def get_schedule_for_date(year, month, day):
+    try:
+        return MatchUp.objects.filter(
+                     week__date__year=int(year)).filter(
+                     week__date__month=int(month)).filter(
+                     week__date__day=int(day)).order_by(
+                     '-week__date').distinct('week__date').filter(
+                     awayteam__is_active=True)
+    except:
+        return []
+
+def schedule(request, month="0", day="0", year="0"):
+    print "WOAH rendering schedule", month, day, year
     context = {}
     # context["season"] = Season.objects.get(is_current_season=1)
     context["season"] = Season.objects.all()
-    context["matchup"]  = MatchUp.objects.order_by('week__date','time').filter(awayteam__is_active=True)  
-    context["game_days"]  = MatchUp.objects.order_by('week__date').distinct('week__date').filter(awayteam__is_active=True)
+    context["divisions"] = Division.objects.all()
+    context["matchups"]  = MatchUp.objects.order_by('week__date','time').filter(awayteam__is_active=True)
+    context["schedule"] = MatchUp.objects.order_by('-week__date').distinct(
+            'week__date').filter(awayteam__is_active=True)
+    context["game_days"] =[]
+    context['stats'] = []
+
+    for mdate in MatchUp.objects.order_by('-week__date','time').distinct(
+                'week__date').values('week__date'):
+        context["game_days"].append({'day': '{:02d}'.format(mdate['week__date'].day),
+            'month': '{:02d}'.format(mdate['week__date'].month),
+            'year': mdate['week__date'].year, 'date': mdate['week__date']})
+    if month is not "0" and day is not "0" and year is not "0":
+        try:
+            stats = []
+            context['matchups'] = get_matches_for_date(year, month, day)
+            context['schedule'] = get_schedule_for_date(year, month, day)
+            for match in context['matchups']:
+                relevant_stats = get_stats_for_matchup(match)
+                stats.extend(relevant_stats)
+            context['stats'] = stats
+
+        except Exception as e:
+            print e
+            print "Invalid date: ", month, day, year
     return render(request, "leagues/schedule.html", context=context)
-        
+

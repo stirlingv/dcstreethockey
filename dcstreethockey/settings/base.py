@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
     'core',
     'suit',
     'datetimewidget',
@@ -157,7 +158,7 @@ LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'America/New_York'
 
-TIME_INPUT_FORMATS = ('%I:%M %p',) 
+TIME_INPUT_FORMATS = ('%I:%M %p',)
 
 USE_I18N = True
 
