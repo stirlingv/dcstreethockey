@@ -57,10 +57,15 @@ class Division(models.Model):
 		return self.__unicode__()
 
 class Team(models.Model):
+	CONFERENCE_TYPE = (
+	(1, 'East'),
+	(2, 'West')
+	)
 	team_name = models.CharField(max_length=30)
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season, null=True)
+	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True)
 	is_active = models.BooleanField()
 
 	class Meta:
