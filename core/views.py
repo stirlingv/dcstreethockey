@@ -1,6 +1,8 @@
-from django.shortcuts import render
 import datetime
 from datetime import timedelta
+from collections import OrderedDict
+
+from django.shortcuts import render
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
 from django.db.models import Sum, Q, Max
@@ -137,7 +139,7 @@ def get_schedule_for_division(division):
 
 def schedule(request):
     context = {}
-    context["schedule"] = {}
+    context["schedule"] = OrderedDict()
 
     for match in MatchUp.objects.order_by('week__date', 'time').filter(
             awayteam__is_active=True).filter(
@@ -149,7 +151,7 @@ def schedule(request):
             away_losses=Max('awayteam__team_stat__loss')).annotate(
             away_ties=Max('awayteam__team_stat__tie')):
         if not context["schedule"].get(str(match.week.date), False):
-            context["schedule"][str(match.week.date)] = {}
+            context["schedule"][str(match.week.date)] = OrderedDict()
         if not context["schedule"][str(match.week.date)].get(
                 str(match.awayteam.division), False):
             context["schedule"][str(match.week.date)][str(match.awayteam.division)] = []
@@ -161,11 +163,13 @@ def scores(request, division=1):
     context = {}
     context["divisions"] = Division.objects.all()
     context["matchups"]  = MatchUp.objects.order_by('week__date','time').filter(awayteam__is_active=True)
+    for match in context["matchups"]:
+        print "Match: " + str(match)
     context["schedule"] = MatchUp.objects.order_by('-week__date').distinct(
             'week__date').filter(awayteam__is_active=True)
     context['stats'] = []
     context['active_division'] = int(division)
-
+    #Check to see if the dvision from the URL is valid
     if len([i for i in Division.DIVISION_TYPE if context['active_division'] in i]):
         try:
             stats = []
