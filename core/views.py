@@ -86,9 +86,9 @@ class PlayerStatDetailView(ListView):
             'team__division',
             'team__team_name',
             'team__season',
-            'season__is_current_season',
-            'roster__position1',
-            'roster__position2'
+            'matchup__week__season__is_current_season',
+            'player__roster__position1',
+            'player__roster__position2'
         ).annotate(sum_goals=Coalesce(Sum('goals'), 0),
                    sum_assists=Coalesce(Sum('assists'), 0),
                    sum_goals_against=Coalesce(Sum('goals_against'), 0),

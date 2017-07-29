@@ -65,7 +65,7 @@ class Team(models.Model):
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season, null=True)
-	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, default=1)
+	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True)
 	is_active = models.BooleanField()
 
 	class Meta:
@@ -103,7 +103,7 @@ class Roster(models.Model):
 	(3, 'Defense'),
 	(4, 'Goalie')
 	)
-	player = models.ForeignKey(Player, related_name="+", null=True)
+	player = models.ForeignKey(Player, null=True, on_delete=models.SET_NULL)
 	team = models.ForeignKey(Team, null=True)
 	position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
 	position2 = models.PositiveIntegerField(choices=POSITION_TYPE, null=True, blank=True)
@@ -149,12 +149,9 @@ class MatchUp(models.Model):
 		return self.__unicode__()
 
 class Stat(models.Model):
-	division = models.ForeignKey(Division, null=True)
-	season = models.ForeignKey(Season)
 	player = models.ForeignKey(Player)
 	team = models.ForeignKey(Team, null=True, blank=True)
 	matchup = models.ForeignKey(MatchUp, null=True, blank=True)
-	roster = models.ForeignKey(Roster, null=True, blank=True)
 	goals = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 	assists = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 	goals_against = models.PositiveSmallIntegerField(null=True, blank=True, default=0)

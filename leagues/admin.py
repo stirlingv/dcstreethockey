@@ -1,81 +1,63 @@
 from django.contrib import admin
+from django.db.models import Q
 
-from reversion.admin import VersionAdmin
+from leagues.models import Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref
 
-from leagues.models import Player, Team, Roster, Division, Season, Team_Stat, Week, MatchUp, Stat, Ref
+class RosterInline(admin.TabularInline):
+    model = Roster
 
-@admin.register(Player)
-class PlayerAdmin(admin.ModelAdmin):
-    pass
+class TeamStatInline(admin.TabularInline):
+    model = Team_Stat
+    extra = 1
 
-# @admin.register(Team, Season)
-
-# class SeasonInline(admin.TabularInline):
-#         model = Season
-# class TeamAdmin(admin.ModelAdmin):
-#     actions = ['start_new_season']
-#     inlines = [
-#         SeasonInLine,
-#     ]
-#     start_new_season.short_description = "Start new season"
-
-#     pass    
-def start_new_season(modeladmin, request, queryset):
-    for obj in queryset:
-        do_something_with(obj)
-start_new_season.short_description = "Register selected teams for a new season"
-
-@admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
-    actions = ['start_new_season']
-# admin.site.register(Team, TeamAdmin)
-    pass
+    inlines = [
+            TeamStatInline,
+            RosterInline,
+            ]
 
-@admin.register(Roster)
-class RosterAdmin(admin.ModelAdmin):
-    pass
+class PlayerAdmin(admin.ModelAdmin):
+    inlines = [RosterInline]
 
-@admin.register(Division)
-class DivisionAdmin(admin.ModelAdmin):
-    pass
+class StatInline(admin.TabularInline):
+    model = Stat
+    extra = 1
 
-@admin.register(Season)
-class SeasonAdmin(admin.ModelAdmin):
-    pass
+    def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
+        match_id = str(request.path.strip('/').split('/')[-2])
+        if db_field.name == "player":
+            match = MatchUp.objects.filter(id=match_id).last()
+            kwargs['queryset'] = Player.objects.filter(
+                    Q(roster__team__team_name=match.hometeam.team_name) | Q(
+                    roster__team__team_name=match.awayteam.team_name) | Q(
+                        roster__position1=4) | Q(roster__position2=4))
+        elif db_field.name == "team":
+            match = MatchUp.objects.filter(id=match_id).last()
+            kwargs['queryset'] = Team.objects.filter(
+                    Q(team_name=match.hometeam.team_name) | Q(
+                    team_name=match.awayteam.team_name))
+        return super(StatInline, self).formfield_for_foreignkey(db_field, request=None, **kwargs)
 
-@admin.register(Team_Stat)
-class Team_StatAdmin(admin.ModelAdmin):
-    pass
 
-@admin.register(MatchUp)
 class MatchUpAdmin(admin.ModelAdmin):
-    pass
+    inlines = [
+            StatInline,
+            ]
 
-@admin.register(Week)
+class MatchUpInline(admin.TabularInline):
+    model = MatchUp
+    extra = 4
+
 class WeekAdmin(admin.ModelAdmin):
-    pass
-
-@admin.register(Stat)
-class StatAdmin(admin.ModelAdmin):
-    pass
+    inlines = [
+            MatchUpInline,
+            ]
 
 @admin.register(Ref)
 class RefAdmin(admin.ModelAdmin):
     pass
 
-
-
-
-# class RosterInline(admin.TabularInline):
-#     model = Roster
-
-# class TeamInline(admin.TabularInline):
-#     model = Team
-
-
-# class MatchUpAdmin(admin.ModelAdmin):
-#      inlines = [TeamInline]
-
-# admin.site.register(MatchUp, MatchUpAdmin)
-
-    
+admin.site.register(Player, PlayerAdmin)
+admin.site.register(Team, TeamAdmin)
+admin.site.register(MatchUp, MatchUpAdmin)
+admin.site.register(Week, WeekAdmin)
