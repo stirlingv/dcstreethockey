@@ -24,18 +24,23 @@ class StatInline(admin.TabularInline):
     extra = 1
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
-        match_id = str(request.path.strip('/').split('/')[-2])
-        if db_field.name == "player":
-            match = MatchUp.objects.filter(id=match_id).last()
-            kwargs['queryset'] = Player.objects.filter(
-                    Q(roster__team__team_name=match.hometeam.team_name) | Q(
-                    roster__team__team_name=match.awayteam.team_name) | Q(
+	try:
+            print "field: " +str(db_field)
+	    print "request: " + str(request)
+	    match_id = str(request.path.strip('/').split('/')[-2])
+            if db_field.name == "player":
+                match = MatchUp.objects.filter(id=match_id).last()
+                kwargs['queryset'] = Player.objects.filter(
+                        Q(roster__team__team_name=match.hometeam.team_name) | Q(
+                        roster__team__team_name=match.awayteam.team_name) | Q(
                         roster__position1=4) | Q(roster__position2=4))
-        elif db_field.name == "team":
-            match = MatchUp.objects.filter(id=match_id).last()
-            kwargs['queryset'] = Team.objects.filter(
-                    Q(team_name=match.hometeam.team_name) | Q(
-                    team_name=match.awayteam.team_name))
+            elif db_field.name == "team":
+                match = MatchUp.objects.filter(id=match_id).last()
+                kwargs['queryset'] = Team.objects.filter(
+                        Q(team_name=match.hometeam.team_name) | Q(
+                        team_name=match.awayteam.team_name))
+        except:
+           pass
         return super(StatInline, self).formfield_for_foreignkey(db_field, request=None, **kwargs)
 
 
