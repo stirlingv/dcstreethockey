@@ -1,0 +1,238 @@
+<head>
+	<style type="text/css" media="screen">
+		#datepicker{
+			margin-bottom: 20px;
+		}
+
+		@media screen and (min-width: 737px){
+			.schedule #content section{
+				margin-bottom: 20px;
+				padding-bottom: 20px;
+			}
+		}
+
+		section .game{
+			padding-top: 20px;
+		}
+
+		section .game:first-of-type{
+			padding-top: 0;
+		}
+		
+        .divisions{
+			margin: 10px 0;
+            text-align: center;
+            font-size: 1.6em;
+            line-height: 1.1em;
+			width: 100%;
+		}
+        
+        .divisionsdiv{
+			display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 20px;
+            font-size: 1.6em;
+            line-height: 1.1em;
+            cursor:pointer;
+		}
+        
+        .divisionsdiv:hover{
+            text-decoration: underline;
+        }
+
+        .activedivision{
+            text-decoration: underline;
+        }
+
+		.game-overview{
+			margin: 10px 0;
+			width: 100%;
+		}
+
+		.game-overview tr{
+			font-size: 1.6em;
+			line-height: 1.1em;
+		}
+
+		.game-overview tr td:first-child{
+			width: 30%;
+		}
+        
+        .game-overview tr td:nth-child(3){
+			width: 30%;
+		}
+
+		.expand{
+			color: #ff0000;
+			font-size: 80px;
+			position: relative;
+			top: -20px;
+			height: 25px;
+		}
+		
+        .winner{
+			font-weight: 400;
+		}
+
+		.expand p{
+			margin-bottom: 0;
+			display: none;
+			text-align: center;
+		}
+
+		.game:hover .expand p{
+			display: block;
+		}
+
+		.collapse{
+			clear: both;
+			padding-top: 5px;
+			margin-bottom: 10px;
+			font-size: 50px;
+			text-align: center;
+			display: block;
+			width: 100%;
+			color: #96a9b5;
+		}
+
+		.stats table{
+			empty-cells: show;
+			width: 100%;
+		}
+		.stats table caption{
+			text-align: left;
+			margin-bottom: 10px;
+			margin-top: 10px;
+		}
+
+		.stats table tr{
+			empty-cells: show;
+			white-space: nowrap;
+		}
+		.stats table th{
+			border-bottom:1px solid #FF0000;
+			font-weight: bold;
+			width: 20%;
+			white-space: nowrap;
+		}
+		.stats table td{
+			border-bottom: 1px solid #FF0000;/
+			border-collapse: collapse;
+			display: table-cell;
+			empty-cells: show;
+			text-align: center;
+			white-space: nowrap;
+		}
+	</style>
+</head>
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<div id="content-wrapper" class="schedule">
+	<div id="content">
+		<div class="container">
+            {% for division in divisions %}
+                <div class="divisionsdiv {% if division.division == active_division %}activedivision{% endif %} "
+                        onclick="javascript:handleDivision('/leagues/scores/{{division.division}}')">
+                    {{division}}
+                </div>
+            {% endfor %}
+
+            {% for day,value in matchups.items %}
+			<section>
+                <h3>{{division_name}} | {{day}}</h3>
+			    {% for mid, value2 in value.items %}
+					<div class="game" onclick="javascript:toggleTable({{mid}})">
+						<h3>{{value2.match.time}}</h3>
+						<table class="game-overview">
+							<tr>
+								<td
+                                    {% if value2.match.home_goals < value2.match.away_goals %}
+                                        class="winner"
+								    {% endif %}
+                                    >{{value2.match.awayteam.team_name}}</td>
+                                <td
+                                    {% if value2.match.home_goals < value2.match.away_goals %}
+                                        class="winner"
+								    {% endif %}
+                                    >{{value2.match.away_goals}}</td>
+								<td 
+                                    {% if value2.match.home_goals > value2.match.away_goals %}
+                                        class="winner"
+								    {% endif %}
+                                    >{{value2.match.hometeam.team_name}}</td>
+                                <td
+                                    {% if value2.match.home_goals > value2.match.away_goals %}
+                                        class="winner"
+								    {% endif %}
+                                    >{{value2.match.home_goals}}</td>
+							</tr>
+						</table>
+
+						<div class="row stats" id="stats-{{mid}}" style="display:none;">
+							<div class="6u 12u(mobile)">
+								<table>
+						    		<caption>Away Stats: {{value2.match.awayteam.team_name}}</caption>
+									<tr>
+										<th>Player</th>
+										<th>Goals</th>
+										<th>Assists</th>
+									</tr>
+									{% for stat in value2.stats %}
+                                        {% if value2.match.awayteam == stat.team %}
+									    <tr>
+							    		    <td>{{stat.player}}</td>
+										    <td>{{stat.goals}}</td>
+										    <td>{{stat.assists}}</td>
+									    </tr>
+									    {% endif %}
+									{% endfor %}
+								</table>
+							</div>
+
+							<div class="6u 12u(mobile)">
+								<table>
+							    	<caption>Home Stats: {{value2.match.hometeam.team_name}}</caption>
+								    <tr>
+									    <th>Player</th>
+										<th>Goals</th>
+										<th>Assists</th>
+									</tr>
+									{% for stat in value2.stats %}
+									    {% if value2.match.hometeam == stat.team %}
+									    <tr>
+										    <td>{{stat.player}}</td>
+										    <td>{{stat.goals}}</td>
+										    <td>{{stat.assists}}</td>
+									    </tr>
+									    {% endif %}
+									{% endfor %}
+								</table>
+							</div>
+							<p class="collapse">^</p>
+						</div> <!-- row (stats)-->
+						<hr/>
+						<div class="expand" id="ex-{{match.id}}">
+							<p>...</p>
+						</div>
+					</div> <!-- /game -->
+				{% endfor %} <!-- match -->
+			</section>
+			{% endfor %} <!-- day -->
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+    function toggleTable(id) {
+        var stats = document.getElementById("stats-"+id);
+				var showstats = stats.style.display == "block";
+        stats.style.display = showstats ? "none" : "block";
+				document.getElementById("ex-"+id).style.display = showstats ? "block" : "none";
+    }
+		function handleDivision(dest){
+	  	window.location = dest;
+	  }
+</script>
+{% endblock %}

@@ -1,114 +1,93 @@
 <head>
 	<style type="text/css" media="screen">
+		#datepicker{
+			margin-bottom: 20px;
+		}
 
-		table{
-			border-collapse: collapse;
-			border: 1px solid #FF0000;
-			vertical-align: top;
-			display: inline-block;
-			empty-cells: show;
+		@media screen and (min-width: 737px){
+			.schedule #content section{
+				margin-bottom: 20px;
+			}
+		}
+
+		section .game{
+			padding-top: 20px;
+		}
+
+		section .game:first-of-type{
+			padding-top: 0;
+		}
+
+		.game-overview{
+			margin: 10px 0;
 			width: 100%;
 		}
-		table caption{
-			text-align: left
+        
+        .pageheading{
+            margin-right: 20px;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            line-height: 1.3em;
+        }
+
+		.game-overview tr{
+			font-size: 1.6em;
+			line-height: 1.1em;
 		}
 
-		table tr{
-			border:1px solid #FF0000;/
-			empty-cells: show
-			white-space: nowrap;
+		.game-overview tr td:first-child{
+			width: 45%;
 		}
-		table th{
-			border:1px solid #FF0000;
-			font-weight: bold;
-			width: 20%;
-			white-space: nowrap;
+		
+        .game-overview tr td:nth-child(3){
+			width: 45%;
 		}
-		table td{
-			border: 1px solid #FF0000;/
-			border-collapse: collapse;
-			display: table-cell;
-			empty-cells: show;
-			text-align: center;
-			white-space: nowrap;
-		}
-		/*.inlineTable {
-            display: inline-block;
-        }*/
+
 	</style>
 </head>
 {% extends 'core/base.html' %}
 {% load static %}
+
 {% block content %}
-<div id="content-wrapper">
+<div id="content-wrapper" class="schedule">
 	<div id="content">
 		<div class="container">
-		{% for day in game_days %}
-			<section>
-				<div class="row">
-					<div class="4u 12u(mobile)">
-						<table>
-							<caption>D1 {{day.week.date}}</caption>
-							<tr>
-					    		<th>Away Team</th>
-					    		<th>Home Team</th>
-					    		<th>Game Time</th>
-					    	</tr>
-							{% for match in matchup %}
-							{% if match.week.date == day.week.date and match.week.division|stringformat:"s" = "Sunday D1" %}
-					    	<tr>
-					    		<th>{{match.awayteam.team_name}}</th>
-					    		<th>{{match.hometeam.team_name}}</th>
-					    		<th>{{match.time}}</th>
-					    	</tr>
-					    	{% endif %}
-							{% endfor %}
-						</table>	
-					</div>
-					<div class="4u 12u(mobile)">
-						<table>
-						<caption>D2 {{day.week.date}}</caption>
-							<tr>
-					    		<th>Away Team</th>
-					    		<th>Home Team</th>
-					    		<th>Game Time</th>
-					    	</tr>
-							{% for match in matchup %}
-							{% if match.week.date == day.week.date and match.week.division|stringformat:"s" = "Sunday D2" %}
-					    	<tr>
-					    		<th>{{match.awayteam.team_name}}</th>
-					    		<th>{{match.hometeam.team_name}}</th>
-					    		<th>{{match.time}}</th>
-					    	</tr>
-							{% endif %}
-							{% endfor %}
-						</table>	
-					</div>
-					<div class="4u 12u(mobile)">
-						<table>
-						<caption>Wednesday Draft League  {{day.date}}</caption>
-							<tr>
-					    		<th>Away Team</th>
-					    		<th>Home Team</th>
-					    		<th>Game Time</th>
-					    	</tr>
-							{% for match in matchup %}
-							{% if match.week.date == day.week.date and match.week.division|stringformat:"s" = "Wednesday Draft League" %}
-					    	<tr>
-					    		<th>{{match.awayteam.team_name}}</th>
-					    		<th>{{match.hometeam.team_name}}</th>
-					    		<th>{{match.time}}</th>
-					    	</tr>
-							{% endif %}
-							{% endfor %}
-						</table>	
-					</div>
-				</div>
-			</section>
-		{% endfor %}
-
+            <div class="pageheading">
+                Schedule
+            </div>
+		{% for date, value in schedule.items %}
+		    {% for division, value2 in value.items %}
+				<section>
+                    <h3>{{division}} | {{date}}</h3>
+		            {% for match in value2 %}
+							<div class="game" onclick="javascript:toggleTable({{match.id}})">
+								<h3>{{match.time}}</h3>
+								<table class="game-overview">
+									<tr>
+                                        <td>{{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})</td>
+                                        <td>@</td>
+                                        <td>{{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})</td>
+									</tr>
+								</table>
+								<hr/>
+							</div> <!-- /game -->
+						{% endfor %} <!-- match -->
+					</section>
+				{% endfor %} <!-- division -->
+			{% endfor %} <!-- day -->
 		</div>
 	</div>
 </div>
-{% endblock %}
 
+<script type="text/javascript">
+    function toggleTable(id) {
+        var stats = document.getElementById("stats-"+id);
+				var showstats = stats.style.display == "block";
+        stats.style.display = showstats ? "none" : "block";
+				document.getElementById("ex-"+id).style.display = showstats ? "block" : "none";
+    }
+		function handleSelect(elm){
+	  	window.location = elm.value;
+	  }
+</script>
+{% endblock %}

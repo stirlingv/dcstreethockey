@@ -1,19 +1,20 @@
-from django.shortcuts import render
 import datetime
 from datetime import timedelta
+from collections import OrderedDict
+
+from django.shortcuts import render
 from django.views.generic.list import ListView
-from django.db.models.functions import Lower
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum
-from django.db.models import F, Count, Value
+from django.db.models import Sum, Q, Max
+from django.db.models import F, When, IntegerField, Case
 
 from leagues.models import Season
+from leagues.models import Division
 from leagues.models import MatchUp
 from leagues.models import Stat
 from leagues.models import Roster
 from leagues.models import Team_Stat
 from leagues.models import Week
-from leagues.models import Player
 # Create your views here.
 
 def home(request):
@@ -39,6 +40,9 @@ class MatchUpDetailView(ListView):
         self._next_week = Week.objects.order_by('date').filter(date__gte=datetime.datetime.today())
         if self._next_week:
             self._next_week = self._next_week[0]
+        else:
+            #No upcoming matches so use most recent.
+            self._next_week = Week.objects.latest('date')
         return MatchUp.objects.order_by('time').filter(week__date=self._next_week.date)
 
     def get_context_data(self, **kwargs):
@@ -58,7 +62,7 @@ class TeamStatDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(TeamStatDetailView, self).get_context_data(**kwargs)
-        
+
         context['team_list'] = context['team_list'].annotate(total_points = Coalesce((Sum('win') * 2) + Sum('tie'),0)).filter(team__is_active=True)
         # context["season"] = Season.objects.all()
         # context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
@@ -94,11 +98,74 @@ class PlayerStatDetailView(ListView):
 
         return context
 
+def get_stats_for_matchup(match):
+    return Stat.objects.filter(matchup=match).exclude(
+            Q(goals=None) & Q(assists=None)).exclude(
+            Q(goals=0) & Q(goals=0)).order_by(
+            '-goals', '-assists')
+
+def add_goals_for_matchups(matchups):
+    return matchups.annotate(home_goals=Sum(
+                Case(
+                    When(hometeam=F('stat__team'), then=F('stat__goals')),
+                    default=0,
+                    output_field=IntegerField(),
+                    )
+                ),
+            away_goals=Sum(
+                Case(
+                    When(awayteam=F('stat__team'), then=F('stat__goals')),
+                    default=0,
+                    output_field=IntegerField(),
+                    )
+                )
+            )
+
+def get_matches_for_division(division):
+    return MatchUp.objects.filter(
+            hometeam__division=division).order_by(
+            '-week__date').filter(awayteam__is_active=True)
+
 def schedule(request):
     context = {}
-    # context["season"] = Season.objects.get(is_current_season=1)
-    context["season"] = Season.objects.all()
-    context["matchup"]  = MatchUp.objects.order_by('week__date','time').filter(awayteam__is_active=True)  
-    context["game_days"]  = MatchUp.objects.order_by('week__date').distinct('week__date').filter(awayteam__is_active=True)
+    context['schedule'] = OrderedDict()
+    #Better to have a custom dictionary here than have 3 nested loops in the template
+    for match in MatchUp.objects.order_by('week__date', 'time').filter(
+            awayteam__is_active=True).filter(
+            week__date__gte=datetime.datetime.today()).annotate(
+            home_wins=Max('hometeam__team_stat__win')).annotate(
+            home_losses=Max('hometeam__team_stat__loss')).annotate(
+            home_ties=Max('hometeam__team_stat__tie')).annotate(
+            away_wins=Max('awayteam__team_stat__win')).annotate(
+            away_losses=Max('awayteam__team_stat__loss')).annotate(
+            away_ties=Max('awayteam__team_stat__tie')):
+        if not context['schedule'].get(str(match.week.date), False):
+            context['schedule'][str(match.week.date)] = OrderedDict()
+        if not context['schedule'][str(match.week.date)].get(
+                str(match.awayteam.division), False):
+            context['schedule'][str(match.week.date)][str(match.awayteam.division)] = []
+        context['schedule'][str(match.week.date)][str(match.awayteam.division)].append(match)
+
     return render(request, "leagues/schedule.html", context=context)
-        
+
+def scores(request, division=1):
+    context = {}
+    context['divisions'] = Division.objects.all()
+    context['matchups'] = OrderedDict()
+    context['active_division'] = int(division)
+    division = [i for i in Division.DIVISION_TYPE if context['active_division'] in i]
+    #Check to see if the dvision from the URL is valid
+    if len(division):
+        #division ex: [(1, 'Sunday D1')]
+        context['division_name'] = division[0][1]
+        matchups = get_matches_for_division(context['active_division'])
+        matchups = add_goals_for_matchups(matchups)
+        for match in matchups:
+            if not context['matchups'].get(str(match.week.date), False):
+                context['matchups'][str(match.week.date)] = OrderedDict()
+            context['matchups'][str(match.week.date)][str(match.id)] = {}
+            context['matchups'][str(match.week.date)][str(match.id)]['match'] = match
+            relevant_stats = get_stats_for_matchup(match)
+            context['matchups'][str(match.week.date)][str(match.id)]['stats'] = relevant_stats
+    return render(request, "leagues/scores.html", context=context)
+

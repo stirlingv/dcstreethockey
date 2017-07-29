@@ -4,7 +4,7 @@ from django.db import models
 import datetime
 
 
-	
+
 YEAR_CHOICES = []
 for r in range(1980, (datetime.datetime.now().year+1)):
 	YEAR_CHOICES.append((r,r))
@@ -65,7 +65,7 @@ class Team(models.Model):
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season, null=True)
-	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True)
+	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, default=1)
 	is_active = models.BooleanField()
 
 	class Meta:
@@ -92,7 +92,7 @@ class Team_Stat(models.Model):
 
 	def __unicode__(self):
 		return u"%s: %s - %s - %s" % (self.team, self.win, self.loss, self.tie)
-		
+
 	def __str__(self):
 		return self.__unicode__()
 
