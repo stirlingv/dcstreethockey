@@ -5,9 +5,12 @@
 <head>
 	<style type="text/css" media="screen">
 
+		.goalies{
+                        margin-top: 10px;
+                }
 		table{
 			border-collapse: collapse;
-			border: 1px solid #FF0000;
+			border: 1px solid #000000;
 			vertical-align: top;
 			display: inline-block;
 			empty-cells: show;
@@ -18,16 +21,16 @@
 		}
 
 		table tr{
-			border:1px solid #FF0000;/
+			border:1px solid #000000;/
 			empty-cells: show
 		}
 		table th{
-			border:1px solid #FF0000;
+			border:1px solid #000000;
 			font-weight: bold;
 			width: 20%;
 		}
 		table td{
-			border: 1px solid #FF0000;/
+			border: 1px solid #000000;/
 			border-collapse: collapse;
 			display: table-cell;
 			empty-cells: show;
@@ -43,16 +46,16 @@
 	<div id="content">
 		<div class="container">
 		<header>
-			<h2>Standings</h2>
+			<h2>League Leaders</h2>
 		</header>
 			<div class="row">
+                               {% for division, player_list in player_stat_list.items %}
 				<div class="4u 12u(mobile)">
 					<section>
 						<header>
-							<h3>Sunday D1</h3>
+							<h3>{{division}}</h3>
 						</header>
 						<table class="table">
-						<caption>Forwards</caption>
 							<tr>
 								<th>Player Name</th>
 								<th>Team</th>
@@ -60,144 +63,42 @@
 								<th>A</th>
 								<th>Pts</th>
 							</tr>
-							{% for player in player_stat_list %}
-								{% if player.team__division == 1 %}
+							{% for player in player_list %}
 									<tr>
-										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
-										<td>{{player.team__team_name}}</td>
+										<td>{{player.first_name}} {{player.last_name}}</td>
+										<td>{{player.roster__team__team_name}}</td>
 										<td>{{player.sum_goals}}</td>
 										<td>{{player.sum_assists}}</td>
 										<td>{{player.total_points}}</td>
 									</tr>
-							    {% endif %}
 							{% empty %}
 									<td>No player stats entered yet.</td>
 							{% endfor %}
-						<table class="table">
-						<caption>Goalies</caption>
+						<table class="table goalies" >
 							<tr>
 								<th>Goalie Name</th>
 								<th>Team</th>
+								<th>GP</th>
 								<th>GA</th>
 								<th>EN</th>
 							</tr>
-							{% for player in player_stat_list %}
-								{% if player.team__division == 1 %}
+							{% for player in player_list %}
 									{% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
 									<tr>
-									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
-									<td>{{player.team__team_name}}</td>
+									<td>{{player.first_name}} {{player.last_name}}</td>
+									<td>{{player.roster__team__team_name}}</td>
+									<td>{{player.sum_games_played}}</td>
 									<td>{{player.sum_goals_against}}</td>
 									<td>{{player.sum_empty_net}}</td>
 									</tr>
 									{% endif %}
-								{% endif %}	
 							{% empty %}
 									<td>No team stats entered yet.</td>
 							{% endfor %}
 						</table>
 					</section>
 					</div>
-					<div class="4u 12u(mobile)">
-					<section>
-						<header>
-							<h3>Sunday D2</h3>
-						</header>
-						<table class="table">
-						<caption>Forwards</caption>
-							<tr>
-								<th>Player Name</th>
-								<th>Team</th>
-								<th>G</th>
-								<th>A</th>
-								<th>Pts</th>
-							</tr>
-							{% for player in player_stat_list %}
-								{% if player.team__division == 2 %}
-									<tr>
-										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
-										<td>{{player.team__team_name}}</td>
-										<td>{{player.sum_goals}}</td>
-										<td>{{player.sum_assists}}</td>
-										<td>{{player.total_points}}</td>
-									</tr>
-							    {% endif %}
-							{% empty %}
-									<td>No player stats entered yet.</td>
-							{% endfor %}
-						<table class="table">
-						<caption>Goalies</caption>
-							<tr>
-								<th>Goalie Name</th>
-								<th>Team</th>
-								<th>GA</th>
-								<th>EN</th>
-							</tr>
-							{% for player in player_stat_list %}
-								{% if player.team__division == 2 %}
-									<tr>
-									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
-									<td>{{player.team__team_name}}</td>
-									<td>{{player.sum_goals_against}}</td>
-									<td>{{player.sum_empty_net}}</td>
-									</tr>
-								{% endif %}	
-							{% empty %}
-									<td>No team stats entered yet.</td>
-							{% endfor %}
-						</table>
-					</section>
-					</div>
-					<div class="4u 12u(mobile)">
-					<section>
-						<header>
-							<h3>Wednesday Draft League</h3>
-						</header>
-						<table class="table">
-						<caption>Forwards</caption>
-							<tr>
-								<th>Player Name</th>
-								<th>Team</th>
-								<th>G</th>
-								<th>A</th>
-								<th>Pts</th>
-							</tr>
-							{% for player in player_stat_list %}
-								{% if player.team__division == 3 %}
-									<tr>
-										<td>{{player.player__first_name}} {{player.player__last_name}}</td>
-										<td>{{player.team__team_name}}</td>
-										<td>{{player.sum_goals}}</td>
-										<td>{{player.sum_assists}}</td>
-										<td>{{player.total_points}}</td>	
-									</tr>
-							    {% endif %}
-							{% empty %}
-									<td>No player stats entered yet.</td>
-							{% endfor %}
-						<table class="table">
-						<caption>Goalies</caption>
-							<tr>
-								<th>Goalie Name</th>
-								<th>Team</th>
-								<th>GA</th>
-								<th>EN</th>
-							</tr>
-							{% for player in player_stat_list %}
-								{% if player.team__division == 3 %}
-									<tr>
-									<td>{{player.player__first_name}} {{player.player__last_name}}</td>
-									<td>{{player.team__team_name}}</td>
-									<td>{{player.sum_goals_against}}</td>
-									<td>{{player.sum_empty_net}}</td>
-									</tr>
-								{% endif %}	
-							{% empty %}
-									<td>No team stats entered yet.</td>
-							{% endfor %}
-						</table>
-					</section>
-					</div>
+                                        {% endfor %}
 				</div>
 			</div>
 		</div>

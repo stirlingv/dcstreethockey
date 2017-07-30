@@ -13,6 +13,7 @@ from leagues.models import Division
 from leagues.models import MatchUp
 from leagues.models import Stat
 from leagues.models import Roster
+from leagues.models import Player
 from leagues.models import Team_Stat
 from leagues.models import Week
 # Create your views here.
@@ -79,23 +80,58 @@ class PlayerStatDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
-
-        context['player_stat_list'] = context['player_stat_list'].values(
-            'player__first_name',
-            'player__last_name',
-            'team__division',
-            'team__team_name',
-            'team__season',
-            'matchup__week__season__is_current_season',
-            'player__roster__position1',
-            'player__roster__position2'
-        ).annotate(sum_goals=Coalesce(Sum('goals'), 0),
-                   sum_assists=Coalesce(Sum('assists'), 0),
-                   sum_goals_against=Coalesce(Sum('goals_against'), 0),
-                   sum_empty_net=Coalesce(Sum('empty_net'), 0),
-                   total_points=Coalesce(Sum('goals'),0) + Coalesce(Sum('assists'),0),
-        ).order_by('-total_points', '-sum_goals', '-sum_assists')
-
+        context['player_stat_list'] = OrderedDict()
+        for div in Division.objects.all():
+            context['player_stat_list'][str(div)] = Player.objects.filter(roster__team__division=div).values(
+                    'last_name',
+                    'first_name',
+                    'roster__team__team_name',
+                    'roster__position1',
+                    'roster__position2',
+                    ).annotate(
+                    sum_goals=Sum(
+                        Case(
+                            When(stat__team=F('roster__team'), then=Coalesce('stat__goals',0)),
+                            default=0,
+                            output_field=IntegerField(),
+                        )
+                    ),
+                    sum_assists=Sum(
+                        Case(
+                            When(stat__team=F('roster__team'), then=Coalesce('stat__assists',0)),
+                            default=0,
+                            output_field=IntegerField(),
+                        )
+                    ),
+                    total_points=Sum(
+                        Case(
+                            When(stat__team=F('roster__team'), then=Coalesce('stat__assists', 0)+Coalesce('stat__goals',0)),
+                            default=0,
+                            output_field=IntegerField(),
+                        )
+                    ),
+                    sum_empty_net=Sum(
+                        Case(
+                            When(stat__team=F('roster__team'), then=Coalesce('stat__empty_net', 0)),
+                            default=0,
+                            output_field=IntegerField(),
+                        )
+                    ),
+                    sum_goals_against=Sum(
+                        Case(
+                            When(stat__team=F('roster__team'), then=Coalesce('stat__goals_against', 0)),
+                            default=0,
+                            output_field=IntegerField(),
+                        )
+                    ),
+                    sum_games_played=Sum(
+                        Case(
+                            When(stat__team=F('roster__team'), then=1),
+                            default=0,
+                            output_field=IntegerField(),
+                        )
+                    ),
+                    ).order_by('-total_points', '-sum_goals', '-sum_assists')
         return context
 
 def get_stats_for_matchup(match):
