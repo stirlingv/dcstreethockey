@@ -38,8 +38,8 @@ class StatInline(admin.TabularInline):
             elif db_field.name == "team":
                 match = MatchUp.objects.filter(id=match_id).last()
                 kwargs['queryset'] = Team.objects.filter(
-                        Q(team_name=match.hometeam.team_name) | Q(
-                        team_name=match.awayteam.team_name)).filter(
+                        Q(id=match.hometeam.id) | Q(
+                        id=match.awayteam.id)).filter(
                         Q(season=match.week.season))
         except Exception as e:
            print "Could not filter players or teams for admin view of matchup." + str(e)
