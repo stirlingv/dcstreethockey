@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.db.models import Q
 
-from leagues.models import Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref
+from leagues.models import Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season
 
 class RosterInline(admin.TabularInline):
     model = Roster
@@ -24,21 +24,25 @@ class StatInline(admin.TabularInline):
     extra = 1
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
-	try:
-	    match_id = str(request.path.strip('/').split('/')[-2])
+        try:
+            match_id = str(request.path.strip('/').split('/')[-2])
             if db_field.name == "player":
                 match = MatchUp.objects.filter(id=match_id).last()
-                kwargs['queryset'] = Player.objects.filter(
-                        Q(roster__team__team_name=match.hometeam.team_name) | Q(
-                        roster__team__team_name=match.awayteam.team_name) | Q(
-                        roster__position1=4) | Q(roster__position2=4))
+                kwargs['queryset'] = Player.objects.filter(((
+                        Q(roster__team=match.hometeam) | Q(
+                        roster__team=match.awayteam)) & Q(
+                        roster__team__season=match.week.season))  | Q(
+                        roster__position1=4) | Q(roster__position2=4)).order_by(
+                        'roster__position1', 'last_name','first_name').distinct(
+                        'roster__position1', 'last_name', 'first_name')
             elif db_field.name == "team":
                 match = MatchUp.objects.filter(id=match_id).last()
                 kwargs['queryset'] = Team.objects.filter(
                         Q(team_name=match.hometeam.team_name) | Q(
-                        team_name=match.awayteam.team_name))
-        except:
-           print "Could not filter players or teams for admin view of matchup."
+                        team_name=match.awayteam.team_name)).filter(
+                        Q(season=match.week.season))
+        except Exception as e:
+           print "Could not filter players or teams for admin view of matchup." + str(e)
         return super(StatInline, self).formfield_for_foreignkey(db_field, request=None, **kwargs)
 
 
@@ -58,6 +62,10 @@ class WeekAdmin(admin.ModelAdmin):
 
 @admin.register(Ref)
 class RefAdmin(admin.ModelAdmin):
+    pass
+
+@admin.register(Season)
+class SeasonAdmin(admin.ModelAdmin):
     pass
 
 admin.site.register(Player, PlayerAdmin)
