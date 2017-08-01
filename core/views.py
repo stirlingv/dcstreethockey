@@ -137,8 +137,20 @@ class PlayerStatDetailView(ListView):
 def get_stats_for_matchup(match):
     return Stat.objects.filter(matchup=match).exclude(
             Q(goals=None) & Q(assists=None)).exclude(
-            Q(goals=0) & Q(goals=0)).order_by(
+            Q(goals=0) & Q(assists=0)).order_by(
             '-goals', '-assists')
+
+def get_goalies_for_matchup(match, home):
+    if home:
+        return Stat.objects.filter(matchup=match).filter(
+                (Q(goals=0) | Q(goals=None)) & (Q(
+                assists=0) | Q(goals=None))& Q(
+                matchup__hometeam=F('team')))
+    else:
+        return Stat.objects.filter(matchup=match).filter(
+                (Q(goals=0) | Q(goals=None)) & (Q(
+                assists=0) | Q(goals=None))& Q(
+                matchup__awayteam=F('team')))
 
 def add_goals_for_matchups(matchups):
     return matchups.annotate(home_goals=Sum(
@@ -202,6 +214,10 @@ def scores(request, division=1):
             context['matchups'][str(match.week.date)][str(match.id)] = {}
             context['matchups'][str(match.week.date)][str(match.id)]['match'] = match
             relevant_stats = get_stats_for_matchup(match)
+            home_goalie_stats = get_goalies_for_matchup(match, home=True)
+            away_goalie_stats= get_goalies_for_matchup(match, home=False)
             context['matchups'][str(match.week.date)][str(match.id)]['stats'] = relevant_stats
+            context['matchups'][str(match.week.date)][str(match.id)]['home_goalie_stats'] = home_goalie_stats
+            context['matchups'][str(match.week.date)][str(match.id)]['away_goalie_stats'] = away_goalie_stats
     return render(request, "leagues/scores.html", context=context)
 

@@ -189,24 +189,54 @@
 									    {% endif %}
 									{% endfor %}
 								</table>
+								<table>
+						    		<caption>Away Goale: {{value2.match.awayteam.team_name}}</caption>
+									<tr>
+										<th>Player</th>
+										<th>GA</th>
+										<th>EN</th>
+									</tr>
+									{% for stat in value2.away_goalie_stat %}
+									    <tr>
+							    		    <td>{{stat.player}}</td>
+										    <td>{{stat.goals_against}}</td>
+										    <td>{{stat.empty_net}}</td>
+									    </tr>
+									{% endfor %}
+								</table>
 							</div>
 
 							<div class="6u 12u(mobile)">
 								<table>
-							    	<caption>Home Stats: {{value2.match.hometeam.team_name}}</caption>
-								    <tr>
-									    <th>Player</th>
+						    		<caption>Home Stats: {{value2.match.hometeam.team_name}}</caption>
+									<tr>
+										<th>Player</th>
 										<th>Goals</th>
 										<th>Assists</th>
 									</tr>
 									{% for stat in value2.stats %}
-									    {% if value2.match.hometeam == stat.team %}
+                                        {% if value2.match.hometeam == stat.team %}
 									    <tr>
-										    <td>{{stat.player}}</td>
+							    		    <td>{{stat.player}}</td>
 										    <td>{{stat.goals}}</td>
 										    <td>{{stat.assists}}</td>
 									    </tr>
 									    {% endif %}
+									{% endfor %}
+								</table>
+								<table>
+							    	<caption>Home Goalie: {{value2.match.hometeam.team_name}}</caption>
+								    <tr>
+									    <th>Player</th>
+										<th>GA</th>
+										<th>EN</th>
+									</tr>
+									{% for stat in value2.home_goalie_stat %}
+									    <tr>
+										    <td>{{stat.player}}</td>
+										    <td>{{stat.goals_against}}</td>
+										    <td>{{stat.empty_net}}</td>
+									    </tr>
 									{% endfor %}
 								</table>
 							</div>
