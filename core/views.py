@@ -144,12 +144,12 @@ def get_goalies_for_matchup(match, home):
     if home:
         return Stat.objects.filter(matchup=match).filter(
                 (Q(goals=0) | Q(goals=None)) & (Q(
-                assists=0) | Q(goals=None))& Q(
+                assists=0) | Q(assists=None))& Q(
                 matchup__hometeam=F('team')))
     else:
         return Stat.objects.filter(matchup=match).filter(
                 (Q(goals=0) | Q(goals=None)) & (Q(
-                assists=0) | Q(goals=None))& Q(
+                assists=0) | Q(assists=None))& Q(
                 matchup__awayteam=F('team')))
 
 def add_goals_for_matchups(matchups):
