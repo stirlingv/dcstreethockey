@@ -65,7 +65,7 @@ class Team(models.Model):
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season, null=True)
-	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True)
+	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, blank=True)
 	is_active = models.BooleanField()
 
 	class Meta:
