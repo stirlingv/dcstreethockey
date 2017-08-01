@@ -91,42 +91,43 @@ class PlayerStatDetailView(ListView):
                     ).annotate(
                     sum_goals=Sum(
                         Case(
-                            When(stat__team=F('roster__team'), then=Coalesce('stat__goals',0)),
+                            When(stat__team=F('roster__team'), stat__team__season__is_current_season=True, then=Coalesce('stat__goals',0)),
                             default=0,
                             output_field=IntegerField(),
                         )
                     ),
                     sum_assists=Sum(
                         Case(
-                            When(stat__team=F('roster__team'), then=Coalesce('stat__assists',0)),
+                            When(stat__team=F('roster__team'), stat__team__season__is_current_season=True, then=Coalesce('stat__assists',0)),
+
                             default=0,
                             output_field=IntegerField(),
                         )
                     ),
                     total_points=Sum(
                         Case(
-                            When(stat__team=F('roster__team'), then=Coalesce('stat__assists', 0)+Coalesce('stat__goals',0)),
+                            When(stat__team=F('roster__team'), stat__team__season__is_current_season=True, then=Coalesce('stat__assists', 0)+Coalesce('stat__goals',0)),
                             default=0,
                             output_field=IntegerField(),
                         )
                     ),
                     sum_empty_net=Sum(
                         Case(
-                            When(stat__team=F('roster__team'), then=Coalesce('stat__empty_net', 0)),
+                            When(stat__team=F('roster__team'), stat__team__season__is_current_season=True, then=Coalesce('stat__empty_net', 0)),
                             default=0,
                             output_field=IntegerField(),
                         )
                     ),
                     sum_goals_against=Sum(
                         Case(
-                            When(stat__team=F('roster__team'), then=Coalesce('stat__goals_against', 0)),
+                            When(stat__team=F('roster__team'), stat__team__season__is_current_season=True, then=Coalesce('stat__goals_against', 0)),
                             default=0,
                             output_field=IntegerField(),
                         )
                     ),
                     sum_games_played=Sum(
                         Case(
-                            When(stat__team=F('roster__team'), then=1),
+                            When(stat__team=F('roster__team'), stat__team__season__is_current_season=True, then=1),
                             default=0,
                             output_field=IntegerField(),
                         )
@@ -137,8 +138,20 @@ class PlayerStatDetailView(ListView):
 def get_stats_for_matchup(match):
     return Stat.objects.filter(matchup=match).exclude(
             Q(goals=None) & Q(assists=None)).exclude(
-            Q(goals=0) & Q(goals=0)).order_by(
+            Q(goals=0) & Q(assists=0)).order_by(
             '-goals', '-assists')
+
+def get_goalies_for_matchup(match, home):
+    if home:
+        return Stat.objects.filter(matchup=match).filter(
+                (Q(goals=0) | Q(goals=None)) & (Q(
+                assists=0) | Q(assists=None))& Q(
+                matchup__hometeam=F('team')))
+    else:
+        return Stat.objects.filter(matchup=match).filter(
+                (Q(goals=0) | Q(goals=None)) & (Q(
+                assists=0) | Q(assists=None))& Q(
+                matchup__awayteam=F('team')))
 
 def add_goals_for_matchups(matchups):
     return matchups.annotate(home_goals=Sum(
@@ -194,7 +207,8 @@ def scores(request, division=1):
     if len(division):
         #division ex: [(1, 'Sunday D1')]
         context['division_name'] = division[0][1]
-        matchups = get_matches_for_division(context['active_division'])
+        matchups = get_matches_for_division(context['active_division']).filter(
+                week__date__lte=datetime.datetime.today())
         matchups = add_goals_for_matchups(matchups)
         for match in matchups:
             if not context['matchups'].get(str(match.week.date), False):
@@ -202,6 +216,10 @@ def scores(request, division=1):
             context['matchups'][str(match.week.date)][str(match.id)] = {}
             context['matchups'][str(match.week.date)][str(match.id)]['match'] = match
             relevant_stats = get_stats_for_matchup(match)
+            home_goalie_stats = get_goalies_for_matchup(match, home=True)
+            away_goalie_stats= get_goalies_for_matchup(match, home=False)
             context['matchups'][str(match.week.date)][str(match.id)]['stats'] = relevant_stats
+            context['matchups'][str(match.week.date)][str(match.id)]['home_goalie_stats'] = home_goalie_stats
+            context['matchups'][str(match.week.date)][str(match.id)]['away_goalie_stats'] = away_goalie_stats
     return render(request, "leagues/scores.html", context=context)
 
