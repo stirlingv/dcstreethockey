@@ -101,7 +101,6 @@ class PlayerStatDetailView(ListView):
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True,
                                     then=Coalesce('stat__assists',0)),
-
                             default=0,
                             output_field=IntegerField(),
                         )
