@@ -64,6 +64,7 @@
 								<th>Pts</th>
 							</tr>
 							{% for player in player_list %}
+                            {% if player.total_points > 0 %}
 									<tr>
 										<td>{{player.first_name}} {{player.last_name}}</td>
 										<td>{{player.roster__team__team_name}}</td>
@@ -71,6 +72,7 @@
 										<td>{{player.sum_assists}}</td>
 										<td>{{player.total_points}}</td>
 									</tr>
+                            {% endif %}
 							{% empty %}
 									<td>No player stats entered yet.</td>
 							{% endfor %}

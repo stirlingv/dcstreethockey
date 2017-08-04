@@ -136,7 +136,7 @@ class PlayerStatDetailView(ListView):
                             output_field=IntegerField(),
                         )
                     ),
-                    ).order_by('-total_points', '-sum_goals', '-sum_assists')
+                    ).filter(sum_games_played__gte=1).order_by('-total_points', '-sum_goals', '-sum_assists')
         return context
 
 def get_stats_for_matchup(match):
