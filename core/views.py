@@ -5,8 +5,8 @@ from collections import OrderedDict
 from django.shortcuts import render
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max
-from django.db.models import F, When, IntegerField, Case
+from django.db.models import Sum, Q, Max, Avg
+from django.db.models import F, When, IntegerField, FloatField, Case
 
 from leagues.models import Season
 from leagues.models import Division
@@ -82,7 +82,8 @@ class PlayerStatDetailView(ListView):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
         context['player_stat_list'] = OrderedDict()
         for div in Division.objects.all():
-            context['player_stat_list'][str(div)] = Player.objects.filter(roster__team__division=div).values(
+            context['player_stat_list'][str(div)] = Player.objects.filter(roster__team__division=div,
+                    stat__matchup__is_postseason=False).values(
                     'last_name',
                     'first_name',
                     'roster__team__team_name',
@@ -113,30 +114,31 @@ class PlayerStatDetailView(ListView):
                             output_field=IntegerField(),
                         )
                     ),
-                    sum_empty_net=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__empty_net', 0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
                     sum_goals_against=Sum(
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__goals_against', 0)),
+                                    then=Coalesce('stat__goals_against', 0)-Coalesce('stat__empty_net', 0)),
                             default=0,
-                            output_field=IntegerField(),
+                            #output_field=FloatField(),
+                            output_field=FloatField(),
                         )
                     ),
                     sum_games_played=Sum(
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True, then=1),
                             default=0,
-                            output_field=IntegerField(),
+                            output_field=FloatField(),
                         )
                     ),
-                    ).filter(sum_games_played__gte=1).order_by('-total_points', '-sum_goals', '-sum_assists')
+                    average_goals_against=Avg(
+                        Case(
+                            When(stat__team=F('roster__team'), stat__team__is_active=True,
+                                    then=Coalesce('stat__goals_against',0)),
+                            default=0,
+                            output_field=FloatField(),
+                        )
+                    ),
+                    ).filter(sum_games_played__gte=1).order_by('-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
         return context
 
 def get_stats_for_matchup(match):
