@@ -119,15 +119,14 @@ class PlayerStatDetailView(ListView):
                             When(stat__team=F('roster__team'), stat__team__is_active=True,
                                     then=Coalesce('stat__goals_against', 0)-Coalesce('stat__empty_net', 0)),
                             default=0,
-                            #output_field=FloatField(),
-                            output_field=FloatField(),
+                            output_field=IntegerField(),
                         )
                     ),
                     sum_games_played=Sum(
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True, then=1),
                             default=0,
-                            output_field=FloatField(),
+                            output_field=IntegerField(),
                         )
                     ),
                     average_goals_against=Avg(
