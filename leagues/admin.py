@@ -15,9 +15,11 @@ class TeamAdmin(admin.ModelAdmin):
             TeamStatInline,
             RosterInline,
             ]
+    list_filter = ['is_active','season','division']
 
 class PlayerAdmin(admin.ModelAdmin):
     inlines = [RosterInline]
+    search_fields = ['last_name', 'first_name']
 
 class StatInline(admin.TabularInline):
     model = Stat
@@ -50,6 +52,7 @@ class MatchUpAdmin(admin.ModelAdmin):
     inlines = [
             StatInline,
             ]
+    list_filter = ['week__season', 'week']
 
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
@@ -59,6 +62,7 @@ class WeekAdmin(admin.ModelAdmin):
     inlines = [
             MatchUpInline,
             ]
+    list_filter = ['season', 'division']
 
 @admin.register(Ref)
 class RefAdmin(admin.ModelAdmin):
@@ -66,7 +70,7 @@ class RefAdmin(admin.ModelAdmin):
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):
-    pass
+    list_filter = ['year']
 
 admin.site.register(Player, PlayerAdmin)
 admin.site.register(Team, TeamAdmin)
