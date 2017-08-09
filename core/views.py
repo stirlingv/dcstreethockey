@@ -5,8 +5,8 @@ from collections import OrderedDict
 from django.shortcuts import render
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max, Avg
-from django.db.models import F, When, IntegerField, FloatField, Case
+from django.db.models import Sum, Q, Max
+from django.db.models import F, When, IntegerField, Case, DecimalField
 
 from leagues.models import Season
 from leagues.models import Division
@@ -132,15 +132,15 @@ class PlayerStatDetailView(ListView):
                     average_goals_against=Sum(
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__goals_against', 0)-Coalesce('stat__empty_net', 0)),
-                            default=0,
-                            output_field=IntegerField(),
+                                    then=Coalesce('stat__goals_against', 0.0)-Coalesce('stat__empty_net', 0.0)),
+                            default=0.0,
+                            output_field=DecimalField(),
                         )
                     )/Sum(
                         Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True, then=1),
-                            default=0,
-                            output_field=IntegerField(),
+                            When(stat__team=F('roster__team'), stat__team__is_active=True, then=1.0),
+                            default=0.0,
+                            output_field=DecimalField(),
                         )
                     ),
                     ).filter(sum_games_played__gte=1).order_by('-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
