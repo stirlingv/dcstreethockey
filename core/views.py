@@ -129,12 +129,18 @@ class PlayerStatDetailView(ListView):
                             output_field=IntegerField(),
                         )
                     ),
-                    average_goals_against=Avg(
+                    average_goals_against=Sum(
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__goals_against',0)),
+                                    then=Coalesce('stat__goals_against', 0)-Coalesce('stat__empty_net', 0)),
                             default=0,
-                            output_field=FloatField(),
+                            output_field=IntegerField(),
+                        )
+                    )/Sum(
+                        Case(
+                            When(stat__team=F('roster__team'), stat__team__is_active=True, then=1),
+                            default=0,
+                            output_field=IntegerField(),
                         )
                     ),
                     ).filter(sum_games_played__gte=1).order_by('-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
