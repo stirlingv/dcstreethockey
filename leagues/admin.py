@@ -35,8 +35,8 @@ class StatInline(admin.TabularInline):
                         roster__team=match.awayteam)) & Q(
                         roster__team__season=match.week.season))  | Q(
                         roster__position1=4) | Q(roster__position2=4)).order_by(
-                        'roster__position1', 'last_name','first_name').distinct(
-                        'roster__position1', 'last_name', 'first_name')
+                        'last_name','first_name').distinct(
+                        'last_name', 'first_name')
             elif db_field.name == "team":
                 match = MatchUp.objects.filter(id=match_id).last()
                 kwargs['queryset'] = Team.objects.filter(
