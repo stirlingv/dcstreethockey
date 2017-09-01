@@ -1,48 +1,5 @@
 <head>
 	<style type="text/css" media="screen">
-		#datepicker{
-			margin-bottom: 20px;
-		}
-
-		@media screen and (min-width: 737px){
-			.schedule #content section{
-				margin-bottom: 20px;
-			}
-		}
-
-		section .game{
-			padding-top: 20px;
-		}
-
-		section .game:first-of-type{
-			padding-top: 0;
-		}
-
-		.game-overview{
-			margin: 10px 0;
-			width: 100%;
-		}
-        
-        .pageheading{
-            margin-right: 20px;
-            margin-bottom: 20px;
-            font-size: 1.8em;
-            line-height: 1.3em;
-        }
-
-		.game-overview tr{
-			font-size: 1.6em;
-			line-height: 1.1em;
-		}
-
-		.game-overview tr td:first-child{
-			width: 45%;
-		}
-		
-        .game-overview tr td:nth-child(3){
-			width: 45%;
-		}
-
 	</style>
 </head>
 {% extends 'core/base.html' %}
@@ -52,29 +9,10 @@
 <div id="content-wrapper" class="schedule">
 	<div id="content">
 		<div class="container">
-            <div class="pageheading">
+            <div class="title">
                 Schedule
             </div>
-		{% for date, value in schedule.items %}
-		    {% for division, value2 in value.items %}
-				<section>
-                    <h3>{{division}} | {{date}}</h3>
-		            {% for match in value2 %}
-							<div class="game" onclick="javascript:toggleTable({{match.id}})">
-								<h3>{{match.time}}</h3>
-								<table class="game-overview">
-									<tr>
-                                        <td>{{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})</td>
-                                        <td>@</td>
-                                        <td>{{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})</td>
-									</tr>
-								</table>
-								<hr/>
-							</div> <!-- /game -->
-						{% endfor %} <!-- match -->
-					</section>
-				{% endfor %} <!-- division -->
-			{% endfor %} <!-- day -->
+            {% include 'partials/schedule.html' %}
 		</div>
 	</div>
 </div>

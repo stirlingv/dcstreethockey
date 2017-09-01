@@ -68,3 +68,228 @@
     background-color: #54bfac;
   }
 }
+
+#datepicker{
+    margin-bottom: 20px;
+}
+
+@media screen and (min-width: 737px){
+    .team #content section{
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+    }
+    .schedule #content section{
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+    }
+}
+.goalies{
+                margin-top: 10px;
+        }
+.rostertable{
+    border-collapse: collapse;
+    border: 1px solid #000000;
+    vertical-align: top;
+    display: inline-block;
+    empty-cells: show;
+}
+.rostertable caption{
+    text-align: left
+}
+
+.rostertable tr{
+    border:1px solid #000000;/
+    empty-cells: show
+}
+.rostertable th{
+    border:1px solid #000000;
+    font-weight: bold;
+    width: 20%;
+}
+.rostertable td{
+    border: 1px solid #000000;/
+    border-collapse: collapse;
+    display: table-cell;
+    empty-cells: show;
+    text-align: center;
+    white-space: nowrap
+}
+
+section .game{
+    padding-top: 20px;
+    border-bottom: 1px solid #474f51;
+}
+
+section .game:first-of-type{
+    padding-top: 0;
+}
+
+.hidden{
+    display: none;
+}
+
+.show{
+    display: block;
+}
+
+.division{
+    padding-bottom:15px;
+}
+
+.optionsdiv{
+    clear: right;
+    display: inline-block;
+    margin-right: 20px;
+    margin-bottom: 20px;
+    font-size: 1.6em;
+    line-height: 1.1em;
+    cursor:pointer;
+}
+
+.optionsdiv:hover{
+    text-decoration: underline;
+}
+
+.activeoption{
+    text-decoration: underline;
+}
+
+.clickable:hover{
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.game-overview{
+    margin: 10px 0;
+    width: 100%;
+}
+
+.game-overview tr{
+    font-size: 1.4em;
+    line-height: 0.9em;
+}
+
+.title{
+    font-size: 2em;
+    font-weight: 500;
+    line-height: 1.1em;
+    padding-bottom:10px;
+    color: #d80000;
+}
+
+.game-overview tr td:first-child{
+    width: 30%;
+}
+
+.game-overview tr td:nth-child(2){
+    width: 20%;
+}
+
+.game-overview tr td:nth-child(3){
+    width: 30%;
+}
+
+.game-overview tr td:nth-child(4){
+    width: 20%;
+}
+
+#schedulesection table td:nth-child(2){
+      text-align:center;
+      color: #d80000;
+}
+
+.expand{
+    color: #d80000;
+    font-size: 80px;
+    position: relative;
+    top: -28px;
+    height: 25px;
+}
+
+.winner{
+    font-weight: 400;
+}
+
+.expand p{
+    margin-bottom: 0;
+    display: none;
+    text-align: center;
+}
+
+.game:hover .expand p{
+    display: block;
+}
+
+#scoressection .game:hover{
+    cursor: pointer;
+}
+
+.collapse{
+    clear: both;
+    padding-top: 5px;
+    margin-bottom: 10px;
+    font-size: 50px;
+    text-align: center;
+    display: block;
+    width: 100%;
+    color: #96a9b5;
+}
+
+.stats table{
+    empty-cells: show;
+    width: 100%;
+    margin-bottom: 20px;
+    margin-top:20px;
+}
+.stats table caption{
+    text-align: left;
+    margin-bottom: 10px;
+    margin-top: 10px;
+}
+
+.stats table tr{
+    empty-cells: show;
+    white-space: nowrap;
+}
+.stats table th{
+    border-bottom:1px solid #96a9b5;
+    font-weight: bold;
+    width: 15%;
+    white-space: nowrap;
+}
+.stats table td{
+    border-bottom: 1px solid #96a9b5;/
+    border-collapse: collapse;
+    display: table-cell;
+    empty-cells: show;
+    text-align: center;
+    white-space: nowrap;
+}
+.stats table th:first-child, .stats table td:first-child{
+      text-align: left;
+}
+
+.stats table.roster td + td{
+    border-left:1px solid #96a9b5
+}
+
+.standingssec div div{
+    padding-top: 0px;
+}
+
+.standingssec div div table{
+    margin-top: 0px;
+}
+
+.teampic{
+    float: right;
+    width: 500px;
+}
+
+.cleardiv{
+    clear:right;
+}
+
+div div#content .matchupheader{
+    margin-top: 3em;
+}

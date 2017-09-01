@@ -1,0 +1,44 @@
+<table class="table">
+    <tr>
+        <th>Player Name</th>
+        <th>Team</th>
+        <th>G</th>
+        <th>A</th>
+        <th>Pts</th>
+    </tr>
+    {% for player in player_list %}
+        {% if player.total_points > 0 %}
+            <tr>
+                <td>{{player.first_name}} {{player.last_name}}</td>
+                <td>{{player.roster__team__team_name}}</td>
+                <td>{{player.sum_goals}}</td>
+                <td>{{player.sum_assists}}</td>
+                <td>{{player.total_points}}</td>
+            </tr>
+        {% endif %}
+    {% empty %}
+            <td colspan=5>No player stats entered yet.</td>
+    {% endfor %}
+</table>
+<table class="table goalies" >
+    <tr>
+        <th>Goalie Name</th>
+        <th>Team</th>
+        <th>GAA</th>
+        <th>GP</th>
+        <th>GA</th>
+    </tr>
+    {% for player in player_list %}
+        {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
+            <tr>
+                <td>{{player.first_name}} {{player.last_name}}</td>
+                <td>{{player.roster__team__team_name}}</td>
+                <td>{{player.average_goals_against|floatformat:2}}</td>
+                <td>{{player.sum_games_played}}</td>
+                <td>{{player.sum_goals_against}}</td>
+            </tr>
+        {% endif %}
+    {% empty %}
+            <td colspan=5>No team stats entered yet.</td>
+    {% endfor %}
+</table>
