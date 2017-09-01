@@ -39,7 +39,7 @@ class MatchUpDetailView(ListView):
         self._next_week = None
 
     def get_queryset(self):
-        self._next_week = Week.objects.order_by('date').filter(date__gte=datetime.datetime.today())
+        self._next_week = Week.objects.filter(date__gte=datetime.datetime.today()).order_by('date')
         if self._next_week:
             self._next_week = self._next_week[0]
         else:
@@ -50,9 +50,15 @@ class MatchUpDetailView(ListView):
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
         context["date_of_week"] = self._next_week.date
-        context["season"] = Season.objects.all()
-        context["roster"] = Roster.objects.order_by(Lower('player__last_name')).filter(team__is_active=True)
-        context["stat"] = Stat.objects.all().filter(team__is_active=True)
+        matchups = MatchUp.objects.filter(week__date=self._next_week.date).order_by('time')
+        dmatchups = OrderedDict()
+        for match in matchups:
+            dmatchups[match.id] = {}
+            dmatchups[match.id]['matchup'] = match
+            dmatchups[match.id]['hometeamroster'] = Roster.objects.filter(team=match.hometeam).order_by(Lower('player__last_name'), Lower('player__first_name'))
+            dmatchups[match.id]['awayteamroster'] = Roster.objects.filter(team=match.awayteam).order_by(Lower('player__last_name'), Lower('player__first_name'))
+
+        context["matchups"] = dmatchups
 
         return context
 

@@ -269,6 +269,10 @@ section .game:first-of-type{
       text-align: left;
 }
 
+.stats table.roster td + td{
+    border-left:1px solid #96a9b5
+}
+
 .standingssec div div{
     padding-top: 0px;
 }
@@ -284,4 +288,8 @@ section .game:first-of-type{
 
 .cleardiv{
     clear:right;
+}
+
+div div#content .matchupheader{
+    margin-top: 3em;
 }
