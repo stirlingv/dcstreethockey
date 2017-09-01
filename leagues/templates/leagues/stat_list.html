@@ -4,144 +4,41 @@
 
 <head>
 	<style type="text/css" media="screen">
-
-		.goalies{
-                        margin-top: 10px;
-                }
-		table{
-			border-collapse: collapse;
-			border: 1px solid #000000;
-			vertical-align: top;
-			display: inline-block;
-			empty-cells: show;
-			width: 100%;
-		}
-		table caption{
-			text-align: left
-		}
-
-		table tr{
-			border:1px solid #000000;/
-			empty-cells: show
-		}
-		table th{
-			border:1px solid #000000;
-			font-weight: bold;
-			width: 20%;
-		}
-		table td{
-			border: 1px solid #000000;/
-			border-collapse: collapse;
-			display: table-cell;
-			empty-cells: show;
-			text-align: center;
-			white-space: nowrap
-		}
-        .seasons{
-			margin: 10px 0;
-            text-align: center;
-            font-size: 1.6em;
-            line-height: 1.1em;
-			width: 100%;
-		}
-        
-        .seasonsdiv{
-			display: inline-block;
-            margin-right: 20px;
-            margin-bottom: 20px;
-            font-size: 1.6em;
-            line-height: 1.1em;
-            cursor:pointer;
-		}
-        
-        .seasonsdiv:hover{
-            text-decoration: underline;
-        }
-
-        .activeseason{
-            text-decoration: underline;
-        }
-		/*.inlineTable {
-			display: inline-block;
-		}*/
 	</style>
 </head>
 <div id="content-wrapper">
 	<div id="content">
 		<div class="container">
-		<header>
-			<h2>League Leaders</h2>
-		</header>
-        <div class="seasonsdiv {% if active_season == 0 %}activeseason{% endif %} "
-                    onclick="javascript:handleSeason('/leagues/player_stats/0')">
-            Current
-        </div>
-        {% for season in seasons %}
-            <div class="seasonsdiv {% if season.id == active_season %}activeseason{% endif %} "
-                    onclick="javascript:handleSeason('/leagues/player_stats/{{season.id}}')">
-            {{season}}
+            <div class="title">
+                League Leaders
             </div>
-        {% endfor %}
-			<div class="row">
-                               {% for division, player_list in player_stat_list.items %}
-				<div class="4u 12u(mobile)">
-					<section>
-						<header>
-                            <h3>{{division}}</h3>
-						</header>
-						<table class="table">
-							<tr>
-								<th>Player Name</th>
-								<th>Team</th>
-								<th>G</th>
-								<th>A</th>
-								<th>Pts</th>
-							</tr>
-							{% for player in player_list %}
-                            {% if player.total_points > 0 %}
-									<tr>
-										<td>{{player.first_name}} {{player.last_name}}</td>
-										<td>{{player.roster__team__team_name}}</td>
-										<td>{{player.sum_goals}}</td>
-										<td>{{player.sum_assists}}</td>
-										<td>{{player.total_points}}</td>
-									</tr>
-                            {% endif %}
-							{% empty %}
-									<td>No player stats entered yet.</td>
-							{% endfor %}
-						<table class="table goalies" >
-							<tr>
-								<th>Goalie Name</th>
-								<th>Team</th>
-								<th>GAA</th>
-								<th>GP</th>
-								<th>GA</th>
-							</tr>
-							{% for player in player_list %}
-									{% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
-									<tr>
-									<td>{{player.first_name}} {{player.last_name}}</td>
-									<td>{{player.roster__team__team_name}}</td>
-                                    <td>{{player.average_goals_against|floatformat:2}}</td>
-									<td>{{player.sum_games_played}}</td>
-									<td>{{player.sum_goals_against}}</td>
-									</tr>
-									{% endif %}
-							{% empty %}
-									<td>No team stats entered yet.</td>
-							{% endfor %}
-						</table>
-					</section>
-					</div>
-                                        {% endfor %}
-				</div>
-			</div>
-		</div>
-	</div>
+            <div class="optionsdiv {% if active_season == 0 %}activeoption{% endif %} "
+                        onclick="javascript:handleSeason('/leagues/player_stats/0')">
+                Current
+            </div>
+            {% for season in seasons %}
+                <div class="optionsdiv {% if season.id == active_season %}activeoption{% endif %} "
+                        onclick="javascript:handleSeason('/leagues/player_stats/{{season.id}}')">
+                {{season}}
+                </div>
+            {% endfor %}
+            <div class="row stats">
+                {% for division, player_list in player_stat_list.items %}
+                    <div class="4u 12u(mobile)">
+                        <section>
+                            <header>
+                                <h3>{{division}}</h3>
+                            </header>
+                            {% include 'partials/stats.html' %}
+                        </section>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 </div>
-<script type="text/javascript">
-		function handleSeason(dest){
+    <script type="text/javascript">
+            function handleSeason(dest){
 	  	window.location = dest;
 	  }
 </script>

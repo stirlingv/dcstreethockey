@@ -1,0 +1,82 @@
+{% extends 'core/base.html' %}
+<head>
+	<style type="text/css" media="screen">
+	</style>
+</head>
+{% load static %}
+{% block content %}
+<div id="content-wrapper" class="team">
+	<div id="content">
+		<div class="container">
+            <div class="title">
+                {{team.team_name}} ({{team.wins}}-{{team.losses}}-{{team.ties}})
+            </div>
+            <h3 class="division">{{team.division}}</h3>
+            <div id="scheduleoptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('schedule')">
+                Schedule
+            </div>
+            <div id="rosteroptiondiv" class="optionsdiv" onclick="javascript:handleOption('roster')">
+                Roster
+            </div>
+            <div id="scoresoptiondiv" class="optionsdiv" onclick="javascript:handleOption('scores')">
+                Scores
+            </div>
+
+            <section id="schedulesection" class="show">
+                {% include 'partials/schedule.html' %}
+            </section>
+            <section id="rostersection" class="stats hidden">
+                {% include 'partials/stats.html' %}
+            </section>
+            <section id="scoressection" class="hidden">
+                {% include 'partials/scores.html' %}
+            </section>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+    function toggleTable(id) {
+        var stats = document.getElementById("stats-"+id);
+				var showstats = stats.style.display == "block";
+        stats.style.display = showstats ? "none" : "block";
+				document.getElementById("ex-"+id).style.display = showstats ? "block" : "none";
+    }
+    function handleOption(name) {
+        var schedule = document.getElementById("schedulesection");
+        var roster = document.getElementById("rostersection");
+        var scores = document.getElementById("scoressection");
+        var scheduleoption = document.getElementById("scheduleoptiondiv");
+        var rosteroption = document.getElementById("rosteroptiondiv");
+        var scoresoption = document.getElementById("scoresoptiondiv");
+        switch(name){
+            case "roster":
+                schedule.className = "hidden";
+                roster.className = "stats show";
+                scores.className = "hidden";
+                scheduleoption.className = "optionsdiv"
+                rosteroption.className = "optionsdiv activeoption"
+                scoresoption.className = "optionsdiv"
+                break;
+            case "scores":
+                schedule.className = "hidden";
+                roster.className = "hidden";
+                scores.className = "show";
+                scheduleoption.className = "optionsdiv"
+                rosteroption.className = "optionsdiv"
+                scoresoption.className = "optionsdiv activeoption"
+                break;
+            default:
+                schedule.className = "show";
+                roster.className = "hidden";
+                scores.className = "hidden";
+                scheduleoption.className = "optionsdiv activeoption"
+                rosteroption.className = "optionsdiv"
+                scoresoption.className = "optionsdiv"
+        }
+    }
+	function handleDivision(dest){
+	  	window.location = dest;
+	}
+</script>
+{% endblock %}
