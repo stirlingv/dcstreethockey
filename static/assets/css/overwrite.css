@@ -137,6 +137,7 @@ section .game:first-of-type{
 }
 
 .optionsdiv{
+    clear: right;
     display: inline-block;
     margin-right: 20px;
     margin-bottom: 20px;
@@ -274,4 +275,13 @@ section .game:first-of-type{
 
 .standingssec div div table{
     margin-top: 0px;
+}
+
+.teampic{
+    float: right;
+    width: 500px;
+}
+
+.cleardiv{
+    clear:right;
 }

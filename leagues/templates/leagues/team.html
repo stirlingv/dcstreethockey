@@ -8,10 +8,12 @@
 <div id="content-wrapper" class="team">
 	<div id="content">
 		<div class="container">
+            <img class="teampic" src="{{MEDIA_URL}}{{team.photo}}">
             <div class="title">
                 {{team.team_name}} ({{team.wins}}-{{team.losses}}-{{team.ties}})
             </div>
             <h3 class="division">{{team.division}}</h3>
+            <div class="cleardiv"/>
             <div id="scheduleoptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('schedule')">
                 Schedule
             </div>
