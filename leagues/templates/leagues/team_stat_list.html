@@ -2,38 +2,6 @@
 <head>
 	<style type="text/css" media="screen">
 
-		table{
-			border-collapse: collapse;
-			border: 1px solid #FF0000;
-			vertical-align: top;
-			display: inline-block;
-			empty-cells: show;
-			width: 100%;
-		}
-		table caption{
-			text-align: left
-		}
-
-		table tr{
-			border:1px solid #FF0000;/
-			empty-cells: show
-		}
-		table th{
-			border:1px solid #FF0000;
-			font-weight: bold;
-			width: 20%;
-		}
-		table td{
-			border: 1px solid #FF0000;/
-			border-collapse: collapse;
-			display: table-cell;
-			empty-cells: show;
-			text-align: center;
-			white-space: nowrap
-		}
-		/*.inlineTable {
-            display: inline-block;
-        }*/
 	</style>
 </head>
 {% extends 'core/base.html' %}
@@ -42,41 +10,46 @@
 <div id="content-wrapper">
 	<div id="content">
 		<div class="container">
-		<header>
-			<h2>Standings</h2>
-		</header>
-			<div class="row">
-				<div class="4u 12u(mobile)">
-					<section>
+		<div class="title">
+			Standings
+		</div>
+        <div class="description">
+            Click on a team to see more details...
+        </div>
+		<section class="standingssec">
+			<div class="row stats">
+					<div class="6u 12u(mobile)">
 						<header>
 							<h3>Sunday D1</h3>
 						</header>
 					    <table class="table">
-							<tr>
-								<th>Team Name</th>
-								<th>Wins</th>
-								<th>Losses</th>
-								<th>Ties</th>
-								<th>Points</th>
-							</tr>
-					    	{% for team in team_list %}
-								{% if team.division|stringformat:"s" = "Sunday D1" %}
-									<tr>
-										<td>{{team.team.team_name}}</td>
-										<td>{{team.win}}</td>
-										<td>{{team.loss}}</td>
-										<td>{{team.tie}}</td>
-										<td>{{team.total_points}}</td>
-									</tr>
-								{% endif %}	
-							{% empty %}
+								<tr>
+									<th>Team Name</th>
+									<th>Wins</th>
+									<th>Losses</th>
+									<th>Ties</th>
+									<th>Points</th>
+									<th>GF</th>
+									<th>GA</th>
+								</tr>
+						    	{% for team in team_list %}
+									{% if team.division|stringformat:"s" = "Sunday D1" %}
+									    <tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
+											<td>{{team.team.team_name}}</td>
+											<td>{{team.win}}</td>
+											<td>{{team.loss}}</td>
+											<td>{{team.tie}}</td>
+                                            <td>{{team.total_points}}</td>
+                                            <td>{{team.goals_for}}</td>
+                                            <td>{{team.goals_against}}</td>
+										</tr>
+									{% endif %}	
+								{% empty %}
 							    	<td>No team stats entered yet.</td>
-							{% endfor %}
+								{% endfor %}
 						</table>
-					</section>
 					</div>
-					<div class="4u 12u(mobile)">
-					<section>
+					<div class="6u 12u(mobile)">
 						<header>
 							<h3>Sunday D2</h3>
 						</header>
@@ -87,28 +60,34 @@
 									<th>Losses</th>
 									<th>Ties</th>
 									<th>Points</th>
+									<th>GF</th>
+									<th>GA</th>
 								</tr>
 						    	{% for team in team_list %}
 									{% if team.division|stringformat:"s" = "Sunday D2" %}
-										<tr>
+									    <tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
 											<td>{{team.loss}}</td>
 											<td>{{team.tie}}</td>
 											<td>{{team.total_points}}</td>
+                                            <td>{{team.goals_for}}</td>
+                                            <td>{{team.goals_against}}</td>
 										</tr>
 									{% endif %}	
 								{% empty %}
 							    	<td>No team stats entered yet.</td>
 								{% endfor %}
 						</table>
-					</section>
 					</div>
-					<div class="4u 12u(mobile)">
-					<section>
-						<header>
+                </div>
+            </section>
+					<section class="standingssec">
+                        <header>
 							<h3>Wednesday Draft League</h3>
 						</header>
+                        <div class="row stats">
+					<div class="6u 12u(mobile)">
 					    <table class="table">
 						<caption>East</caption>
 								<tr>
@@ -117,21 +96,27 @@
 									<th>Losses</th>
 									<th>Ties</th>
 									<th>Points</th>
+									<th>GF</th>
+									<th>GA</th>
 								</tr>
 						    	{% for team in team_list %}
 									{% if team.division|stringformat:"s" = "Wednesday Draft League" and team.team.conference == 1%}
-										<tr>
+										<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
 											<td>{{team.loss}}</td>
 											<td>{{team.tie}}</td>
 											<td>{{team.total_points}}</td>
+                                            <td>{{team.goals_for}}</td>
+                                            <td>{{team.goals_against}}</td>
 										</tr>
 									{% endif %}	
 								{% empty %}
 							    	<td>No team stats entered yet.</td>
 								{% endfor %}
 						</table>
+                    </div>
+					<div class="6u 12u(mobile)">
 						<table class="table">
 						<caption>West</caption>
 								<tr>
@@ -140,26 +125,35 @@
 									<th>Losses</th>
 									<th>Ties</th>
 									<th>Points</th>
+									<th>GF</th>
+									<th>GA</th>
 								</tr>
 						    	{% for team in team_list %}		
 									{% if team.division|stringformat:"s" = "Wednesday Draft League" and team.team.conference == 2%}
-										<tr>
+										<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
 											<td>{{team.loss}}</td>
 											<td>{{team.tie}}</td>
 											<td>{{team.total_points}}</td>
+                                            <td>{{team.goals_for}}</td>
+                                            <td>{{team.goals_against}}</td>
 										</tr>
 									{% endif %}	
 								{% empty %}
 							    	<td>No team stats entered yet.</td>
 								{% endfor %}
 						</table>
-					</section>
 					</div>
-				</div>
+                </div>
+				</section>
 			</div>
 		</div>
 	</div>
 </div>
+<script type="text/javascript">
+    function handleTeam(dest){
+	  	window.location = dest;
+    }
+</script>
 {% endblock %}

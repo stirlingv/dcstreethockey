@@ -1,0 +1,27 @@
+{% for date, value in schedule.items %}
+    {% for division, value2 in value.items %}
+        {% if view == "schedule" %}
+            <section id="schedulesection">
+            <h3>{{division}} | {{date}}</h3>
+        {% endif %}
+            {% for match in value2 %}
+                <div class="game">
+                    {% if view == "schedule" %}
+                        <h3>{{match.time}}</h3>
+                    {% else %}
+                        <h3>{{match.time}} | {{date}}</h3>
+                    {% endif %}
+                    <table class="game-overview">
+                        <tr>
+                            <td>{{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})</td>
+                            <td>@</td>
+                            <td>{{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})</td>
+                        </tr>
+                    </table>
+                </div> <!-- /game -->
+            {% endfor %} <!-- match -->
+        {% if view == "schedule" %}
+            </section>
+        {% endif %}
+    {% endfor %} <!-- division -->
+{% endfor %} <!-- day -->
