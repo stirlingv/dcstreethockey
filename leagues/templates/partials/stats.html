@@ -7,7 +7,7 @@
         <th>Pts</th>
     </tr>
     {% for player in player_list %}
-        {% if player.total_points > 0 %}
+    {% if player.total_points > 0 or player.roster__position1 != 4 and player.roster__position2 != 4 %}
             <tr>
                 <td>{{player.first_name}} {{player.last_name}}</td>
                 <td>{{player.roster__team__team_name}}</td>
