@@ -177,3 +177,12 @@ class Ref(models.Model):
 		return self.__unicode__()
 
 
+class HomePage(models.Model):
+	logo = models.ImageField(upload_to='homepage', null=True)
+	d1_champ_photo = models.ImageField(upload_to='homepage', null=True)
+	d2_champ_photo = models.ImageField(upload_to='homepage', null=True)
+	announcement1 = models.CharField(max_length=1000, null=True, blank=True)
+	announcement2 = models.CharField(max_length=1000, null=True, blank=True)
+	announcement3 = models.CharField(max_length=1000, null=True, blank=True)
+	twitter_posts = models.PositiveSmallIntegerField(null=False, blank=False, default=2)
+
