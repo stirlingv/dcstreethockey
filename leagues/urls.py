@@ -6,6 +6,7 @@ import core.views as core_view
 
 urlpatterns = [
 	url(r'^roster/$', MatchUpDetailView.as_view(), name='rosters'),
+	url(r'^roster/(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})$', MatchUpDetailView.as_view(), name='rosters'),
 	url(r'^team_standings/$', TeamStatDetailView.as_view(), name='team_standings'),
 	url(r'^player_stats/$', PlayerStatDetailView.as_view(), name='player_stats'),
 	url(r'^player_stats/(?P<season>[0-9]+)/$', PlayerStatDetailView.as_view(), name='player_stats'),

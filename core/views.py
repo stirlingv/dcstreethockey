@@ -49,8 +49,8 @@ class MatchUpDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
-        context["date_of_week"] = self._next_week.date
-        matchups = MatchUp.objects.filter(week__date=self._next_week.date).order_by('time')
+        context['date_of_week'] = self.kwargs.get('date',self._next_week.date)
+        matchups = MatchUp.objects.filter(week__date=context['date_of_week']).order_by('time')
         dmatchups = OrderedDict()
         for match in matchups:
             dmatchups[match.id] = {}
