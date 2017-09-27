@@ -8,7 +8,7 @@
 <div id="content-wrapper">
     <div id="content">
 		<div class="container">
-            <h3>{{date_of_week|date:"D d M Y"}}</h3>
+            <h3>{{date_of_week}}</h3>
         </div>
     </div>
 	{% for mid,match in matchups.items %}
@@ -76,5 +76,8 @@
     <li>No matchups entered yet.</li>
 {% endfor %}
 </div>
+<script type="text/javascript">
+    window.print();
+</script>
 {% endblock %}
 

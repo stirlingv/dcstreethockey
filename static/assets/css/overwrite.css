@@ -290,6 +290,10 @@ section .game:first-of-type{
     clear:right;
 }
 
+.print-image{
+    float: right;
+}
+
 div div#content .matchupheader{
     margin-top: 3em;
 }
