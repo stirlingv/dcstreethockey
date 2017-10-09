@@ -5,7 +5,7 @@ static/assets/.sass-cache/*
 .DS_Store 
 db.sqlite3
 polls/
-media/
+#media/
 *.dump
 *.dump*
 queries.txt

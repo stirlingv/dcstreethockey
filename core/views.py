@@ -17,6 +17,7 @@ from leagues.models import Player
 from leagues.models import Team
 from leagues.models import Team_Stat
 from leagues.models import Week
+from leagues.models import HomePage
 # Create your views here.
 
 def home(request):
@@ -25,6 +26,7 @@ def home(request):
     context["season"] = Season.objects.all()
     context["matchup"]  = MatchUp.objects.filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=6)))
     context["one_row"]  = MatchUp.objects.filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=6))).order_by('week__date').distinct('week__date')
+    context["homepage"] = HomePage.objects.last()
     return render(request, "core/home.html", context=context)
 
 def leagues(request):
