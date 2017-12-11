@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.db.models import Q
 
-from leagues.models import Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season
+from leagues.models import Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage
 
 class RosterInline(admin.TabularInline):
     model = Roster
@@ -77,3 +77,7 @@ admin.site.register(Player, PlayerAdmin)
 admin.site.register(Team, TeamAdmin)
 admin.site.register(MatchUp, MatchUpAdmin)
 admin.site.register(Week, WeekAdmin)
+
+@admin.register(HomePage)
+class HomePage(admin.ModelAdmin):
+    pass
