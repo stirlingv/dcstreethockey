@@ -6,7 +6,7 @@ import datetime
 
 
 YEAR_CHOICES = []
-for r in range(1980, (datetime.datetime.now().year+1)):
+for r in range(1980, (datetime.datetime.now().year+2)):
 	YEAR_CHOICES.append((r,r))
 
 class Player(models.Model):
