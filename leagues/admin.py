@@ -16,6 +16,7 @@ class TeamAdmin(admin.ModelAdmin):
             RosterInline,
             ]
     list_filter = ['is_active','season','division']
+    save_as = True
 
 class PlayerAdmin(admin.ModelAdmin):
     inlines = [RosterInline]
