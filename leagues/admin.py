@@ -58,6 +58,13 @@ class MatchUpAdmin(admin.ModelAdmin):
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
     extra = 4
+    def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
+        try:
+            if db_field.name == "awayteam" or db_field.name == "hometeam":
+                kwargs['queryset'] = Team.objects.filter(is_active=True)
+        except Exception as e:
+           print "Could not filter players or teams for admin view of matchup." + str(e)
+        return super(MatchUpInline, self).formfield_for_foreignkey(db_field, request=None, **kwargs)
 
 class WeekAdmin(admin.ModelAdmin):
     inlines = [
