@@ -66,7 +66,7 @@ class Team(models.Model):
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season, null=True)
 	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, blank=True)
-	photo = models.ImageField(upload_to='teams', null=True)
+	photo = models.ImageField(upload_to='teams', blank=True)
 	is_active = models.BooleanField()
 
 	class Meta:
