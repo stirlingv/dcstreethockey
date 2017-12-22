@@ -56,6 +56,15 @@ class Division(models.Model):
 	def __str__(self):
 		return self.__unicode__()
 
+class TeamPhoto(models.Model):
+	photo = models.ImageField(upload_to='teams', blank=True)
+
+	def __unicode__(self):
+		return u"Photo: %s" % (self.photo)
+
+	def __str__(self):
+		return self.__unicode__()
+
 class Team(models.Model):
 	CONFERENCE_TYPE = (
 	(1, 'East'),
@@ -66,7 +75,7 @@ class Team(models.Model):
 	division = models.ForeignKey(Division, null=True)
 	season = models.ForeignKey(Season, null=True)
 	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, blank=True)
-	photo = models.ImageField(upload_to='teams', blank=True)
+	team_photo = models.ForeignKey(TeamPhoto, null=True)
 	is_active = models.BooleanField()
 
 	class Meta:

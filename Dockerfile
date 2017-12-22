@@ -11,7 +11,7 @@ RUN python /tmp/get-pip.py
 RUN wget https://cli-assets.heroku.com/heroku-cli/channels/stable/heroku-cli-linux-x64.tar.gz -O heroku.tar.gz && \
     tar -xvzf heroku.tar.gz && \
     mkdir -p /usr/local/lib /usr/local/bin && \
-    mv heroku-cli-v6.14.42-3ba878b-linux-x64 /usr/local/lib/heroku && \
+    mv heroku-cli-v6.14.43-73d5876-linux-x64 /usr/local/lib/heroku && \
     ln -s /usr/local/lib/heroku/bin/heroku /usr/local/bin/heroku
 WORKDIR /app
 ADD requirements.txt /app/

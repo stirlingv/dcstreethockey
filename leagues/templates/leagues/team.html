@@ -8,8 +8,8 @@
 <div id="content-wrapper" class="team">
 	<div id="content">
 		<div class="container">
-            {% if team.photo %}
-            <img class="teampic" src="{{MEDIA_URL}}{{team.photo}}">
+            {% if team.team_photo %}
+            <img class="teampic" src="{{MEDIA_URL}}{{team.team_photo.photo}}">
             {% endif %}
             <div class="title">
                 {{team.team_name}} ({{team.wins}}-{{team.losses}}-{{team.ties}})
