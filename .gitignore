@@ -11,3 +11,4 @@ polls/
 queries.txt
 *.json
 log.txt
+media/homepage/*
