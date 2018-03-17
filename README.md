@@ -33,8 +33,9 @@
 1. heroku config:set DJANGO_SETTINGS_MODULE=dcstreethockey.settings.production
 
 ## Create backup of heroku database and restore in local postgres instance
-1. heroku pg:backups:capture
-1. heroku pg:backups:download
+1. heroku login
+1. heroku pg:backups:capture --app dcstreethockey
+1. heroku pg:backups:download --app dcstreethockey
 1. Restore downloaded db to local postgres instance: 
    - pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey latest.dump.[backup number]
 1. For docker   
