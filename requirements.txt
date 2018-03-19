@@ -12,7 +12,6 @@ gunicorn==19.3.0
 olefile==0.44
 packaging==16.8
 Pillow==4.0.0
-psycopg2==2.6
 pyparsing==2.1.10
 pytz==2016.6.1
 six==1.10.0
@@ -52,7 +51,6 @@ pexpect==4.2.1
 pickleshare==0.7.4
 Pillow==4.0.0
 prompt-toolkit==1.0.15
-psycopg2==2.6
 ptyprocess==0.5.2
 pyflakes==1.5.0
 Pygments==2.2.0
@@ -99,7 +97,7 @@ pexpect==4.2.1
 pickleshare==0.7.4
 Pillow==4.0.0
 prompt-toolkit==1.0.15
-psycopg2==2.6
+psycopg2==2.7
 ptyprocess==0.5.2
 pyflakes==1.5.0
 Pygments==2.2.0

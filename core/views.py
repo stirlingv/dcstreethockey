@@ -106,8 +106,7 @@ class PlayerStatDetailView(ListView):
 
 def get_player_stats(players, season):
     if season == 0:
-        return players.filter(
-                    stat__matchup__is_postseason=False).values(
+        return players.values(
                     'last_name',
                     'first_name',
                     'roster__team__team_name',
