@@ -136,6 +136,11 @@ section .game:first-of-type{
     padding-bottom:15px;
 }
 
+.divisionheader{
+    margin-bottom:10px;
+    text-align: center;
+}
+
 .optionsdiv{
     clear: right;
     display: inline-block;
@@ -221,7 +226,6 @@ section .game:first-of-type{
     empty-cells: show;
     width: 100%;
     margin-bottom: 20px;
-    margin-top:20px;
 }
 .stats table caption{
     text-align: left;
@@ -233,6 +237,15 @@ section .game:first-of-type{
     empty-cells: show;
     white-space: nowrap;
 }
+
+.shorttable table tr:nth-child(n+20){
+    display: none;
+}
+
+.longtable div{
+    display: none;
+}
+
 .stats table th{
     border-bottom:1px solid #96a9b5;
     font-weight: bold;

@@ -78,3 +78,8 @@
 function handleTeam(dest){
     window.location = dest;
 }
+function togglePlayersTable(id) {
+    var playersTable = document.getElementById("playerstatsection-"+id);
+    var showall = playersTable.className.includes("shorttable");
+    playersTable.className = showall ? "longtable" : "shorttable";
+}
