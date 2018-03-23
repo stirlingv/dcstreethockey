@@ -25,10 +25,10 @@
             <div class="row stats">
                 {% for division, player_list in player_stat_list.items %}
                     <div class="4u 12u(mobile)">
-                        <section>
-                            <header>
-                                <h3>{{division}}</h3>
-                            </header>
+                        <section id="playerstatsection-{{division}}"
+                            class="shorttable"
+                            onclick="javascript:togglePlayersTable('{{division}}')">
+                            <h3 class="divisionheader">{{division}}</h3>
                             {% include 'partials/stats.html' %}
                         </section>
                     </div>

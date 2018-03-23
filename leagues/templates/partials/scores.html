@@ -4,7 +4,7 @@
             <h3>{{division_name}} | {{day}}</h3>
         {% endif %}
         {% for mid, value2 in value.items %}
-            <div class="game" onclick="javascript:toggleTable({{mid}})">
+        <div class="game"> 
                 {% if division_name %}
                     <h3>{{value2.match.time}}</h3>
                 {% else %}
@@ -13,9 +13,12 @@
                 <table class="game-overview">
                     <tr>
                         <td
+                            onclick="javascript:handleTeam('/leagues/teams/{{value2.match.awayteam.id}}')"
+                            class="clickable
                             {% if value2.match.home_goals < value2.match.away_goals %}
-                                class="winner"
+                                winner
                             {% endif %}
+                            "
                         >{{value2.match.awayteam.team_name}}</td>
                         <td
                             {% if value2.match.home_goals < value2.match.away_goals %}
@@ -23,9 +26,12 @@
                             {% endif %}
                             >{{value2.match.away_goals}}</td>
                         <td 
+                            onclick="javascript:handleTeam('/leagues/teams/{{value2.match.hometeam.id}}')"
+                            class="clickable
                             {% if value2.match.home_goals > value2.match.away_goals %}
-                                class="winner"
+                                winner
                             {% endif %}
+                            "
                             >{{value2.match.hometeam.team_name}}</td>
                         <td
                             {% if value2.match.home_goals > value2.match.away_goals %}
@@ -35,7 +41,7 @@
                     </tr>
                 </table>
 
-                <div class="row stats" id="stats-{{mid}}" style="display:none;">
+                <div class="row stats" id="stats-{{mid}}" style="display:none;" onclick="javascript:toggleTable({{mid}})">
                     <div class="6u 12u(mobile)">
                         <table>
                             <tr>
@@ -103,8 +109,8 @@
                     </div>
                     <p class="collapse">^</p>
                 </div> <!-- row (stats)-->
-                <div class="expand" id="ex-{{mid}}">
-                    <p>...</p>
+                <div class="expand" id="ex-{{mid}}" onclick="javascript:toggleTable({{mid}})">
+                    ^
                 </div>
             </div> <!-- /game -->
         {% endfor %} <!-- match -->
