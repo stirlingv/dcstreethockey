@@ -158,17 +158,14 @@ section .game:first-of-type{
     text-decoration: underline;
     cursor: pointer;
 }
-
 .game-overview{
     margin: 10px 0;
     width: 100%;
 }
-
 .game-overview tr{
     font-size: 1.4em;
-    line-height: 0.9em;
+    line-height: 1.5em;
 }
-
 .title{
     font-size: 2em;
     font-weight: 500;
@@ -176,54 +173,36 @@ section .game:first-of-type{
     padding-bottom:10px;
     color: #d80000;
 }
-
 .game-overview tr td:first-child{
     width: 30%;
 }
-
 .game-overview tr td:nth-child(2){
     width: 20%;
 }
-
 .game-overview tr td:nth-child(3){
     width: 30%;
 }
-
 .game-overview tr td:nth-child(4){
     width: 20%;
 }
-
 #schedulesection table td:nth-child(2){
       text-align:center;
       color: #d80000;
 }
-
-.expand{
-    color: #d80000;
-    font-size: 80px;
-    position: relative;
-    top: -28px;
-    height: 25px;
-}
-
 .winner{
     font-weight: 400;
 }
-
-.expand p{
-    margin-bottom: 0;
-    display: none;
-    text-align: center;
-}
-
-.game:hover .expand p{
-    display: block;
-}
-
-#scoressection .game:hover{
+.game:hover{
     cursor: pointer;
 }
-
+.expand{
+    color: #96a9b5;
+    font-size: 50px;
+    text-align: center;
+    transform: scale(1, -1);
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ddd
+}
 .collapse{
     clear: both;
     padding-top: 5px;
@@ -233,6 +212,9 @@ section .game:first-of-type{
     display: block;
     width: 100%;
     color: #96a9b5;
+}
+.collapse:hover, .expand:hover{
+    color: #d80000;
 }
 
 .stats table{

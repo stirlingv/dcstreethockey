@@ -75,3 +75,6 @@
 	});
 
 })(jQuery);
+function handleTeam(dest){
+    window.location = dest;
+}
