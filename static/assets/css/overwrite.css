@@ -238,7 +238,7 @@ section .game:first-of-type{
     white-space: nowrap;
 }
 
-.shorttable table tr:nth-child(n+20){
+.shorttable table tr:nth-child(n+22){
     display: none;
 }
 
