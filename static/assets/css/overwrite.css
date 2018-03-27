@@ -220,6 +220,7 @@ section .game:first-of-type{
 }
 .collapse:hover, .expand:hover{
     color: #d80000;
+    cursor: pointer;
 }
 
 .stats table{
