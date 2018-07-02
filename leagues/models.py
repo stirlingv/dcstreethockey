@@ -200,4 +200,8 @@ class HomePage(models.Model):
 	alt_title2 = models.CharField(max_length=1000, null=True, blank=True)
 	alt_announcement1 = models.CharField(max_length=1000, null=True, blank=True)
 	alt_announcement2 = models.CharField(max_length=1000, null=True, blank=True)
+	wed_champ_photo = models.ImageField(upload_to='homepage', null=True, blank=True)
+	wed_champ_announcement = models.CharField(max_length=1000, null=True, blank=True)
+	winter_champ_photo = models.ImageField(upload_to='homepage', null=True, blank=True)
+	winter_champ_announcement = models.CharField(max_length=1000, null=True, blank=True)
 
