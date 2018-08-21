@@ -13,24 +13,32 @@
 ## Clone and Run in localhost
 1. [download postgres](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads#linux) 
    - [generic instructions here](https://www.postgresql.org/download/linux/)
+   - if using homebrew: 
+      - ```brew instal postgresql```
 1. [fork](https://help.github.com/articles/fork-a-repo/) and [clone](https://help.github.com/articles/cloning-a-repository/) repo
 1. activate virtual environment 
-   - pip install virtualenv (if you don't already have virtualenv)
+   - ```pip install virtualenv ```(if you don't already have virtualenv)
    - cd to dcstreethockey folder
-   - virtualenv venv (first time only)
-   - source venv/bin/activate
+   - ```virtualenv venv``` (first time only)
+   - ```source venv/bin/activate```
 1. pip install -r requirements.txt
-1. ./manage.py runserver
+1. Insure postgres is running and Database exists
+   - ```brew services start postgresql```
+   - ```psql -l``` 
+      - if dcstreethockey doesn't exist continue
+   - ```createdb dcstreethockey```
+   - ```createuser user```
+1. ```./manage.py runserver```
 
 ## Deploy - keeps dev and heroku in sync
-1. ./manage.py makemigrations
-1. ./manage.py migrate
-1. git push heroku master
-1. heroku run python ./manage.py migrate
-1. git push origin master
+1. ```./manage.py makemigrations```
+1. ```./manage.py migrate```
+1. ```git push heroku master```
+1. ```heroku run python ./manage.py migrate```
+1. ```git push origin master```
 
 ## Ensure DJANGO_SETTINGS_MODULE is set for production deployments
-1. heroku config:set DJANGO_SETTINGS_MODULE=dcstreethockey.settings.production
+1. ```heroku config:set DJANGO_SETTINGS_MODULE=dcstreethockey.settings.production```
 
 ## Create backup of heroku database and restore in local postgres instance
 1. heroku login
@@ -48,14 +56,14 @@
 
 ## Import/Export CSV file to local postgres db
 1. Import data from CSV - append to table - You can specify the columns to read:
-   - \copy leagues_stat(assists,goals_against,player_id,team_id,matchup_id,empty_net,goals) FROM '/Users/stirling/Downloads/stats.csv' DELIMITER ',' CSV HEADER
+   - ```\copy leagues_stat(assists,goals_against,player_id,team_id,matchup_id,empty_net,goals) FROM '/Users/stirling/Downloads/stats.csv' DELIMITER ',' CSV HEADER```
    - Remove HEADER if there is no header in the first row.
 1. Copy data from PostgreSQL table to csv file:
-   - \copy leagues_player TO '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER
+   - ```\copy leagues_player TO '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER```
    - Remove HEADER if there is no header in the first row.
    
 ## Push local database to heroku
 1. Create backup! https://devcenter.heroku.com/articles/heroku-postgres-import-export 
-1. export DATABASE_URL=$(heroku config:get DATABASE_URL -a dcstreethockey) 
-1. heroku pg:reset DATABASE_URL
-1. heroku pg:push dcstreethockey DATABASE_URL --app dcstreethockey
+1. ```export DATABASE_URL=$(heroku config:get DATABASE_URL -a dcstreethockey) ```
+1. ```heroku pg:reset DATABASE_URL```
+1. ```heroku pg:push dcstreethockey DATABASE_URL --app dcstreethockey```
