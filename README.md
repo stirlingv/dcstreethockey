@@ -45,7 +45,7 @@
 1. heroku pg:backups:capture --app dcstreethockey
 1. heroku pg:backups:download --app dcstreethockey
 1. Restore downloaded db to local postgres instance: 
-   - pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey latest.dump.[backup number]
+   - pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey database_dumps/latest.dump.[backup number]
 1. For docker   
    - docker exec -it 064 bash
    - root@06415f728dae:/app# pg_restore --verbose --clean --no-acl --no-owner -h db -U dcstreethockey -d dcstreethockey latest.dump.[backup number]
