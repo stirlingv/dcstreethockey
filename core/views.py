@@ -93,7 +93,7 @@ class PlayerStatDetailView(ListView):
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
         season = self.kwargs.get('season','0')
-        context['seasons'] = Season.objects.all()[:4]
+        context['seasons'] = Season.objects.order_by('-year','season_type')[:4]
         context['active_season'] = int(season)
         context['player_stat_list'] = OrderedDict()
         for div in Division.objects.all():
