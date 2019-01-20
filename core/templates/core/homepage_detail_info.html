@@ -11,14 +11,14 @@
 						<header>
 							<h2>Sunday D1</h2>
 							{% for row in one_row %}
-								{% if row.week.division|stringformat:"s" = "Sunday D1" %}
+								{% if row.week.division|stringformat:"s" == "Sunday D1" %}
 									<h3>{{row.week.date}}</h3>
 								{% endif %}
 							{% endfor %}
 						</header>
 						<ul class="check-list">
 							{% for match in matchup %}
-								{% if match.week.division|stringformat:"s" = "Sunday D1" %}
+								{% if match.week.division|stringformat:"s" == "Sunday D1" %}
 									<li>{{match.awayteam.team_name}} vs {{match.hometeam.team_name}} @ {{match.time}}</li>
 								{% endif %}
 							{% endfor %}
@@ -33,14 +33,14 @@
 						<header>
 							<h2>Sunday D2</h2>
 							{% for row in one_row %}
-								{% if row.week.division|stringformat:"s" = "Sunday D2" %}
+								{% if row.week.division|stringformat:"s" == "Sunday D2" %}
 									<h3>{{row.week.date}}</h3>
 								{% endif %}
 							{% endfor %}
 						</header>
 						<ul class="check-list">
 							{% for match in matchup %}
-								{% if match.week.division|stringformat:"s" = "Sunday D2" %}
+								{% if match.week.division|stringformat:"s" == "Sunday D2" %}
 									<li>{{match.awayteam.team_name}} vs {{match.hometeam.team_name}} @ {{match.time}}</li>
 								{% endif %}
 							{% endfor %}
@@ -55,14 +55,14 @@
 						<header>
 							<h2>Wednesday</h2>
 							{% for row in one_row %}
-								{% if row.week.division|stringformat:"s" = "Wednesday Draft League" %}
+								{% if row.week.division|stringformat:"s" == "Wednesday Draft League" %}
 									<h3>{{row.week.date}}</h3>
 								{% endif %}
 							{% endfor %}
 						</header>
 						<ul class="check-list">
 							{% for match in matchup %}
-								{% if match.week.division|stringformat:"s" = "Wednesday Draft League" %}
+								{% if match.week.division|stringformat:"s" == "Wednesday Draft League" %}
 									<li>{{match.awayteam.team_name}} vs {{match.hometeam.team_name}} @ {{match.time}}</li>
 								{% endif %}
 							{% endfor %}

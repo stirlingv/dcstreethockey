@@ -33,7 +33,7 @@
 									<th>GA</th>
 								</tr>
 						    	{% for team in team_list %}
-									{% if team.division|stringformat:"s" = "Sunday D1" %}
+									{% if team.division|stringformat:"s" == "Sunday D1" %}
 									    <tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
@@ -64,7 +64,7 @@
 									<th>GA</th>
 								</tr>
 						    	{% for team in team_list %}
-									{% if team.division|stringformat:"s" = "Sunday D2" %}
+									{% if team.division|stringformat:"s" == "Sunday D2" %}
 									    <tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
@@ -100,7 +100,7 @@
 									<th>GA</th>
 								</tr>
 						    	{% for team in team_list %}
-									{% if team.division|stringformat:"s" = "Wednesday Draft League" and team.team.conference == 1%}
+									{% if team.division|stringformat:"s" == "Wednesday Draft League" and team.team.conference == 1%}
 										<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
@@ -129,7 +129,7 @@
 									<th>GA</th>
 								</tr>
 						    	{% for team in team_list %}		
-									{% if team.division|stringformat:"s" = "Wednesday Draft League" and team.team.conference == 2%}
+									{% if team.division|stringformat:"s" == "Wednesday Draft League" and team.team.conference == 2%}
 										<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 											<td>{{team.team.team_name}}</td>
 											<td>{{team.win}}</td>
