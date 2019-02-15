@@ -41,46 +41,46 @@
 
 <script type="text/javascript">
     function toggleTable(id) {
-        var stats == document.getElementById("stats-"+id);
-				var showstats == stats.style.display == "block";
-        stats.style.display == showstats ? "none" : "block";
+        var stats = document.getElementById("stats-"+id);
+				var showstats = stats.style.display == "block";
+        stats.style.display = showstats ? "none" : "block";
 				document.getElementById("ex-"+id).style.display == showstats ? "block" : "none";
     }
     function handleOption(name) {
-        var schedule == document.getElementById("schedulesection");
-        var roster == document.getElementById("rostersection");
-        var scores == document.getElementById("scoressection");
-        var scheduleoption == document.getElementById("scheduleoptiondiv");
-        var rosteroption == document.getElementById("rosteroptiondiv");
-        var scoresoption == document.getElementById("scoresoptiondiv");
+        var schedule = document.getElementById("schedulesection");
+        var roster = document.getElementById("rostersection");
+        var scores = document.getElementById("scoressection");
+        var scheduleoption = document.getElementById("scheduleoptiondiv");
+        var rosteroption = document.getElementById("rosteroptiondiv");
+        var scoresoption = document.getElementById("scoresoptiondiv");
         switch(name){
             case "roster":
-                schedule.className == "hidden";
-                roster.className == "stats show";
-                scores.className == "hidden";
-                scheduleoption.className == "optionsdiv"
-                rosteroption.className == "optionsdiv activeoption"
-                scoresoption.className == "optionsdiv"
+                schedule.className = "hidden";
+                roster.className = "stats show";
+                scores.className = "hidden";
+                scheduleoption.className = "optionsdiv"
+                rosteroption.className = "optionsdiv activeoption"
+                scoresoption.className = "optionsdiv"
                 break;
             case "scores":
-                schedule.className == "hidden";
-                roster.className == "hidden";
-                scores.className == "show";
-                scheduleoption.className == "optionsdiv"
-                rosteroption.className == "optionsdiv"
-                scoresoption.className == "optionsdiv activeoption"
+                schedule.className = "hidden";
+                roster.className = "hidden";
+                scores.className = "show";
+                scheduleoption.className = "optionsdiv"
+                rosteroption.className = "optionsdiv"
+                scoresoption.className = "optionsdiv activeoption"
                 break;
             default:
-                schedule.className == "show";
-                roster.className == "hidden";
-                scores.className == "hidden";
-                scheduleoption.className == "optionsdiv activeoption"
-                rosteroption.className == "optionsdiv"
-                scoresoption.className == "optionsdiv"
+                schedule.className = "show";
+                roster.className = "hidden";
+                scores.className = "hidden";
+                scheduleoption.className = "optionsdiv activeoption"
+                rosteroption.className = "optionsdiv"
+                scoresoption.className = "optionsdiv"
         }
     }
 	function handleDivision(dest){
-	  	window.location == dest;
+	  	window.location = dest;
 	}
 </script>
 {% endblock %}
