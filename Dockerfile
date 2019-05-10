@@ -1,4 +1,4 @@
-FROM python:2.7
+FROM python:3.7.3
 ENV PYTHONUNBUFFERED 1
 
 ENV RUN_DOCKER "True"
