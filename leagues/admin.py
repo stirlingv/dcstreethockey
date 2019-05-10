@@ -45,7 +45,7 @@ class StatInline(admin.TabularInline):
                         id=match.awayteam.id)).filter(
                         Q(season=match.week.season))
         except Exception as e:
-           print "Could not filter players or teams for admin view of matchup." + str(e)
+           print ("Could not filter players or teams for admin view of matchup." + str(e))
         return super(StatInline, self).formfield_for_foreignkey(db_field, request=None, **kwargs)
 
 
@@ -63,7 +63,7 @@ class MatchUpInline(admin.TabularInline):
             if db_field.name == "awayteam" or db_field.name == "hometeam":
                 kwargs['queryset'] = Team.objects.filter(is_active=True)
         except Exception as e:
-           print "Could not filter players or teams for admin view of matchup." + str(e)
+           print ("Could not filter players or teams for admin view of matchup." + str(e))
         return super(MatchUpInline, self).formfield_for_foreignkey(db_field, request=None, **kwargs)
 
 class WeekAdmin(admin.ModelAdmin):
