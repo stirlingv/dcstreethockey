@@ -1321,6 +1321,11 @@
 						color: #fff;
 						text-decoration: none;
 					}
+				
+				#header img {
+						position: relative;
+	  					height: 1em;
+					}		
 
 				#header nav {
 					position: absolute;

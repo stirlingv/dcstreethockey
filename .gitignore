@@ -1,6 +1,7 @@
 .idea
 *.pyc
 venv/
+venv3/
 static/assets/.sass-cache/*
 .DS_Store 
 db.sqlite3
@@ -12,3 +13,4 @@ queries.txt
 *.json
 log.txt
 media/homepage/*
+pg_upgrade_*
