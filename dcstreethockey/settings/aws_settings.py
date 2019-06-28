@@ -7,6 +7,7 @@ AWS_STORAGE_BUCKET_NAME = os.environ['S3_BUCKET_NAME']
 MEDIA_URL = 'https://%s.s3.amazonaws.com/' % AWS_STORAGE_BUCKET_NAME
 
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto.S3BotoStorage"
+STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # S3DIRECT_ENDPOINT = 's3.amazonaws.com'  # http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
 # S3DIRECT_DIR = 's3direct'  # (optional, default is 's3direct', location within the bucket to upload files)
