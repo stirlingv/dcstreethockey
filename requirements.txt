@@ -31,6 +31,5 @@ simplegeneric==0.8.1
 six==1.10.0
 sqlparse==0.3.0
 traitlets==4.3.2
-virtualenv==15.0.1
 wcwidth==0.1.7
 whitenoise==2.0.2
