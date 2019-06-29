@@ -1,6 +1,8 @@
 appdirs==1.4.0
 appnope==0.1.0
 autoenv==1.0.0
+boto3==1.9.180
+botocore==1.12.180
 decorator==4.4.0
 dj-database-url==0.3.0
 Django==1.11.21
@@ -11,9 +13,11 @@ django-localflavor==1.1
 django-reversion==2.0.5
 django-suit==0.2.15
 django-widget-tweaks==1.4.1
+docutils==0.14
 gunicorn==19.5.0
 ipython==5.4.1
 ipython-genutils==0.2.0
+jmespath==0.9.4
 olefile==0.44
 packaging==16.8
 pexpect==4.7.0
@@ -26,10 +30,14 @@ pycountry==18.12.8
 pyflakes==1.5.0
 Pygments==2.3.1
 pyparsing==2.1.10
+python-dateutil==2.8.0
 pytz==2016.6.1
+s3transfer==0.2.1
 simplegeneric==0.8.1
 six==1.10.0
 sqlparse==0.3.0
 traitlets==4.3.2
+urllib3==1.25.3
+virtualenv==15.0.1
 wcwidth==0.1.7
 whitenoise==2.0.2
