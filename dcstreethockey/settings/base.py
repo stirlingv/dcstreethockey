@@ -41,7 +41,6 @@ INSTALLED_APPS = [
     'core',
     'suit',
     'datetimewidget',
-    'django_countries',
     'localflavor',
     'widget_tweaks',
     'reversion',
