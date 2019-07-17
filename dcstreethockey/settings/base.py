@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'core',
     'suit',
+    'storages',
     'datetimewidget',
     'localflavor',
     'widget_tweaks',
