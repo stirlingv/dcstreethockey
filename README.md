@@ -17,12 +17,12 @@
       - ```brew instal postgresql```
 1. [fork](https://help.github.com/articles/fork-a-repo/) and [clone](https://help.github.com/articles/cloning-a-repository/) repo
 1. activate virtual environment 
-   - ```pip install virtualenv ```(if you don't already have virtualenv)
+   - ```venv``` is part of python3 base image.
    - cd to dcstreethockey folder
-   - ```virtualenv venv``` (first time only)
-   - ```source venv/bin/activate```
+   - ```python3 -m venv [path to virtual environment folder]``` (first time only)
+   - ```source [path to virtual environment]/bin/activate```
 1. pip install -r requirements.txt
-1. Insure postgres is running and Database exists
+1. Make sure postgres is running and Database exists
    - ```brew services start postgresql```
    - ```psql -l``` 
       - if dcstreethockey doesn't exist continue
