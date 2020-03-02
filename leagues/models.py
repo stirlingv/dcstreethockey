@@ -94,6 +94,7 @@ class Team_Stat(models.Model):
 	win = models.PositiveSmallIntegerField(default=0)
 	loss = models.PositiveSmallIntegerField(default=0)
 	tie = models.PositiveSmallIntegerField(default=0)
+	otl = models.PositiveSmallIntegerField(default=0)
 	goals_for = models.PositiveSmallIntegerField(default=0)
 	goals_against = models.PositiveSmallIntegerField(default=0)
 
@@ -101,7 +102,7 @@ class Team_Stat(models.Model):
 		ordering = ('team__team_name',)
 
 	def __unicode__(self):
-		return u"%s: %s - %s - %s" % (self.team, self.win, self.loss, self.tie)
+		return u"%s: %s - %s - %s" % (self.team, self.win, self.loss, self.tie )
 
 	def __str__(self):
 		return self.__unicode__()

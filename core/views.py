@@ -68,14 +68,14 @@ class TeamStatDetailView(ListView):
     context_object_name = 'team_list'
 
     def get_queryset(self):
-        return Team_Stat.objects.order_by('-total_points','-win','loss','-tie','-goals_for','-goals_against')
+        return Team_Stat.objects.order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against')
 
     def get_context_data(self, **kwargs):
         context = super(TeamStatDetailView, self).get_context_data(**kwargs)
 
         context['team_list'] = context['team_list'].filter(
                 team__is_active=True).annotate(
-                total_points = Coalesce((Sum('win') * 2) + Sum('tie'),0))
+                total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0))
                 #goals_for = Coalesce(Sum('team__stat__goals'),0)).filter(
         # context["season"] = Season.objects.all()
         # context["roster"] = Roster.objects.order_by(Lower('player__last_name'))
