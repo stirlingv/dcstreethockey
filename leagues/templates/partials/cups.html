@@ -1,0 +1,52 @@
+{% for day,value in matchups.items %}
+        {% if division_name %}
+            <section>
+            <h3>{{division_name}} | {{day}}</h3>
+        {% endif %}
+        {% for mid, value2 in value.items %}
+        <div class="game"> 
+                {% if division_name %}
+                    <h3>{{value2.match.time}}</h3>
+                {% else %}
+                    <h3>{{value2.match.time}} | {{day}}</h3>
+                {% endif %}
+                <table class="game-overview">
+                    <tr>
+                        <td
+                            onclick="javascript:handleTeam('/leagues/teams/{{value2.match.awayteam.id}}')"
+                            class="clickable
+                            {% if value2.match.home_goals < value2.match.away_goals %}
+                                winner
+                            {% endif %}
+                            "
+                        >{{value2.match.awayteam.team_name}}</td>
+                        <td
+                            {% if value2.match.home_goals < value2.match.away_goals %}
+                                class="winner"
+                            {% endif %}
+                            >{{value2.match.away_goals}}</td>
+                        <td 
+                            onclick="javascript:handleTeam('/leagues/teams/{{value2.match.hometeam.id}}')"
+                            class="clickable
+                            {% if value2.match.home_goals > value2.match.away_goals %}
+                                winner
+                            {% endif %}
+                            "
+                            >{{value2.match.hometeam.team_name}}</td>
+                        <td
+                            {% if value2.match.home_goals > value2.match.away_goals %}
+                                class="winner"
+                            {% endif %}
+                            >{{value2.match.home_goals}}</td>
+                    </tr>
+                </table>
+
+                <!-- <div class="row stats" id="stats-{{mid}}" style="display:none;" onclick="javascript:toggleTable({{mid}})"> -->
+                    ^
+                </div>
+            </div> <!-- /game -->
+        {% endfor %} <!-- match -->
+        {% if division_name %}
+            </section>
+        {% endif %}
+{% endfor %} <!-- day -->

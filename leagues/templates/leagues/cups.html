@@ -1,0 +1,37 @@
+<head>
+        <style type="text/css" media="screen">
+        </style>
+    </head>
+    {% extends 'core/base.html' %}
+    {% load static %}
+    {% block content %}
+    <div id="content-wrapper" class="schedule">
+        <div id="content">
+            <div class="container">
+                <div class="title">
+                    Championship Games
+                </div>
+                {% for division in divisions %}
+                    <div class="optionsdiv {% if division.division == active_division %}activeoption{% endif %} "
+                            onclick="javascript:handleDivision('/leagues/cups/{{division.division}}')">
+                        {{division}}
+                    </div>
+                {% endfor %}
+                {% include 'partials/cups.html' %}
+            </div>
+        </div>
+    </div>
+    
+    <script type="text/javascript">
+        function toggleTable(id) {
+            var stats = document.getElementById("stats-"+id);
+                    var showstats = stats.style.display = "block";
+            stats.style.display = showstats ? "none" : "block";
+                    document.getElementById("ex-"+id).style.display = showstats ? "block" : "none";
+        }
+            function handleDivision(dest){
+              window.location = dest;
+          }
+    </script>
+    {% endblock %}
+    

@@ -19,7 +19,7 @@
 						<ul class="check-list">
 							{% for match in matchup %}
 								{% if match.week.division|stringformat:"s" == "Sunday D1" %}
-									<li>{{match.awayteam.team_name}} vs {{match.hometeam.team_name}} @ {{match.time}}</li>
+									<li>{{match.time}}: {{match.awayteam.team_name}} vs {{match.hometeam.team_name}}</li>
 								{% endif %}
 							{% endfor %}
 						</ul>
@@ -41,7 +41,7 @@
 						<ul class="check-list">
 							{% for match in matchup %}
 								{% if match.week.division|stringformat:"s" == "Sunday D2" %}
-									<li>{{match.awayteam.team_name}} vs {{match.hometeam.team_name}} @ {{match.time}}</li>
+									<li>{{match.time}}: {{match.awayteam.team_name}} vs {{match.hometeam.team_name}}</li>
 								{% endif %}
 							{% endfor %}
 						</ul>
@@ -63,7 +63,7 @@
 						<ul class="check-list">
 							{% for match in matchup %}
 								{% if match.week.division|stringformat:"s" == "Wednesday Draft League" %}
-									<li>{{match.awayteam.team_name}} vs {{match.hometeam.team_name}} @ {{match.time}}</li>
+									<li>{{match.time}}: {{match.awayteam.team_name}} vs {{match.hometeam.team_name}}</li>
 								{% endif %}
 							{% endfor %}
 							<!-- <li>

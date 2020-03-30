@@ -14,5 +14,7 @@ urlpatterns = [
 	url(r'^schedule/$', core_view.schedule, name='schedule'),
 	url(r'^scores/$', core_view.scores, name='scores'),
 	url(r'^scores/(?P<division>[0-9])/$', core_view.scores, name='scores'),
+	url(r'^cups/$', core_view.cups, name='cups'),
+	url(r'^cups/(?P<division>[0-9])/$', core_view.cups, name='cups'),
 
 ]
