@@ -77,6 +77,7 @@ class Team(models.Model):
 	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, blank=True)
 	team_photo = models.ForeignKey(TeamPhoto, null=True)
 	is_active = models.BooleanField()
+	is_champ = models.BooleanField(default=False)
 
 	class Meta:
 		unique_together = ('team_name', 'season',)
@@ -118,6 +119,7 @@ class Roster(models.Model):
 	team = models.ForeignKey(Team, null=True)
 	position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
 	position2 = models.PositiveIntegerField(choices=POSITION_TYPE, null=True, blank=True)
+	is_captain = models.BooleanField(default=False)
 
 	class Meta:
 		ordering = ('team','player__last_name')
@@ -149,6 +151,7 @@ class MatchUp(models.Model):
 	ref2 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None)
 	notes = models.CharField(max_length=500, null=True, blank=True, default=None)
 	is_postseason = models.BooleanField(default=False)
+	is_championship = models.BooleanField(default=False)
 
 	class Meta:
 		ordering = ('week','time',)

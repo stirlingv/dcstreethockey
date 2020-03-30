@@ -9,7 +9,11 @@
     {% for player in player_list %}
     {% if player.total_points > 0 or player.roster__position1 != 4 and player.roster__position2 != 4 %}
             <tr>
-                <td>{{player.first_name}} {{player.last_name}}</td>
+                {% if player.roster__is_captain %}
+                    <td>{{player.first_name}} {{player.last_name}} (C)</td>
+                {% else %}
+                    <td>{{player.first_name}} {{player.last_name}}</td>
+                {% endif %}
                 <td>{{player.roster__team__team_name}}</td>
                 <td>{{player.sum_goals}}</td>
                 <td>{{player.sum_assists}}</td>
@@ -34,7 +38,11 @@
     {% for player in player_list %}
         {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
             <tr>
-                <td>{{player.first_name}} {{player.last_name}}</td>
+                {% if player.roster__is_captain %}
+                    <td>{{player.first_name}} {{player.last_name}} (C)</td>
+                {% else %}
+                    <td>{{player.first_name}} {{player.last_name}}</td>
+                {% endif %}
                 <td>{{player.roster__team__team_name}}</td>
                 <td>{{player.average_goals_against|floatformat:2}}</td>
                 <td>{{player.sum_games_played}}</td>
