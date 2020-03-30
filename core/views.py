@@ -272,6 +272,11 @@ def get_matches_for_division(division):
             hometeam__division=division).order_by(
             '-week__date').filter(awayteam__is_active=True)
 
+def get_championships_for_division(division):
+    return MatchUp.objects.filter(
+            hometeam__division=division).order_by(
+            '-week__date').filter(is_championship=True)
+
 def get_matches_for_team(team):
     return MatchUp.objects.filter(
             (Q(hometeam__id=team) | Q(awayteam__id=team))).order_by(
@@ -374,7 +379,7 @@ def cups(request, division=1):
     if len(division):
         #division ex: [(1, 'Sunday D1')]
         context['division_name'] = division[0][1]
-        matchups = get_matches_for_division(context['active_division']).filter(is_championship=True)
+        matchups = get_championships_for_division(context['active_division'])
         matchups = add_goals_for_matchups(matchups)
         context['matchups'] = get_detailed_matchups(matchups)
     return render(request, "leagues/cups.html", context=context)
