@@ -16,20 +16,20 @@
             </div>
             <h3 class="division">{{team.division}}</h3>
             <div class="cleardiv"/>
-            <div id="scheduleoptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('schedule')">
-                Schedule
-            </div>
-            <div id="rosteroptiondiv" class="optionsdiv" onclick="javascript:handleOption('roster')">
+            <div id="rosteroptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('roster')">
                 Roster
+            </div>
+            <div id="scheduleoptiondiv" class="optionsdiv" onclick="javascript:handleOption('schedule')">
+                Schedule
             </div>
             <div id="scoresoptiondiv" class="optionsdiv" onclick="javascript:handleOption('scores')">
                 Scores
             </div>
 
-            <section id="schedulesection" class="show">
+            <section id="schedulesection" class="hidden">
                 {% include 'partials/schedule.html' %}
             </section>
-            <section id="rostersection" class="stats hidden">
+            <section id="rostersection" class="stats show">
                 {% include 'partials/stats.html' %}
             </section>
             <section id="scoressection" class="hidden">
