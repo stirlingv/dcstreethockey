@@ -280,7 +280,7 @@ def get_championships_for_division(division):
 def get_matches_for_team(team):
     return MatchUp.objects.filter(
             (Q(hometeam__id=team) | Q(awayteam__id=team))).order_by(
-            '-week__date').filter(awayteam__is_active=True)
+            '-week__date')
 
 def get_detailed_matchups(matchups):
     result = OrderedDict()
@@ -323,7 +323,7 @@ def schedule(request):
             week__date__gte=datetime.datetime.today())
     context['schedule'] = get_schedule_for_matchups(matchups)
     return render(request, "leagues/schedule.html", context=context)
-
+ 
 def teams(request, team=0):
     context = {}
     team = int(team)
@@ -342,7 +342,8 @@ def teams(request, team=0):
     context['matchups'] = get_detailed_matchups(scorematchups)
     context['roster'] = []
     players = Player.objects.filter(roster__team__id=team)
-    context['player_list'] = get_player_stats(players, 0).order_by(
+    season = players.values_list('roster__team__season__id', flat=True).distinct()
+    context['player_list'] = get_player_stats(players, int(season[0])).order_by(
             '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
     for rosteritem in Roster.objects.filter(team__id=team):
         context['roster'].append({'player': rosteritem.player.first_name + " " + rosteritem.player.last_name,
