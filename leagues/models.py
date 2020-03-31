@@ -77,7 +77,6 @@ class Team(models.Model):
 	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, blank=True)
 	team_photo = models.ForeignKey(TeamPhoto, null=True)
 	is_active = models.BooleanField()
-	is_champ = models.BooleanField(default=False)
 
 	class Meta:
 		unique_together = ('team_name', 'season',)
