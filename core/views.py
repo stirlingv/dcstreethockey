@@ -112,6 +112,7 @@ def get_player_stats(players, season):
                     'roster__team__team_name',
                     'roster__position1',
                     'roster__position2',
+                    'roster__is_captain',
                     ).annotate(
                     sum_goals=Sum(
                         Case(
@@ -175,6 +176,7 @@ def get_player_stats(players, season):
                     'roster__team__team_name',
                     'roster__position1',
                     'roster__position2',
+                    'roster__is_captain',
                     ).annotate(
                     sum_goals=Sum(
                         Case(
