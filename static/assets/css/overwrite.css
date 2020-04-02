@@ -98,7 +98,7 @@
 }
 
 .rostertable tr{
-    border:1px solid #000000;/
+    border:1px solid #000000;
     empty-cells: show
 }
 .rostertable th{
@@ -107,7 +107,7 @@
     width: 20%;
 }
 .rostertable td{
-    border: 1px solid #000000;/
+    border: 1px solid #000000;
     border-collapse: collapse;
     display: table-cell;
     empty-cells: show;
@@ -254,7 +254,7 @@ section .game:first-of-type{
     white-space: nowrap;
 }
 .stats table td{
-    border-bottom: 1px solid #96a9b5;/
+    border-bottom: 1px solid #96a9b5;
     border-collapse: collapse;
     display: table-cell;
     empty-cells: show;
@@ -278,7 +278,9 @@ section .game:first-of-type{
 }
 
 .teampic{
-    float: right;
+    float: center;
+    /* margin-left: auto;
+    margin-right: auto; */
     width: 500px;
 }
 
