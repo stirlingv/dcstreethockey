@@ -278,9 +278,7 @@ section .game:first-of-type{
 }
 
 .teampic{
-    float: center;
-    /* margin-left: auto;
-    margin-right: auto; */
+    float: right;
     width: 500px;
 }
 
