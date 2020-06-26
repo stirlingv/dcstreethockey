@@ -53,7 +53,9 @@ class MatchUpAdmin(admin.ModelAdmin):
     inlines = [
             StatInline,
             ]
-    list_filter = ['week__season', 'week']
+    list_filter = (('week__division', admin.RelatedOnlyFieldListFilter), ('week__season', admin.RelatedOnlyFieldListFilter), 'week',)
+    # list_per_page = 10
+
 
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
@@ -78,7 +80,7 @@ class RefAdmin(admin.ModelAdmin):
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):
-    list_filter = ['year']
+    list_filter = ('year',)
 
 @admin.register(HomePage)
 class HomePage(admin.ModelAdmin):

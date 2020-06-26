@@ -18,3 +18,5 @@ urlpatterns = [
 	url(r'^cups/(?P<division>[0-9])/$', core_view.cups, name='cups'),
 
 ]
+
+app_name="leagues"
