@@ -72,10 +72,10 @@ class Team(models.Model):
 	)
 	team_name = models.CharField(max_length=30)
 	team_color = models.CharField(max_length=30)
-	division = models.ForeignKey(Division, null=True)
-	season = models.ForeignKey(Season, null=True)
+	division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
+	season = models.ForeignKey(Season, null=True, on_delete=models.PROTECT)
 	conference = models.PositiveIntegerField(choices=CONFERENCE_TYPE, null=True, blank=True)
-	team_photo = models.ForeignKey(TeamPhoto, null=True)
+	team_photo = models.ForeignKey(TeamPhoto, null=True, on_delete=models.SET_NULL)
 	is_active = models.BooleanField()
 
 	class Meta:
@@ -88,9 +88,9 @@ class Team(models.Model):
 		return self.__unicode__()
 
 class Team_Stat(models.Model):
-	division = models.ForeignKey(Division, null=True)
-	season = models.ForeignKey(Season, null=True)
-	team = models.ForeignKey(Team, null=True)
+	division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
+	season = models.ForeignKey(Season, null=True, on_delete=models.PROTECT)
+	team = models.ForeignKey(Team, null=True, on_delete=models.PROTECT)
 	win = models.PositiveSmallIntegerField(default=0)
 	loss = models.PositiveSmallIntegerField(default=0)
 	tie = models.PositiveSmallIntegerField(default=0)
@@ -115,7 +115,7 @@ class Roster(models.Model):
 	(4, 'Goalie')
 	)
 	player = models.ForeignKey(Player, null=True, on_delete=models.SET_NULL)
-	team = models.ForeignKey(Team, null=True)
+	team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
 	position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
 	position2 = models.PositiveIntegerField(choices=POSITION_TYPE, null=True, blank=True)
 	is_captain = models.BooleanField(default=False)
@@ -131,8 +131,8 @@ class Roster(models.Model):
 
 class Week(models.Model):
 	game_number = models.PositiveIntegerField(default=1)
-	division = models.ForeignKey(Division, null=True)
-	season = models.ForeignKey(Season)
+	division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
+	season = models.ForeignKey(Season, on_delete=models.PROTECT)
 	date = models.DateField()
 
 	def __unicode__(self):
@@ -142,12 +142,12 @@ class Week(models.Model):
 		return self.__unicode__()
 
 class MatchUp(models.Model):
-	week = models.ForeignKey(Week, null=True)
+	week = models.ForeignKey(Week, null=True, on_delete=models.CASCADE)
 	time = models.TimeField()
-	awayteam = models.ForeignKey(Team, related_name="+")
-	hometeam = models.ForeignKey(Team, related_name="+")
-	ref1 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None)
-	ref2 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None)
+	awayteam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT)
+	hometeam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT)
+	ref1 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None, on_delete=models.SET_NULL)
+	ref2 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None, on_delete=models.SET_NULL)
 	notes = models.CharField(max_length=500, null=True, blank=True, default=None)
 	is_postseason = models.BooleanField(default=False)
 	is_championship = models.BooleanField(default=False)
@@ -162,9 +162,9 @@ class MatchUp(models.Model):
 		return self.__unicode__()
 
 class Stat(models.Model):
-	player = models.ForeignKey(Player)
-	team = models.ForeignKey(Team, null=True, blank=True)
-	matchup = models.ForeignKey(MatchUp, null=True, blank=True)
+	player = models.ForeignKey(Player, on_delete=models.PROTECT)
+	team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.PROTECT)
+	matchup = models.ForeignKey(MatchUp, null=True, blank=True, on_delete=models.PROTECT)
 	goals = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 	assists = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 	goals_against = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
@@ -180,7 +180,7 @@ class Stat(models.Model):
 		return self.__unicode__()
 
 class Ref(models.Model):
-	player = models.ForeignKey(Player)
+	player = models.ForeignKey(Player, on_delete=models.CASCADE)
 
 	def __unicode__(self):
 		return u"%s" % (self.player)
