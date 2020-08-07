@@ -80,6 +80,7 @@ class Team(models.Model):
 
 	class Meta:
 		unique_together = ('team_name', 'season',)
+		ordering = ['-season__year',]
 
 	def __unicode__(self):
 		return u"%s, %s" % (self.team_name, self.season)
