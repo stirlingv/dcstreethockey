@@ -70,7 +70,7 @@ class Team(models.Model):
 	(1, 'East'),
 	(2, 'West')
 	)
-	team_name = models.CharField(max_length=30)
+	team_name = models.CharField(max_length=55)
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
 	season = models.ForeignKey(Season, null=True, on_delete=models.PROTECT)
@@ -154,7 +154,7 @@ class MatchUp(models.Model):
 	is_championship = models.BooleanField(default=False)
 
 	class Meta:
-		ordering = ('week','time',)
+		ordering = ('-hometeam__season__year','week','time',)
 
 	def __unicode__(self):
 		return u"Game %s: %s vs %s on %s" % (self.week.game_number, self.awayteam, self.hometeam, self.week.date)
