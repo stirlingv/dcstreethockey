@@ -36,6 +36,8 @@ class Season(models.Model):
 	year = models.IntegerField(choices=YEAR_CHOICES, default=datetime.datetime.now().year)
 	is_current_season = models.NullBooleanField()
 
+	class Meta:
+		ordering = ['-year',]
 	def __unicode__(self):
 		return u"%s: %s" % (self.get_season_type_display(), self.year)
 
@@ -100,7 +102,7 @@ class Team_Stat(models.Model):
 	goals_against = models.PositiveSmallIntegerField(default=0)
 
 	class Meta:
-		ordering = ('team__team_name',)
+		ordering = ('team__team_name', '-season__year')
 
 	def __unicode__(self):
 		return u"%s: %s - %s - %s" % (self.team, self.win, self.loss, self.tie )
@@ -136,6 +138,8 @@ class Week(models.Model):
 	season = models.ForeignKey(Season, on_delete=models.PROTECT)
 	date = models.DateField()
 
+	class Meta:
+		ordering = ['-season__year','-game_number',]
 	def __unicode__(self):
 		return u"Week: %s %s %s" % (self.game_number, self.division, self.season)
 
