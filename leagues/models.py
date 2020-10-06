@@ -11,7 +11,7 @@ for r in range(1980, (datetime.datetime.now().year+2)):
 
 class Player(models.Model):
 	first_name = models.CharField(max_length=30)
-	last_name = models.CharField(max_length=30)
+	last_name = models.CharField(db_index=True, max_length=30)
 	email = models.EmailField(null=True, blank=True)
 	photo = models.ImageField(null=True, blank=True)
 
@@ -32,8 +32,8 @@ class Season(models.Model):
 	(3, 'Fall'),
 	(4, 'Winter')
 	)
-	season_type = models.PositiveIntegerField(choices=SEASON_TYPE, null=True)
-	year = models.IntegerField(choices=YEAR_CHOICES, default=datetime.datetime.now().year)
+	season_type = models.PositiveIntegerField(db_index=True, choices=SEASON_TYPE, null=True)
+	year = models.IntegerField(db_index=True, choices=YEAR_CHOICES, default=datetime.datetime.now().year)
 	is_current_season = models.NullBooleanField()
 
 	class Meta:
@@ -72,7 +72,7 @@ class Team(models.Model):
 	(1, 'East'),
 	(2, 'West')
 	)
-	team_name = models.CharField(max_length=55)
+	team_name = models.CharField(db_index=True, max_length=55)
 	team_color = models.CharField(max_length=30)
 	division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
 	season = models.ForeignKey(Season, null=True, on_delete=models.PROTECT)
@@ -133,7 +133,7 @@ class Roster(models.Model):
 		return self.__unicode__()
 
 class Week(models.Model):
-	game_number = models.PositiveIntegerField(default=1)
+	game_number = models.PositiveIntegerField(db_index=True, default=1)
 	division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
 	season = models.ForeignKey(Season, on_delete=models.PROTECT)
 	date = models.DateField()
@@ -148,7 +148,7 @@ class Week(models.Model):
 
 class MatchUp(models.Model):
 	week = models.ForeignKey(Week, null=True, on_delete=models.CASCADE)
-	time = models.TimeField()
+	time = models.TimeField(db_index=True)
 	awayteam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT)
 	hometeam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT)
 	ref1 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None, on_delete=models.SET_NULL)
