@@ -286,7 +286,13 @@ def get_matches_for_team(team):
 
 def get_detailed_matchups(matchups):
     result = OrderedDict()
-    for match in matchups:
+    for match in matchups.annotate(
+            home_wins=Max('hometeam__team_stat__win')).annotate(
+            home_losses=Max('hometeam__team_stat__loss')).annotate(
+            home_ties=Max('hometeam__team_stat__tie')).annotate(
+            away_wins=Max('awayteam__team_stat__win')).annotate(
+            away_losses=Max('awayteam__team_stat__loss')).annotate(
+            away_ties=Max('awayteam__team_stat__tie')):
         if not result.get(str(match.week.date), False):
             result[str(match.week.date)] = OrderedDict()
         result[str(match.week.date)][str(match.id)] = {}
