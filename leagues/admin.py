@@ -30,7 +30,7 @@ class StatInline(admin.TabularInline):
         try:
             match_id = str(request.path.strip('/').split('/')[-2])
             if db_field.name == "player":
-                match = MatchUp.objects.filter(id=match_id).last()
+                match = MatchUp.objects.select_related('roster__team').filter(id=match_id).last()
                 kwargs['queryset'] = Player.objects.filter(((
                         Q(roster__team=match.hometeam) | Q(
                         roster__team=match.awayteam)) & Q(
