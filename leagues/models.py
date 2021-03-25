@@ -3,6 +3,8 @@ from __future__ import unicode_literals
 from django.db import models
 import datetime
 
+from django.db.models import indexes
+
 
 
 YEAR_CHOICES = []
@@ -18,6 +20,9 @@ class Player(models.Model):
 	class Meta:
 		ordering = ('last_name',)
 		unique_together = ('first_name', 'last_name',)
+		indexes = [
+			models.Index(fields=['last_name', 'first_name']),
+		]
 
 	def __unicode__(self):
 		return u"%s, %s" % (self.last_name, self.first_name)
@@ -34,7 +39,7 @@ class Season(models.Model):
 	)
 	season_type = models.PositiveIntegerField(db_index=True, choices=SEASON_TYPE, null=True)
 	year = models.IntegerField(db_index=True, choices=YEAR_CHOICES, default=datetime.datetime.now().year)
-	is_current_season = models.NullBooleanField()
+	is_current_season = models.BooleanField(null=True)
 
 	class Meta:
 		ordering = ['-year',]
@@ -83,6 +88,10 @@ class Team(models.Model):
 	class Meta:
 		unique_together = ('team_name', 'season',)
 		ordering = ['-season__year',]
+		indexes = [
+			models.Index(fields=['team_name']),
+			models.Index(fields=['-season']),
+		]
 
 	def __unicode__(self):
 		return u"%s, %s" % (self.team_name, self.season)
@@ -140,6 +149,9 @@ class Week(models.Model):
 
 	class Meta:
 		ordering = ['-season__year','-game_number',]
+		indexes=[
+			models.Index(fields=['-game_number']),
+		]
 	def __unicode__(self):
 		return u"Week: %s %s %s" % (self.game_number, self.division, self.season)
 
