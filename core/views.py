@@ -77,8 +77,8 @@ class PlayerStatDetailView(ListView):
     context_object_name = 'player_stat_list'
 
     def get_queryset(self):
-        #return Stat.objects.filter(team__season__is_current_season=True)
-        return Stat.objects.all()
+        return Stat.objects.filter(team__season__is_current_season=True)
+        #return Stat.objects.all()
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
@@ -276,7 +276,7 @@ def get_matches_for_team(team):
 
 def get_detailed_matchups(matchups):
     result = OrderedDict()
-    for match in matchups.annotate(
+    for match in matchups.select_related('hometeam').select_related('awayteam').select_related('week').annotate(
             home_wins=Max('hometeam__team_stat__win')).annotate(
             home_losses=Max('hometeam__team_stat__loss')).annotate(
             home_ties=Max('hometeam__team_stat__tie')).annotate(
@@ -327,11 +327,17 @@ def teams(request, team=0):
     team = int(team)
     context['view'] = "teams"
     context['schedule'] = OrderedDict()
+    # schedulematchups = set()
+    # for e in MatchUp.objects.order_by('week__date', 'time').filter(
+    #         awayteam__is_active=True).filter(Q(awayteam__id=team) | Q(hometeam__id=team)).filter(
+    #         week__date__gte=datetime.datetime.today()).select_related('week'):
+    #         schedulematchups.add(e.match)
     schedulematchups = MatchUp.objects.order_by('week__date', 'time').filter(
             awayteam__is_active=True).filter(Q(awayteam__id=team) | Q(hometeam__id=team)).filter(
             week__date__gte=datetime.datetime.today())
     context['schedule'] = get_schedule_for_matchups(schedulematchups)
-    context['team'] = Team.objects.annotate(wins=Max('team_stat__win'),
+    context['team'] = Team.objects.annotate(
+            wins=Max('team_stat__win'),
             losses=Max('team_stat__loss'),
             ties=Max('team_stat__tie')).get(id=team)
     scorematchups = get_matches_for_team(team).filter(
@@ -343,7 +349,7 @@ def teams(request, team=0):
     season = players.values_list('roster__team__season__id', flat=True).distinct()
     context['player_list'] = get_player_stats(players, int(season[0])).order_by(
             '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
-    for rosteritem in Roster.objects.filter(team__id=team):
+    for rosteritem in Roster.objects.select_related('team').select_related('player').filter(team__id=team):
         context['roster'].append({'player': rosteritem.player.first_name + " " + rosteritem.player.last_name,
             "position":[y for x,y in Roster.POSITION_TYPE if x == rosteritem.position1][0]})
 

@@ -30,7 +30,7 @@ class StatInline(admin.TabularInline):
         try:
             match_id = str(request.path.strip('/').split('/')[-2])
             if db_field.name == "player":
-                match = MatchUp.objects.select_related('hometeam').select_related('awayteam').filter(id=match_id).last()
+                match = MatchUp.objects.select_related('hometeam').select_related('awayteam').select_related('week').filter(id=match_id).last()
                 kwargs['queryset'] = Player.objects.filter(((
                         Q(roster__team=match.hometeam) | Q(
                         roster__team=match.awayteam)) & Q(
@@ -39,7 +39,7 @@ class StatInline(admin.TabularInline):
                         'last_name','first_name').distinct(
                         'last_name', 'first_name')
             elif db_field.name == "team":
-                match = MatchUp.objects.select_related('awayteam').select_related('hometeam').filter(id=match_id).last()
+                match = MatchUp.objects.select_related('awayteam').select_related('hometeam').select_related('week').filter(id=match_id).last()
                 kwargs['queryset'] = Team.objects.filter(
                         Q(id=match.hometeam.id) | Q(
                         id=match.awayteam.id)).filter(
@@ -50,6 +50,11 @@ class StatInline(admin.TabularInline):
 
 
 class MatchUpAdmin(admin.ModelAdmin):
+    list_select_related = (
+        'hometeam',
+        'awayteam',
+        'week',
+    )
     inlines = [
             StatInline,
             ]
@@ -69,6 +74,10 @@ class MatchUpInline(admin.TabularInline):
         return super(MatchUpInline, self).formfield_for_foreignkey(db_field, request=None, **kwargs)
 
 class WeekAdmin(admin.ModelAdmin):
+    list_select_related = (
+        'division',
+        'season',
+    )
     inlines = [
             MatchUpInline,
             ]
