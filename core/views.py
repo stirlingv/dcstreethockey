@@ -1,11 +1,12 @@
 import datetime
 from datetime import timedelta
 from collections import OrderedDict
+import decimal
 
 from django.shortcuts import render
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max
+from django.db.models import Sum, Q, Max, Exists, Value
 from django.db.models import F, When, IntegerField, Case, DecimalField
 
 from leagues.models import Season
@@ -160,7 +161,7 @@ def get_player_stats(players, season):
                     )
     else:
         return players.filter(
-                    stat__matchup__is_postseason=False).values(
+                    Q(stat__isnull=True) | Q(stat__matchup__is_postseason=False)).values(
                     'last_name',
                     'first_name',
                     'roster__team__team_name',
