@@ -19,7 +19,18 @@
 						<ul class="check-list">
 							{% for match in matchup %}
 								{% if match.week.division|stringformat:"s" == "Sunday D1" %}
-									<li>{{match.time}}: {{match.awayteam.team_name}} vs {{match.hometeam.team_name}}</li>
+								<li >
+									<p>
+										<table class="game-overview">
+											<tr>
+												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
+												<td>vs.</td>
+												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
+											</tr>
+										</table>
+									</p>
+									<p>{{match.time}}</p>
+								</li>
 								{% endif %}
 							{% endfor %}
 						</ul>
@@ -41,7 +52,18 @@
 						<ul class="check-list">
 							{% for match in matchup %}
 								{% if match.week.division|stringformat:"s" == "Sunday D2" %}
-									<li>{{match.time}}: {{match.awayteam.team_name}} vs {{match.hometeam.team_name}}</li>
+								<li >
+									<p>
+										<table class="game-overview">
+											<tr>
+												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
+												<td>vs.</td>
+												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
+											</tr>
+										</table>
+									</p>
+									<p>{{match.time}}</p>
+								</li>
 								{% endif %}
 							{% endfor %}
 						</ul>
@@ -60,27 +82,23 @@
 								{% endif %}
 							{% endfor %}
 						</header>
-						<ul class="check-list">
+						<ul class="quote-list">
 							{% for match in matchup %}
 								{% if match.week.division|stringformat:"s" == "Wednesday Draft League" %}
-									<li>{{match.time}}: {{match.awayteam.team_name}} vs {{match.hometeam.team_name}}</li>
+									<li >
+										<p>
+											<table class="game-overview">
+												<tr>
+													<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
+													<td>vs.</td>
+													<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
+												</tr>
+											</table>
+										</p>
+										<p>{{match.time}}</p>
+									</li>
 								{% endif %}
 							{% endfor %}
-							<!-- <li>
-								<img src="images/pic06.jpg" alt="" />
-								<p>{{game.time}}</p>
-								<span>{{game.awayteam}} vs {{game.hometeam}}</span>
-							</li>
-							<li>
-								<img src="images/pic07.jpg" alt="" />
-								<p>"Lorem ipsum consequat!"</p>
-								<span>John Doe, President of FakeBiz</span>
-							</li>
-							<li>
-								<img src="images/pic08.jpg" alt="" />
-								<p>"Magna veroeros amet tempus"</p>
-								<span>Mary Smith, CFO of UntitledBiz</span>
-							</li> -->
 						</ul>
 					</section>
 
