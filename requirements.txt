@@ -2,7 +2,7 @@ asgiref==3.2.10
 boto3==1.14.14
 botocore==1.17.14
 dj-database-url==0.5.0
-Django==3.1.8
+Django==3.1.12
 django-datetime-widget==0.9.3
 django-debug-toolbar>=3.2.1
 django-extensions==3.0.1
@@ -13,7 +13,7 @@ django-widget-tweaks==1.4.8
 docutils==0.15.2
 gunicorn==20.0.4
 jmespath==0.10.0
-Pillow==8.1.1
+Pillow==8.2.0
 psycopg2==2.8.5
 python-dateutil==2.8.1
 python-stdnum==1.13
@@ -22,5 +22,5 @@ s3transfer==0.3.3
 six==1.15.0
 sqlparse==0.3.1
 suit==2.0.2
-urllib3==1.25.9
+urllib3==1.26.5
 whitenoise==5.1.0
