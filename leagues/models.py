@@ -53,7 +53,8 @@ class Division(models.Model):
 	DIVISION_TYPE = (
 	(1, 'Sunday D1'),
 	(2, 'Sunday D2'),
-	(3, 'Wednesday Draft League')
+	(3, 'Wednesday Draft League'),
+	(4, 'Monday Coed')
 	)
 	division = models.IntegerField(choices=DIVISION_TYPE, null=True, unique=True)
 

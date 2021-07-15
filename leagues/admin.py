@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.db.models import Q
 
-from leagues.models import Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto
+from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto
 
 class RosterInline(admin.TabularInline):
     model = Roster
@@ -15,7 +15,7 @@ class TeamAdmin(admin.ModelAdmin):
             TeamStatInline,
             RosterInline,
             ]
-    list_filter = ['is_active','season','division']
+    list_filter = ['is_active','division','season']
     save_as = True
 
 class PlayerAdmin(admin.ModelAdmin):
@@ -86,6 +86,10 @@ class WeekAdmin(admin.ModelAdmin):
 @admin.register(Ref)
 class RefAdmin(admin.ModelAdmin):
     pass
+
+# @admin.register(Division)
+# class DivisionAdmin(admin.ModelAdmin):
+#     pass
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):

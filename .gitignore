@@ -6,7 +6,7 @@ static/assets/.sass-cache/*
 .DS_Store 
 db.sqlite3
 polls/
-#media/
+media/teams/
 *.dump
 *.dump*
 queries.txt

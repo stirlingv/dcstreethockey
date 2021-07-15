@@ -4,12 +4,11 @@
 	<div id="content">
 		<div class="container">
 			<div class="row">
-				<div class="4u 12u(mobile)">
-
 				<!-- Box #1 -->
+				<div class="4u 12u(mobile)">
 					<section>
 						<header>
-							<h2>Sunday D1</h2>
+							<h2>Sunday</h2>
 							{% for row in one_row %}
 								{% if row.week.division|stringformat:"s" == "Sunday D1" %}
 									<h3>{{row.week.date}}</h3>
@@ -18,10 +17,11 @@
 						</header>
 						<ul class="quote-list">
 							{% for match in matchup %}
-								{% if match.week.division|stringformat:"s" == "Sunday D1" %}
+								{% if match.week.division|stringformat:"s" == "Sunday D1" or match.week.division|stringformat:"s" == "Sunday D2"%}
 								<li >
 									<p>
 										<table class="game-overview">
+											<tr>{{match.time}}</tr> 
 											<tr>
 												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
 												<td>vs.</td>
@@ -29,7 +29,6 @@
 											</tr>
 										</table>
 									</p>
-									<p>{{match.time}}</p>
 								</li>
 								{% endif %}
 							{% endfor %}
@@ -37,42 +36,39 @@
 					</section>
 
 				</div>
-				<div class="4u 12u(mobile)">
-
 				<!-- Box #2 -->
-					<section>
-						<header>
-							<h2>Sunday D2</h2>
-							{% for row in one_row %}
-								{% if row.week.division|stringformat:"s" == "Sunday D2" %}
-									<h3>{{row.week.date}}</h3>
-								{% endif %}
-							{% endfor %}
-						</header>
-						<ul class="quote-list">
-							{% for match in matchup %}
-								{% if match.week.division|stringformat:"s" == "Sunday D2" %}
-								<li >
-									<p>
-										<table class="game-overview">
-											<tr>
-												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
-												<td>vs.</td>
-												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
-											</tr>
-										</table>
-									</p>
-									<p>{{match.time}}</p>
-								</li>
-								{% endif %}
-							{% endfor %}
-						</ul>
-					</section>
-
-				</div>
 				<div class="4u 12u(mobile)">
-
+						<section>
+							<header>
+								<h2>Monday</h2>
+								{% for row in one_row %}
+									{% if row.week.division|stringformat:"s" == "Monday Coed" %}
+										<h3>{{row.week.date}}</h3>
+									{% endif %}
+								{% endfor %}
+							</header>
+							<ul class="quote-list">
+								{% for match in matchup %}
+									{% if match.week.division|stringformat:"s" == "Monday Coed" %}
+									<li >
+											<p>
+												<table class="game-overview">
+													<tr>{{match.time}}</tr> 
+													<tr>
+														<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
+														<td>vs.</td>
+														<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
+													</tr>
+												</table>
+											</p>
+										</li>
+									{% endif %}
+								{% endfor %}
+							</ul>
+						</section>
+					</div>
 				<!-- Box #3 -->
+				<div class="4u 12u(mobile)">
 					<section>
 						<header>
 							<h2>Wednesday</h2>
@@ -85,9 +81,10 @@
 						<ul class="quote-list">
 							{% for match in matchup %}
 								{% if match.week.division|stringformat:"s" == "Wednesday Draft League" %}
-									<li >
+								<li >
 										<p>
 											<table class="game-overview">
+												<tr>{{match.time}}</tr> 
 												<tr>
 													<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
 													<td>vs.</td>
@@ -95,13 +92,11 @@
 												</tr>
 											</table>
 										</p>
-										<p>{{match.time}}</p>
 									</li>
 								{% endif %}
 							{% endfor %}
 						</ul>
 					</section>
-
 				</div>
 			</div>
 		</div>
