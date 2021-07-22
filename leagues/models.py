@@ -76,7 +76,9 @@ class TeamPhoto(models.Model):
 class Team(models.Model):
 	CONFERENCE_TYPE = (
 	(1, 'East'),
-	(2, 'West')
+	(2, 'West'),
+	(3, 'A League'),
+	(4, 'B League')
 	)
 	team_name = models.CharField(db_index=True, max_length=55)
 	team_color = models.CharField(max_length=30)

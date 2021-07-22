@@ -19,7 +19,7 @@
                                 winner
                             {% endif %}
                             "
-                        >{{value2.match.awayteam.team_name}}<BR>({{value2.match.away_wins}}-{{value2.match.away_losses}}-{{value2.match.away_ties}})</td>
+                        >{{value2.match.awayteam.team_name}}<br>({{value2.match.away_wins}}-{{value2.match.away_losses}}-{{value2.match.away_ties}})</td>
                         <td
                             {% if value2.match.home_goals < value2.match.away_goals %}
                                 class="winner"
@@ -32,7 +32,7 @@
                                 winner
                             {% endif %}
                             "
-                            >{{value2.match.hometeam.team_name}}<BR>({{value2.match.home_wins}}-{{value2.match.home_losses}}-{{value2.match.home_ties}})</td>
+                            >{{value2.match.hometeam.team_name}}<br>({{value2.match.home_wins}}-{{value2.match.home_losses}}-{{value2.match.home_ties}})</td>
                         <td
                             {% if value2.match.home_goals > value2.match.away_goals %}
                                 class="winner"

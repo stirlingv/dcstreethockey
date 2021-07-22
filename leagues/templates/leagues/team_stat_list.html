@@ -86,74 +86,143 @@
 					</div>
                 </div>
             </section>
-					<section class="standingssec">
-                        <header>
-							<h3>Wednesday Draft League</h3>
-						</header>
-                        <div class="row stats">
-					<div class="6u 12u(mobile)">
-					    <table class="table">
-						<caption>East</caption>
-								<tr>
-									<th>Team Name</th>
-									<th>Wins</th>
-									<th>Losses</th>
-									<th>Ties</th>
-									<th>OTL</th>
-									<th>Points</th>
-									<th>GF</th>
-									<th>GA</th>
-								</tr>
-						    	{% for team in team_list %}
-									{% if team.division|stringformat:"s" == "Wednesday Draft League" and team.team.conference == 1%}
-										<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
-											<td>{{team.team.team_name}}</td>
-											<td>{{team.win}}</td>
-											<td>{{team.loss}}</td>
-											<td>{{team.tie}}</td>
-											<td>{{team.otl}}</td>
-                                            <td>{{team.total_points}}</td>
-                                            <td>{{team.goals_for}}</td>
-                                            <td>{{team.goals_against}}</td>
-										</tr>
-									{% endif %}	
-								{% empty %}
-							    	<td>No team stats entered yet.</td>
-								{% endfor %}
-						</table>
-                    </div>
-					<div class="6u 12u(mobile)">
-						<table class="table">
-						<caption>West</caption>
-								<tr>
-									<th>Team Name</th>
-									<th>Wins</th>
-									<th>Losses</th>
-									<th>Ties</th>
-									<th>OTL</th>
-									<th>Points</th>
-									<th>GF</th>
-									<th>GA</th>
-								</tr>
-						    	{% for team in team_list %}		
-									{% if team.division|stringformat:"s" == "Wednesday Draft League" and team.team.conference == 2%}
-										<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
-											<td>{{team.team.team_name}}</td>
-											<td>{{team.win}}</td>
-											<td>{{team.loss}}</td>
-											<td>{{team.tie}}</td>
-											<td>{{team.otl}}</td>
-                                            <td>{{team.total_points}}</td>
-                                            <td>{{team.goals_for}}</td>
-                                            <td>{{team.goals_against}}</td>
-										</tr>
-									{% endif %}	
-								{% empty %}
-							    	<td>No team stats entered yet.</td>
-								{% endfor %}
-						</table>
+				<section class="standingssec">
+					<header>
+						<h3>Wednesday Draft League</h3>
+					</header>
+					<div class="row stats">
+						<div class="6u 12u(mobile)">
+							<table class="table">
+							<caption>East</caption>
+									<tr>
+										<th>Team Name</th>
+										<th>Wins</th>
+										<th>Losses</th>
+										<th>Ties</th>
+										<th>OTL</th>
+										<th>Points</th>
+										<th>GF</th>
+										<th>GA</th>
+									</tr>
+									{% for team in team_list %}
+										{% if team.division|stringformat:"s" == "Wednesday Draft League" and team.team.conference == 1%}
+											<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
+												<td>{{team.team.team_name}}</td>
+												<td>{{team.win}}</td>
+												<td>{{team.loss}}</td>
+												<td>{{team.tie}}</td>
+												<td>{{team.otl}}</td>
+												<td>{{team.total_points}}</td>
+												<td>{{team.goals_for}}</td>
+												<td>{{team.goals_against}}</td>
+											</tr>
+										{% endif %}	
+									{% empty %}
+										<td>No team stats entered yet.</td>
+									{% endfor %}
+							</table>
+						</div>
+						<div class="6u 12u(mobile)">
+							<table class="table">
+							<caption>West</caption>
+									<tr>
+										<th>Team Name</th>
+										<th>Wins</th>
+										<th>Losses</th>
+										<th>Ties</th>
+										<th>OTL</th>
+										<th>Points</th>
+										<th>GF</th>
+										<th>GA</th>
+									</tr>
+									{% for team in team_list %}		
+										{% if team.division|stringformat:"s" == "Wednesday Draft League" and team.team.conference == 2%}
+											<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
+												<td>{{team.team.team_name}}</td>
+												<td>{{team.win}}</td>
+												<td>{{team.loss}}</td>
+												<td>{{team.tie}}</td>
+												<td>{{team.otl}}</td>
+												<td>{{team.total_points}}</td>
+												<td>{{team.goals_for}}</td>
+												<td>{{team.goals_against}}</td>
+											</tr>
+										{% endif %}	
+									{% empty %}
+										<td>No team stats entered yet.</td>
+									{% endfor %}
+							</table>
+						</div>
 					</div>
-                </div>
+				</section>
+				<section class="standingssec">
+					<header>
+						<h3>Monday Coed</h3>
+					</header>
+					<div class="row stats">
+						<div class="6u 12u(mobile)">
+							<table class="table">
+							<caption>A League</caption>
+									<tr>
+										<th>Team Name</th>
+										<th>Wins</th>
+										<th>Losses</th>
+										<th>Ties</th>
+										<th>OTL</th>
+										<th>Points</th>
+										<th>GF</th>
+										<th>GA</th>
+									</tr>
+									{% for team in team_list %}
+										{% if team.division|stringformat:"s" == "Monay Coed" and team.team.conference == 3%}
+											<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
+												<td>{{team.team.team_name}}</td>
+												<td>{{team.win}}</td>
+												<td>{{team.loss}}</td>
+												<td>{{team.tie}}</td>
+												<td>{{team.otl}}</td>
+												<td>{{team.total_points}}</td>
+												<td>{{team.goals_for}}</td>
+												<td>{{team.goals_against}}</td>
+											</tr>
+										{% endif %}	
+									{% empty %}
+										<td>No team stats entered yet.</td>
+									{% endfor %}
+							</table>
+						</div>
+						<div class="6u 12u(mobile)">
+							<table class="table">
+							<caption>B League</caption>
+									<tr>
+										<th>Team Name</th>
+										<th>Wins</th>
+										<th>Losses</th>
+										<th>Ties</th>
+										<th>OTL</th>
+										<th>Points</th>
+										<th>GF</th>
+										<th>GA</th>
+									</tr>
+									{% for team in team_list %}		
+										{% if team.division|stringformat:"s" == "Monday Coed" and team.team.conference == 4%}
+											<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
+												<td>{{team.team.team_name}}</td>
+												<td>{{team.win}}</td>
+												<td>{{team.loss}}</td>
+												<td>{{team.tie}}</td>
+												<td>{{team.otl}}</td>
+												<td>{{team.total_points}}</td>
+												<td>{{team.goals_for}}</td>
+												<td>{{team.goals_against}}</td>
+											</tr>
+										{% endif %}	
+									{% empty %}
+										<td>No team stats entered yet.</td>
+									{% endfor %}
+							</table>
+						</div>
+					</div>
 				</section>
 			</div>
 		</div>
