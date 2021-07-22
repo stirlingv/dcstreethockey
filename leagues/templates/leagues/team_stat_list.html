@@ -174,7 +174,7 @@
 										<th>GA</th>
 									</tr>
 									{% for team in team_list %}
-										{% if team.division|stringformat:"s" == "Monay Coed" and team.team.conference == 3%}
+										{% if team.division|stringformat:"s" == "Monday Coed" and team.team.conference == 3%}
 											<tr class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team.id}}')">
 												<td>{{team.team.team_name}}</td>
 												<td>{{team.win}}</td>
