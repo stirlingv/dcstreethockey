@@ -10,9 +10,9 @@
     {% if player.total_points > 0 or player.roster__position1 != 4 and player.roster__position2 != 4 %}
             <tr>
                 {% if player.roster__is_captain %}
-                    <td>{{player.first_name}} {{player.last_name}} (C)</td>
+                    <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}} (C)</td>
                 {% else %}
-                    <td>{{player.first_name}} {{player.last_name}}</td>
+                    <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}}</td>
                 {% endif %}
                 <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{player.roster__team__id}}')">{{player.roster__team__team_name}}</td>
                 <td>{{player.sum_goals}}</td>
@@ -39,9 +39,9 @@
         {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
             <tr>
                 {% if player.roster__is_captain %}
-                    <td>{{player.first_name}} {{player.last_name}} (C)</td>
+                    <td class="clickable" onclick="javascript:handlePlayer('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}} (C)</td>
                 {% else %}
-                    <td>{{player.first_name}} {{player.last_name}}</td>
+                    <td class="clickable" onclick="javascript:handlePlayer('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}}</td>
                 {% endif %}
                 <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{player.roster__team__id}}')">{{player.roster__team__team_name}}</td>
                 <td>{{player.average_goals_against|floatformat:2}}</td>

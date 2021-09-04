@@ -6,8 +6,8 @@ import decimal
 from django.shortcuts import render
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max, Exists, Value
-from django.db.models import F, When, IntegerField, Case, DecimalField
+from django.db.models import Sum, Q, Max, Exists, Value, Count
+from django.db.models import F, When, IntegerField, Case, DecimalField, ExpressionWrapper
 
 from leagues.models import Season
 from leagues.models import Division
@@ -98,6 +98,7 @@ class PlayerStatDetailView(ListView):
 def get_player_stats(players, season):
     if season == 0:
         return players.values(
+                    'id',
                     'last_name',
                     'first_name',
                     'roster__team__team_name',
@@ -163,6 +164,7 @@ def get_player_stats(players, season):
     else:
         return players.filter(
                     Q(stat__isnull=True) | Q(stat__matchup__is_postseason=False)).values(
+                    'id',
                     'last_name',
                     'first_name',
                     'roster__team__team_name',
@@ -354,7 +356,8 @@ def teams(request, team=0):
             '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
     for rosteritem in Roster.objects.select_related('team').select_related('player').filter(team__id=team):
         context['roster'].append({'player': rosteritem.player.first_name + " " + rosteritem.player.last_name,
-            "position":[y for x,y in Roster.POSITION_TYPE if x == rosteritem.position1][0]})
+            'position':[y for x,y in Roster.POSITION_TYPE if x == rosteritem.position1][0],
+            'player_id': rosteritem.playe.id})
 
 
     return render(request, "leagues/team.html", context=context)
@@ -391,3 +394,72 @@ def cups(request, division=1):
         matchups = add_goals_for_matchups(matchups)
         context['matchups'] = get_detailed_matchups(matchups)
     return render(request, "leagues/cups.html", context=context)
+
+def player(request, player=0):
+    context = {}
+    player_id = int(player)
+    context['view'] = "player"
+    player = Player.objects.filter(id=player_id)
+    context['player'] = player
+    context['career_stats'] = get_career_goals_for_player(player_id)
+    seasons_played = get_seasons_played(player_id)
+    context['seasons'] = seasons_played
+
+    teams_list = get_teams_for_player(player_id)
+    context['team_list'] = teams_list
+
+    return render(request, "leagues/player.html", context=context)
+
+def get_career_goals_for_player(player_id=0):
+    return Stat.objects.filter(player_id=player_id).aggregate(
+        career_goals=Sum('goals'), 
+        career_assists=Sum('assists'),
+        average_goals_per_season = ExpressionWrapper(
+            Sum('goals')/get_seasons_played(player_id),
+            output_field=DecimalField()),
+        average_assists_per_season = ExpressionWrapper(
+            Sum('assists')/get_seasons_played(player_id),
+            output_field=DecimalField())
+    )
+
+def get_seasons_played(player):
+    count = Roster.objects.filter(player__id=player).count()
+    return float(count)
+
+def get_teams_for_player(player):
+    return Stat.objects.filter(player__id=player).values(
+        'team__id',
+        'team__team_name',
+        'team__team_stat__win',
+        'team__team_stat__loss',
+        'team__team_stat__tie',
+        'team__season__year', 
+        'team__season__season_type',
+        'team__division').annotate(
+            sum_goals=Sum(
+                Case(
+                    When(team=F('team'), team__season__id=F('team__season__id'),
+                            then=Coalesce('goals',0)),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ),
+            sum_assists=Sum(
+                Case(
+                    When(team=F('team'), team__season__id=F('team__season__id'),
+                            then=Coalesce('assists',0)),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ),
+            total_points=Sum(
+                Case(
+                    When(team=F('team'), team__season__id=F('team__season__id'),
+                            then=Coalesce('assists', 0)+Coalesce('goals',0)),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            )).order_by(
+        '-team__season__year','-team__season__season_type')
+   
+
