@@ -356,8 +356,7 @@ def teams(request, team=0):
             '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
     for rosteritem in Roster.objects.select_related('team').select_related('player').filter(team__id=team):
         context['roster'].append({'player': rosteritem.player.first_name + " " + rosteritem.player.last_name,
-            'position':[y for x,y in Roster.POSITION_TYPE if x == rosteritem.position1][0],
-            'player_id': rosteritem.playe.id})
+            'position':[y for x,y in Roster.POSITION_TYPE if x == rosteritem.position1][0]})
 
 
     return render(request, "leagues/team.html", context=context)
