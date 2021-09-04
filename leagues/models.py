@@ -11,11 +11,20 @@ YEAR_CHOICES = []
 for r in range(1980, (datetime.datetime.now().year+2)):
 	YEAR_CHOICES.append((r,r))
 
+class PlayerPhoto(models.Model):
+	photo = models.ImageField(upload_to='players', blank=True)
+
+	def __unicode__(self):
+		return u"Photo: %s" % (self.photo)
+
+	def __str__(self):
+		return self.__unicode__()
+
 class Player(models.Model):
 	first_name = models.CharField(max_length=30)
 	last_name = models.CharField(db_index=True, max_length=30)
 	email = models.EmailField(null=True, blank=True)
-	photo = models.ImageField(null=True, blank=True)
+	player_photo = models.ForeignKey(PlayerPhoto, null=True, on_delete=models.SET_NULL)
 
 	class Meta:
 		ordering = ('last_name',)
@@ -63,6 +72,7 @@ class Division(models.Model):
 
 	def __str__(self):
 		return self.__unicode__()
+
 
 class TeamPhoto(models.Model):
 	photo = models.ImageField(upload_to='teams', blank=True)
