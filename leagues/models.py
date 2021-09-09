@@ -24,7 +24,7 @@ class Player(models.Model):
 	first_name = models.CharField(max_length=30)
 	last_name = models.CharField(db_index=True, max_length=30)
 	email = models.EmailField(null=True, blank=True)
-	player_photo = models.ForeignKey(PlayerPhoto, null=True, on_delete=models.SET_NULL)
+	player_photo = models.ForeignKey(PlayerPhoto, null=True, blank=True, on_delete=models.SET_NULL)
 
 	class Meta:
 		ordering = ('last_name',)
