@@ -259,7 +259,9 @@ section .game:first-of-type{
     display: table-cell;
     empty-cells: show;
     text-align: center;
+    overflow: hidden;
     white-space: nowrap;
+    text-overflow: ellipsis;
 }
 .stats table th:first-child, .stats table td:first-child{
       text-align: left;
@@ -275,6 +277,31 @@ section .game:first-of-type{
 
 .standingssec div div table{
     margin-top: 0px;
+}
+
+.player_stats table{
+    table-layout: auto;
+    width: 100%;
+}
+.player_stats table th{
+    border-bottom:1px solid #96a9b5;
+    font-weight: bold;
+}
+
+.player_stats table td{
+    border-bottom: 1px solid #96a9b5;
+    border-collapse: collapse;
+    display: table-cell;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.player_stats table th:first-child, .player_stats table td:first-child{
+    text-align: left;
 }
 
 .teampic{
