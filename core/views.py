@@ -332,11 +332,6 @@ def teams(request, team=0):
     team = int(team)
     context['view'] = "teams"
     context['schedule'] = OrderedDict()
-    # schedulematchups = set()
-    # for e in MatchUp.objects.order_by('week__date', 'time').filter(
-    #         awayteam__is_active=True).filter(Q(awayteam__id=team) | Q(hometeam__id=team)).filter(
-    #         week__date__gte=datetime.datetime.today()).select_related('week'):
-    #         schedulematchups.add(e.match)
     schedulematchups = MatchUp.objects.order_by('week__date', 'time').filter(
             awayteam__is_active=True).filter(Q(awayteam__id=team) | Q(hometeam__id=team)).filter(
             week__date__gte=datetime.datetime.today())

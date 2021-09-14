@@ -267,6 +267,10 @@ section .game:first-of-type{
       text-align: left;
 }
 
+.stats table th:nth-child(2), .stats table td:nth-child(2){
+    width: 150px;
+}
+
 .stats table.roster td + td{
     border-left:1px solid #96a9b5
 }
@@ -280,8 +284,9 @@ section .game:first-of-type{
 }
 
 .player_stats table{
-    table-layout: auto;
+    table-layout: fixed;
     width: 100%;
+    overflow: scroll;
 }
 .player_stats table th{
     border-bottom:1px solid #96a9b5;
@@ -296,12 +301,17 @@ section .game:first-of-type{
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: 2px;
+    padding-right: 1px;
 }
 
 .player_stats table th:first-child, .player_stats table td:first-child{
     text-align: left;
+}
+
+/*for team name*/
+.player_stats table th:nth-child(3), .player_stats table td:nth-child(3){
+    width: 150px;
 }
 
 .teampic{
