@@ -413,6 +413,9 @@ def get_career_goals_for_player(player_id=0):
             output_field=DecimalField()),
         average_assists_per_season = ExpressionWrapper(
             Sum('assists')/get_seasons_played(player_id),
+            output_field=DecimalField()),
+        average_goals_against = ExpressionWrapper(
+            Sum('goals_against')/get_seasons_played(player_id),
             output_field=DecimalField())
     )
 
@@ -450,6 +453,14 @@ def get_teams_for_player(player):
                 Case(
                     When(team=F('team'), team__season__id=F('team__season__id'),
                             then=Coalesce('assists', 0)+Coalesce('goals',0)),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ),
+            sum_goals_against=Sum(
+                Case(
+                    When(team=F('team'), team__season__id=F('team__season__id'),
+                            then=Coalesce('goals_against', 0)-Coalesce('empty_net', 0)),
                     default=0,
                     output_field=IntegerField(),
                 )

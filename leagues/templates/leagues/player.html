@@ -57,6 +57,38 @@
                     </div>
                 </div>
             </section>
+            {% if career_stats.average_goals_against > 0 %}
+                <h2> Average Goals/Season: {{career_stats.average_goals_per_season|floatformat:2}} </h2>
+                <section class="rostersection">
+                <div class="row player_stats">
+                    <div class="12u 12u(mobile)">
+                        <table class="table">
+                            <tr>
+                                <th>Year</th>
+                                <th>Season</th>
+                                <th>Team Name (Record)</th>
+                                <th>Div</th>
+                                <th>GA</th>
+                            </tr>
+                            {% load helpers %}
+                            {% for team in team_list %}
+                            <tr>
+                                <td>{{team.team__season__year}}</td>
+                                <td>{{team.team__season__season_type|season_type}}</td>
+                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{team.team__id}}')">
+                                    {{team.team__team_name}} ({{team.team__team_stat__win}} - {{team.team__team_stat__loss}} - {{team.team__team_stat__tie}})
+                                </td>
+                                <td>{{team.team__division|division_type}}</td>
+                                <td>{{team.sum_goals_against}}</td>
+                            {% empty %}
+                                <td>No team stats entered yet.</td>
+                            {% endfor %}
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            {% endif %}
 		</div>
 	</div>
 </div>
