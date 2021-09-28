@@ -311,7 +311,7 @@ section .game:first-of-type{
 
 /*for team name*/
 .player_stats table th:nth-child(3), .player_stats table td:nth-child(3){
-    width: 150px;
+    width: 35%;
 }
 
 .teampic{
