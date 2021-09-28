@@ -395,36 +395,48 @@ def player(request, player=0):
     context['view'] = "player"
     player = Player.objects.filter(id=player_id)
     context['player'] = player
-    context['career_stats'] = get_career_goals_for_player(player_id)
-    seasons_played = get_seasons_played(player_id)
-    context['seasons'] = seasons_played
-
-    teams_list = get_teams_for_player(player_id)
-    context['team_list'] = teams_list
+    context['career_stats'] = get_career_stats_for_player(player_id)
+    context['seasons'] = get_seasons_played(player_id)
+    context['goalie_stats'] = get_goalie_stats(player_id)
+    context['offensive_stats'] = get_offensive_stats_for_player(player_id)
 
     return render(request, "leagues/player.html", context=context)
 
-def get_career_goals_for_player(player_id=0):
+def get_career_stats_for_player(player_id=0):
+    if get_goalie_games_played(player_id) > 0: 
+        return Stat.objects.filter(player_id=player_id).aggregate(
+            career_goals=Sum('goals'), 
+            career_assists=Sum('assists'),
+            average_goals_per_season = ExpressionWrapper(
+                Sum('goals')/get_seasons_played(player_id),
+                output_field=DecimalField()),
+            average_assists_per_season = ExpressionWrapper(
+                Sum('assists')/get_seasons_played(player_id),
+                output_field=DecimalField()),
+            average_goals_against_per_game = ExpressionWrapper(
+                Sum('goals_against')/get_goalie_games_played(player_id),
+                output_field=DecimalField())
+        )
     return Stat.objects.filter(player_id=player_id).aggregate(
-        career_goals=Sum('goals'), 
-        career_assists=Sum('assists'),
-        average_goals_per_season = ExpressionWrapper(
-            Sum('goals')/get_seasons_played(player_id),
-            output_field=DecimalField()),
-        average_assists_per_season = ExpressionWrapper(
-            Sum('assists')/get_seasons_played(player_id),
-            output_field=DecimalField()),
-        average_goals_against = ExpressionWrapper(
-            Sum('goals_against')/get_seasons_played(player_id),
-            output_field=DecimalField())
+            career_goals=Sum('goals'), 
+            career_assists=Sum('assists'),
+            average_goals_per_season = ExpressionWrapper(
+                Sum('goals')/get_seasons_played(player_id),
+                output_field=DecimalField()),
+            average_assists_per_season = ExpressionWrapper(
+                Sum('assists')/get_seasons_played(player_id),
+                output_field=DecimalField())
     )
+def get_goalie_games_played(player):
+    games_played = Stat.objects.filter(player__id=player).filter((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None))).count()
+    return float(games_played)
 
 def get_seasons_played(player):
     count = Roster.objects.filter(player__id=player).count()
     return float(count)
 
-def get_teams_for_player(player):
-    return Stat.objects.filter(player__id=player).values(
+def get_offensive_stats_for_player(player):
+    return Stat.objects.filter(player_id=player).exclude((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None))).values(
         'team__id',
         'team__team_name',
         'team__team_stat__win',
@@ -456,15 +468,49 @@ def get_teams_for_player(player):
                     default=0,
                     output_field=IntegerField(),
                 )
-            ),
-            sum_goals_against=Sum(
+            )).order_by(
+        '-team__season__year','-team__season__season_type')
+        
+def get_goalie_stats(player):
+    return Stat.objects.filter(Q(player_id=player) & ((Q(goals=0) | Q(goals=None)) & (Q(
+                assists=0) | Q(assists=None)))).values(
+        'team__id',
+        'team__team_name',
+        'team__team_stat__win',
+        'team__team_stat__loss',
+        'team__team_stat__tie',
+        'team__season__year', 
+        'team__season__season_type',
+        'team__division').annotate(
+        sum_goals_against=Sum(
                 Case(
                     When(team=F('team'), team__season__id=F('team__season__id'),
                             then=Coalesce('goals_against', 0)-Coalesce('empty_net', 0)),
                     default=0,
                     output_field=IntegerField(),
                 )
+            ),
+            sum_games_played=Sum(
+                Case(
+                    When(team=F('team'), team__season__id=F('team__season__id'), then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ),
+            average_goals_against=Sum(
+                Case(
+                    When(team=F('team'), team__season__id=F('team__season__id'),
+                            then=Coalesce('goals_against', 0.0)-Coalesce('empty_net', 0.0)),
+                    default=0.0,
+                    output_field=DecimalField(),
+                )
+            )/Sum(
+                Case(
+                    When(team=F('team'), team__season__id=F('team__season__id'), then=1.0),
+                    default=0.0001,
+                    output_field=DecimalField(),
+                )
             )).order_by(
         '-team__season__year','-team__season__season_type')
-   
+  
 
