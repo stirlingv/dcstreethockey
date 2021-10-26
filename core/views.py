@@ -69,10 +69,43 @@ class TeamStatDetailView(ListView):
     context_object_name = 'team_list'
 
     def get_queryset(self):
-        return Team_Stat.objects.filter(
+        team_stat_list = list(Team_Stat.objects.filter(
                 team__is_active=True).annotate(
                 total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
-                ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against')
+                ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
+        
+        for i in range(len(team_stat_list)):
+            if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points: 
+                need_swap = check_h2h_record(team_stat_list[i], team_stat_list[i-1])
+                if need_swap:
+                    print('swapping {0} and {1}'.format(team_stat_list[i], team_stat_list[i-1]))
+                    team_stat_list[i], team_stat_list[i-1] = team_stat_list[i-1], team_stat_list[i]
+
+        return ListAsQuerySet(team_stat_list, model=Team_Stat)
+
+class ListAsQuerySet(list):
+
+    def __init__(self, *args, model, **kwargs):
+        self.model = model
+        super().__init__(*args, **kwargs)
+
+    def filter(self, *args, **kwargs):
+        return self  # filter ignoring, but you can impl custom filter
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+def check_h2h_record(team1, team2):
+    matchup = MatchUp.objects.filter(Q(awayteam=team1.team) | Q(hometeam=team1.team)).filter(
+        Q(awayteam=team2.team) | Q(hometeam=team2.team)).exclude(is_postseason=True).values(
+            'hometeam', 'awayteam', 'hometeam__team_name', 'awayteam__team_name')
+    matchup_details = add_goals_for_matchups(matchup)
+    for match in matchup_details:
+        if match['hometeam__team_name'] in str(team1.team):
+            if match['home_goals'] > match['away_goals']: return True
+        if match['awayteam__team_name'] in str(team1.team):
+            if match['away_goals'] > match['home_goals']: return True
+    return False
 
 class PlayerStatDetailView(ListView):
     context_object_name = 'player_stat_list'
