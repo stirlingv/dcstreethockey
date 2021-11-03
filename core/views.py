@@ -69,7 +69,8 @@ class TeamStatDetailView(ListView):
     context_object_name = 'team_list'
 
     def get_queryset(self):
-        team_stat_list = []
+        # Need to get divisions seperately to account for d1 and d2 team having same number of points (could cause bug in h2h comparisson)
+        team_stat_list = [] 
         d1_team_stat_list = list(Team_Stat.objects.filter(
                 team__is_active=True).filter(division=1).annotate(
                 total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
@@ -82,9 +83,13 @@ class TeamStatDetailView(ListView):
                 team__is_active=True).filter(division=3).annotate(
                 total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
                 ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
+        coed_team_stat_list = list(Team_Stat.objects.filter(
+                team__is_active=True).filter(division=4).annotate(
+                total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
+                ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
         
-        team_stat_list = d1_team_stat_list + d2_team_stat_list + draft_team_stat_list
-        
+        team_stat_list = d1_team_stat_list + d2_team_stat_list + draft_team_stat_list + coed_team_stat_list
+
         for i in range(len(team_stat_list)):
             if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points: 
                 # print('points equal for index: {0}'.format(i))
