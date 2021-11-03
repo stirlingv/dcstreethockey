@@ -69,16 +69,28 @@ class TeamStatDetailView(ListView):
     context_object_name = 'team_list'
 
     def get_queryset(self):
-        team_stat_list = list(Team_Stat.objects.filter(
-                team__is_active=True).annotate(
+        team_stat_list = []
+        d1_team_stat_list = list(Team_Stat.objects.filter(
+                team__is_active=True).filter(division=1).annotate(
+                total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
+                ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
+        d2_team_stat_list = list(Team_Stat.objects.filter(
+                team__is_active=True).filter(division=2).annotate(
+                total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
+                ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
+        draft_team_stat_list = list(Team_Stat.objects.filter(
+                team__is_active=True).filter(division=3).annotate(
                 total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
                 ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
         
+        team_stat_list = d1_team_stat_list + d2_team_stat_list + draft_team_stat_list
+        
         for i in range(len(team_stat_list)):
             if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points: 
+                # print('points equal for index: {0}'.format(i))
                 need_swap = check_h2h_record(team_stat_list[i], team_stat_list[i-1])
                 if need_swap:
-                    print('swapping {0} and {1}'.format(team_stat_list[i], team_stat_list[i-1]))
+                    # print('swapping {0} and {1} at imdex {2}'.format(team_stat_list[i], team_stat_list[i-1], i))
                     team_stat_list[i], team_stat_list[i-1] = team_stat_list[i-1], team_stat_list[i]
 
         return ListAsQuerySet(team_stat_list, model=Team_Stat)
