@@ -6,7 +6,7 @@ import decimal
 from django.shortcuts import render
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max, Exists, Value, Count
+from django.db.models import Sum, Q, Max, Min, Exists, Value, Count
 from django.db.models import F, When, IntegerField, Case, DecimalField, ExpressionWrapper
 
 from leagues.models import Season
@@ -70,7 +70,7 @@ class TeamStatDetailView(ListView):
 
     def get_queryset(self):
         # Need to get divisions seperately to account for d1 and d2 team having same number of points (could cause bug in h2h comparisson)
-        team_stat_list = [] 
+        team_stat_list = []
         d1_team_stat_list = list(Team_Stat.objects.filter(
                 team__is_active=True).filter(division=1).annotate(
                 total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
@@ -465,11 +465,13 @@ def get_career_stats_for_player(player_id=0):
                 output_field=DecimalField()),
             average_goals_against_per_game = ExpressionWrapper(
                 Sum('goals_against')/get_goalie_games_played(player_id),
-                output_field=DecimalField())
+                output_field=DecimalField()),
+            first_season=Min('team__season__year')
         )
     return Stat.objects.filter(player_id=player_id).aggregate(
             career_goals=Sum('goals'), 
             career_assists=Sum('assists'),
+            first_season=Min('team__season__year'),
             average_goals_per_season = ExpressionWrapper(
                 Sum('goals')/get_seasons_played(player_id),
                 output_field=DecimalField()),

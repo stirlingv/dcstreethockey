@@ -8,7 +8,7 @@ from django.db.models import indexes
 
 
 YEAR_CHOICES = []
-for r in range(1980, (datetime.datetime.now().year+2)):
+for r in range(2000, (datetime.datetime.now().year+2)):
 	YEAR_CHOICES.append((r,r))
 
 class PlayerPhoto(models.Model):
@@ -72,7 +72,6 @@ class Division(models.Model):
 
 	def __str__(self):
 		return self.__unicode__()
-
 
 class TeamPhoto(models.Model):
 	photo = models.ImageField(upload_to='teams', blank=True)
@@ -155,18 +154,17 @@ class Roster(models.Model):
 		return self.__unicode__()
 
 class Week(models.Model):
-	game_number = models.PositiveIntegerField(db_index=True, default=1)
 	division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
 	season = models.ForeignKey(Season, on_delete=models.PROTECT)
 	date = models.DateField()
 
 	class Meta:
-		ordering = ['-season__year','-game_number',]
+		ordering = ['-season__year','-date',]
 		indexes=[
-			models.Index(fields=['-game_number']),
+			models.Index(fields=['-date']),
 		]
 	def __unicode__(self):
-		return u"Week: %s %s %s" % (self.game_number, self.division, self.season)
+		return u"Week: %s %s %s" % (self.division, self.season)
 
 	def __str__(self):
 		return self.__unicode__()
@@ -186,7 +184,7 @@ class MatchUp(models.Model):
 		ordering = ('-hometeam__season__year','week','time',)
 
 	def __unicode__(self):
-		return u"Game %s: %s vs %s on %s" % (self.week.game_number, self.awayteam, self.hometeam, self.week.date)
+		return u"%s vs %s on %s" % (self.awayteam, self.hometeam, self.week.date)
 
 	def __str__(self):
 		return self.__unicode__()
@@ -217,7 +215,6 @@ class Ref(models.Model):
 
 	def __str__(self):
 		return self.__unicode__()
-
 
 class HomePage(models.Model):
 	logo = models.ImageField(upload_to='homepage', null=True)
