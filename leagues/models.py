@@ -164,7 +164,7 @@ class Week(models.Model):
 			models.Index(fields=['-date']),
 		]
 	def __unicode__(self):
-		return u"Week: %s %s %s" % (self.division, self.season)
+		return u"Week: %s %s %s" % (self.date, self.division, self.season)
 
 	def __str__(self):
 		return self.__unicode__()
