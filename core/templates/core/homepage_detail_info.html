@@ -10,7 +10,7 @@
 						<header>
 							<h2>Sunday</h2>
 							{% for row in one_row %}
-								{% if row.week.division|stringformat:"s" == "Sunday D1" %}
+								{% if row.week.division|stringformat:"s" == "Sunday D1" or row.week.division|stringformat:"s" == "Sunday D2"%}
 									<h3>{{row.week.date}}</h3>
 								{% endif %}
 							{% endfor %}
