@@ -317,8 +317,13 @@ section .game:first-of-type{
 .teampic{
     float: right;
     max-width: 480px;
-    display: block;
-    margin:0 auto;
+    top: 50%;
+	left: 50%;
+	-webkit-transform: translate(-50%, -50%);
+	-moz-transform: translate(-50%, -50%);
+	-ms-transform: translate(-50%, -50%);
+	-o-transform: translate(-50%, -50%);
+	transform: translate(-50%, -50%);
 }
 
 .cleardiv{
