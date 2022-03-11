@@ -315,7 +315,6 @@ section .game:first-of-type{
 }
 
 .teampic{
-    float: right;
     max-width: 480px;
     display: flex;
     justify-content: center;
