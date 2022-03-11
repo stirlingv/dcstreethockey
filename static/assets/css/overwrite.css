@@ -316,7 +316,12 @@ section .game:first-of-type{
 
 .teampic{
     float: right;
-    width: 500px;
+    display: block;
+    max-width: 480px;
+    width: 98%;
+    margin-left: 1%;
+    margin-right: 1%;
+    
 }
 
 .cleardiv{
