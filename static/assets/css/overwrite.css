@@ -315,10 +315,12 @@ section .game:first-of-type{
 }
 
 .teampic{
+    float: right;
     display: block;
     max-width: 480px;
     width: 95%;
-    margin: 5%;
+    margin-left: 1%;
+    margin-right: 1%;
     
 }
 
