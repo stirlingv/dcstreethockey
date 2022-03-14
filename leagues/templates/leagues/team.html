@@ -15,7 +15,7 @@
                 {{team.team_name}} ({{team.wins}}-{{team.losses}}-{{team.ties}})
             </div>
             <h3 class="division">{{team.division}}</h3>
-            <div class="cleardiv"/>
+            <div class="cleardiv">
             <div id="rosteroptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('roster')">
                 Roster
             </div>
@@ -24,6 +24,9 @@
             </div>
             <div id="scoresoptiondiv" class="optionsdiv" onclick="javascript:handleOption('scores')">
                 Scores
+            </div>
+            <div id="pastoptiondiv" class="optionsdiv" onclick="javascript:handleOption('past')">
+                Past Seasons
             </div>
 
             <section id="schedulesection" class="hidden">
@@ -34,6 +37,9 @@
             </section>
             <section id="scoressection" class="hidden">
                 {% include 'partials/scores.html' %}
+            </section>
+            <section id="pastsection" class="hidden">
+                {% include 'partials/past.html' %}
             </section>
 		</div>
 	</div>
@@ -50,33 +56,51 @@
         var schedule = document.getElementById("schedulesection");
         var roster = document.getElementById("rostersection");
         var scores = document.getElementById("scoressection");
+        var past = document.getElementById("pastsection");
         var scheduleoption = document.getElementById("scheduleoptiondiv");
         var rosteroption = document.getElementById("rosteroptiondiv");
         var scoresoption = document.getElementById("scoresoptiondiv");
+        var pastoption = document.getElementById("pastoptiondiv");
         switch(name){
             case "roster":
                 schedule.className = "hidden";
                 roster.className = "stats show";
                 scores.className = "hidden";
+                past.className = "hidden";
                 scheduleoption.className = "optionsdiv"
                 rosteroption.className = "optionsdiv activeoption"
                 scoresoption.className = "optionsdiv"
+                pastoption.className = "optiondiv"
                 break;
             case "scores":
                 schedule.className = "hidden";
                 roster.className = "hidden";
                 scores.className = "show";
+                past.className = "hidden";
                 scheduleoption.className = "optionsdiv"
                 rosteroption.className = "optionsdiv"
                 scoresoption.className = "optionsdiv activeoption"
+                pastoption.className = "optiondiv"
+                break;
+            case "past":
+                schedule.className = "hidden";
+                roster.className = "hidden";
+                scores.className = "hidden";
+                past.className = "stats show";
+                scheduleoption.className = "optionsdiv"
+                rosteroption.className = "optionsdiv"
+                scoresoption.className = "optionsdiv"
+                pastoption.className = "optiondiv activeoption"
                 break;
             default:
                 schedule.className = "show";
                 roster.className = "hidden";
                 scores.className = "hidden";
+                past.className = "hidden";
                 scheduleoption.className = "optionsdiv activeoption"
                 rosteroption.className = "optionsdiv"
                 scoresoption.className = "optionsdiv"
+                pastoption.className = "optiondiv"
         }
     }
 	function handleDivision(dest){

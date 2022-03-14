@@ -1,0 +1,26 @@
+<table class="table">
+    <tr>
+        <th>Year</th>
+        <th>Season</th>
+        <th>Team Name (Record)</th>
+        <th>Goals For</th>
+        <th>Goals Against</th>
+        <th>Division</th>
+    </tr>
+    {% load helpers %}
+    {% for stat in past_team_stats %}
+    <tr>
+        <td>{{stat.team__season__year}}</td>
+        <td>{{stat.team__season__season_type|season_type}}</td>
+        <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
+            {{stat.team__team_name}} ({{stat.win}} - {{stat.loss}} - {{stat.tie}})
+        </td>
+        <td>{{stat.goals_for}}</td>
+        <td>{{stat.goals_against}}</td>
+        <td>{{stat.team__division|division_type}}</td>
+        {% empty %}
+            <td>No past stats yet.</td>
+    {% endfor %}
+    </tr>
+</table>
+

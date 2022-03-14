@@ -2,6 +2,7 @@ import datetime
 from datetime import timedelta
 from collections import OrderedDict
 import decimal
+from functools import reduce
 
 from django.shortcuts import render
 from django.views.generic.list import ListView
@@ -397,6 +398,7 @@ def teams(request, team=0):
     context['roster'] = []
     players = Player.objects.filter(roster__team__id=team)
     season = players.values_list('roster__team__season__id', flat=True).distinct()
+    context['past_team_stats'] = get_stats_for_past_team(team)
     context['player_list'] = get_player_stats(players, int(season[0])).order_by(
             '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
     for rosteritem in Roster.objects.select_related('team').select_related('player').filter(team__id=team):
@@ -453,6 +455,7 @@ def player(request, player=0):
     return render(request, "leagues/player.html", context=context)
 
 def get_career_stats_for_player(player_id=0):
+
     if get_goalie_games_played(player_id) > 0: 
         return Stat.objects.filter(player_id=player_id).aggregate(
             career_goals=Sum('goals'), 
@@ -479,6 +482,7 @@ def get_career_stats_for_player(player_id=0):
                 Sum('assists')/get_seasons_played(player_id),
                 output_field=DecimalField())
     )
+
 def get_goalie_games_played(player):
     games_played = Stat.objects.filter(player__id=player).filter((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None))).count()
     return float(games_played)
@@ -524,6 +528,7 @@ def get_offensive_stats_for_player(player):
         '-team__season__year','-team__season__season_type')
         
 def get_goalie_stats(player):
+
     return Stat.objects.filter(Q(player_id=player) & ((Q(goals=0) | Q(goals=None)) & (Q(
                 assists=0) | Q(assists=None)))).values(
         'team__id',
@@ -564,5 +569,19 @@ def get_goalie_stats(player):
                 )
             )).order_by(
         '-team__season__year','-team__season__season_type')
-  
 
+def get_stats_for_past_team(team):
+    team_name = Team.objects.filter(id=team).values_list('team_name', flat=True)
+    return Team_Stat.objects.filter(team__team_name__in=team_name).values(
+        'team__id',
+        'team__team_name',
+        'win',
+        'loss',
+        'tie',
+        'goals_for',
+        'goals_against',
+        'team__season__year', 
+        'team__season__season_type',
+        'team__division').order_by(
+        '-team__season__year','-team__season__season_type')
+   
