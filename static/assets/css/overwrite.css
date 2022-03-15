@@ -262,6 +262,8 @@ section .game:first-of-type{
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
 }
 .stats table th:first-child, .stats table td:first-child{
       text-align: left;
