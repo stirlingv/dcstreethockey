@@ -1737,7 +1737,7 @@
 				-webkit-transition: -webkit-transform 0.5s ease;
 				-ms-transition: -ms-transform 0.5s ease;
 				transition: transform 0.5s ease;
-				margin-top: 44px;
+				padding-top: 44px;
 				padding-bottom: 1px;
 			}
 
