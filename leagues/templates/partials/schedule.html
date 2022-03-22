@@ -1,4 +1,5 @@
  {% load static %}
+ {% include "core/weather.html" %}
  {% for date, value in schedule.items %}
     {% for division, value2 in value.items %}
         {% if view == "schedule" %}
