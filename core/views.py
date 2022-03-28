@@ -77,8 +77,8 @@ class TeamStatDetailView(ListView):
                 total_points = Coalesce((Sum('win') * 3) + Sum('tie') + Sum('otl'),0)
                 ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
         d2_team_stat_list = list(Team_Stat.objects.filter(
-                team__is_active=True).filter(division=3).annotate(
-                total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
+                team__is_active=True).filter(division=2).annotate(
+                total_points = Coalesce((Sum('win') * 3) + Sum('tie') + Sum('otl'),0)
                 ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
         draft_team_stat_list = list(Team_Stat.objects.filter(
                 team__is_active=True).filter(division=3).annotate(
