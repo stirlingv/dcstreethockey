@@ -267,6 +267,8 @@ section .game:first-of-type{
 }
 .stats table th:first-child, .stats table td:first-child{
       text-align: left;
+      max-width: 250px;
+      text-overflow: ellipsis;
 }
 
 .stats table th:nth-child(2), .stats table td:nth-child(2){

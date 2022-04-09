@@ -116,9 +116,10 @@ class Team_Stat(models.Model):
 	season = models.ForeignKey(Season, null=True, on_delete=models.PROTECT)
 	team = models.ForeignKey(Team, null=True, on_delete=models.PROTECT)
 	win = models.PositiveSmallIntegerField(default=0)
+	otw = models.PositiveSmallIntegerField(default=0)
 	loss = models.PositiveSmallIntegerField(default=0)
-	tie = models.PositiveSmallIntegerField(default=0)
 	otl = models.PositiveSmallIntegerField(default=0)
+	tie = models.PositiveSmallIntegerField(default=0)
 	goals_for = models.PositiveSmallIntegerField(default=0)
 	goals_against = models.PositiveSmallIntegerField(default=0)
 
