@@ -257,18 +257,16 @@ section .game:first-of-type{
     border-bottom: 1px solid #96a9b5;
     border-collapse: collapse;
     display: table-cell;
-    empty-cells: show;
     text-align: center;
-    overflow: hidden;
     white-space: nowrap;
+    overflow: hidden;
     text-overflow: ellipsis;
     padding-left: 2px;
     padding-right: 1px;
 }
 .stats table th:first-child, .stats table td:first-child{
       text-align: left;
-      max-width: 250px;
-      text-overflow: ellipsis;
+      width: 25%;
 }
 
 .stats table th:nth-child(2), .stats table td:nth-child(2){
