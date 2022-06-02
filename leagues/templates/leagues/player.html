@@ -42,7 +42,7 @@
                                     <td>{{stat.team__season__year}}</td>
                                     <td>{{stat.team__season__season_type|season_type}}</td>
                                     <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
-                                        {{stat.team__team_name}} ({{stat.team__team_stat__win}} - {{stat.team__team_stat__loss}} - {{stat.team__team_stat__tie}})
+                                        {{stat.team__team_name}} ({{stat.team_wins}} - {{stat.team_losses}} - {{stat.team__team_stat__tie}})
                                     </td>
                                     <td>{{stat.team__division|division_type}}</td>
                                     <td>{{stat.sum_goals}}</td>

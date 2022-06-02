@@ -392,8 +392,8 @@ def teams(request, team=0):
             week__date__gte=datetime.datetime.today())
     context['schedule'] = get_schedule_for_matchups(schedulematchups)
     context['team'] = Team.objects.annotate(
-            wins=Max('team_stat__win'),
-            losses=Max('team_stat__loss'),
+            wins=Coalesce(Max('team_stat__win') + Max('team_stat__otw'),0),
+            losses=Coalesce(Max('team_stat__loss') + Max('team_stat__otl'),0),
             ties=Max('team_stat__tie')).get(id=team)
     scorematchups = get_matches_for_team(team).filter(
             week__date__lte=datetime.datetime.today())
@@ -505,6 +505,8 @@ def get_offensive_stats_for_player(player):
         'team__season__year', 
         'team__season__season_type',
         'team__division').annotate(
+            team_wins=Coalesce(Max('team__team_stat__win') + Max('team__team_stat__otw'),0),
+            team_losses=Coalesce(Max('team__team_stat__loss') + Max('team__team_stat__otl'),0),
             sum_goals=Sum(
                 Case(
                     When(team=F('team'), team__season__id=F('team__season__id'),
