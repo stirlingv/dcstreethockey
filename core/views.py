@@ -84,7 +84,8 @@ class TeamStatDetailView(ListView):
                 ).order_by('-total_points','-total_wins','-tie','-otl','-goals_for','-goals_against'))
         draft_team_stat_list = list(Team_Stat.objects.filter(
                 team__is_active=True).filter(division=3).annotate(
-                total_points = Coalesce((Sum('win') * 2) + Sum('tie') + Sum('otl'),0)
+                total_points =Coalesce((Sum('win') * 3) + (Sum('otw') * 2) + Sum('tie') + Sum('otl'),0),
+                total_wins = Coalesce(Sum('win') + Sum('otw'),0)
                 ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
         coed_team_stat_list = list(Team_Stat.objects.filter(
                 team__is_active=True).filter(division=4).annotate(
