@@ -543,12 +543,14 @@ def get_goalie_stats(player):
                 assists=0) | Q(assists=None)))).values(
         'team__id',
         'team__team_name',
-        'team__team_stat__win',
-        'team__team_stat__loss',
         'team__team_stat__tie',
         'team__season__year', 
         'team__season__season_type',
         'team__division').annotate(
+        team_wins=Coalesce(Max('team__team_stat__win'),0),
+        team_losses=Coalesce(Max('team__team_stat__loss'),0),
+        team_otw=Coalesce(Max('team__team_stat__otw'),0),
+        team_otl=Coalesce(Max('team__team_stat__otl'),0),
         sum_goals_against=Sum(
                 Case(
                     When(team=F('team'), team__season__id=F('team__season__id'),
