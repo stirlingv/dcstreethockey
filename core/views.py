@@ -87,13 +87,18 @@ class TeamStatDetailView(ListView):
                 total_points =Coalesce((Sum('win') * 3) + (Sum('otw') * 2) + Sum('tie') + Sum('otl'),0),
                 total_wins = Coalesce(Sum('win') + Sum('otw'),0)
                 ).order_by('-total_points','-win','loss','-tie','-otl','-goals_for','-goals_against'))
-        coed_team_stat_list = list(Team_Stat.objects.filter(
+        monday_a_team_stat_list = list(Team_Stat.objects.filter(
                 team__is_active=True).filter(division=4).annotate(
                 total_points = Coalesce((Sum('win') * 3) + (Sum('otw') * 2) + Sum('tie') + Sum('otl'),0),
                 total_wins = Coalesce(Sum('win') + Sum('otw'),0)
                 ).order_by('-total_points','-total_wins','-tie','-otl','-goals_for','-goals_against'))
+        monday_b_team_stat_list = list(Team_Stat.objects.filter(
+                team__is_active=True).filter(division=5).annotate(
+                total_points = Coalesce((Sum('win') * 3) + (Sum('otw') * 2) + Sum('tie') + Sum('otl'),0),
+                total_wins = Coalesce(Sum('win') + Sum('otw'),0)
+                ).order_by('-total_points','-total_wins','-tie','-otl','-goals_for','-goals_against'))
         
-        team_stat_list = d1_team_stat_list + d2_team_stat_list + draft_team_stat_list + coed_team_stat_list
+        team_stat_list = d1_team_stat_list + d2_team_stat_list + draft_team_stat_list + monday_a_team_stat_list + monday_b_team_stat_list
 
         for i in range(len(team_stat_list)):
             if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points and team_stat_list[i].win == team_stat_list[i-1].win: 
