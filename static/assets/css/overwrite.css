@@ -110,9 +110,12 @@
     border: 1px solid #000000;
     border-collapse: collapse;
     display: table-cell;
-    empty-cells: show;
     text-align: center;
-    white-space: nowrap
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
 }
 
 section .game{

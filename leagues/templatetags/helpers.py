@@ -7,7 +7,8 @@ def division_type(division):
     if division == 1: return "D1"
     if division == 2: return "D2"
     if division == 3: return "Draft"
-    if division == 4: return "Monday Coed"
+    if division == 4: return "Mon A"
+    if division == 5: return "Mon B"
 
     return division
 

@@ -43,14 +43,14 @@
 							<header>
 								<h2>Monday</h2>
 								{% for row in one_row %}
-									{% if row.week.division|stringformat:"s" == "Monday Coed" %}
+									{% if row.week.division|stringformat:"s" == "Monday A League" or match.week.division|stringformat:"s" == "Monday B League" %}
 										<h3>{{row.week.date}}</h3>
 									{% endif %}
 								{% endfor %}
 							</header>
 							<ul class="quote-list">
 								{% for match in matchup %}
-									{% if match.week.division|stringformat:"s" == "Monday Coed" %}
+									{% if match.week.division|stringformat:"s" ==  "Monday A League" or match.week.division|stringformat:"s" == "Monday B League" %}
 									<li >
 											<p>
 												<table class="game-overview">

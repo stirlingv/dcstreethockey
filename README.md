@@ -9,7 +9,7 @@
 1. Stop that process Ctrl+c
 1. Download test data set
 1. docker-compose run --rm web python manage.py loaddata working-herokudump.json
-1. docker-compose up 
+1. docker-compose up
 
 ## Clone and Run in localhost
 
@@ -26,7 +26,7 @@
 1. pip install -r requirements.txt
 1. Make sure postgres is running and Database exists
    - ```brew services start postgresql```
-   - ```psql -l``` 
+   - ```psql -l```
       - if dcstreethockey doesn't exist continue
    - ```createdb dcstreethockey```
    - ```createuser user```
