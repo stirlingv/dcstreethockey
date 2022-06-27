@@ -18,11 +18,21 @@
                         <tr>
                             <td class="clickable" 
                                 onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">
-                                {{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})</td>
+                                {% if match.awayteam.season.year < 2022 %}
+                                    {{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})
+                                {% else %}
+                                    {{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_otw}}-{{match.away_otl}}-{{match.away_losses}})
+                                {% endif %}
+                            </td>
                             <td>@</td>
                             <td class="clickable"
                                 onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')">
-                           {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})</td>
+                                {% if match.hometeam.season.year < 2022 %}
+                                    {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})
+                                {% else %}
+                                    {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_otw}}-{{match.home_otl}}-{{match.home_losses}})
+                                {% endif %}
+                        </td>
                         </tr>
                     </table>
                 </div> <!-- /game -->

@@ -342,12 +342,16 @@ def get_matches_for_team(team):
 def get_detailed_matchups(matchups):
     result = OrderedDict()
     for match in matchups.select_related('hometeam').select_related('awayteam').select_related('week').annotate(
-            home_wins=Max('hometeam__team_stat__win')).annotate(
-            home_losses=Max('hometeam__team_stat__loss')).annotate(
-            home_ties=Max('hometeam__team_stat__tie')).annotate(
-            away_wins=Max('awayteam__team_stat__win')).annotate(
-            away_losses=Max('awayteam__team_stat__loss')).annotate(
-            away_ties=Max('awayteam__team_stat__tie')):
+            home_wins=Coalesce(Max('hometeam__team_stat__win'),0),
+            home_losses=Coalesce(Max('hometeam__team_stat__loss'),0),
+            home_ties=Coalesce(Max('hometeam__team_stat__tie'),0),
+            home_otw=Coalesce(Max('hometeam__team_stat__otw'),0),
+            home_otl=Coalesce(Max('hometeam__team_stat__otl'),0),
+            away_wins=Coalesce(Max('awayteam__team_stat__win'),0),
+            away_losses=Coalesce(Max('awayteam__team_stat__loss'),0),
+            away_otw=Coalesce(Max('awayteam__team_stat__otw'),0),
+            away_otl=Coalesce(Max('awayteam__team_stat__otl'),0),
+            away_ties=Coalesce(Max('awayteam__team_stat__tie'),0)):
         if not result.get(str(match.week.date), False):
             result[str(match.week.date)] = OrderedDict()
         result[str(match.week.date)][str(match.id)] = {}
@@ -363,12 +367,16 @@ def get_detailed_matchups(matchups):
 def get_schedule_for_matchups(matchups):
     schedule = OrderedDict()
     for match in matchups.annotate(
-            home_wins=Max('hometeam__team_stat__win')).annotate(
-            home_losses=Max('hometeam__team_stat__loss')).annotate(
-            home_ties=Max('hometeam__team_stat__tie')).annotate(
-            away_wins=Max('awayteam__team_stat__win')).annotate(
-            away_losses=Max('awayteam__team_stat__loss')).annotate(
-            away_ties=Max('awayteam__team_stat__tie')):
+            home_wins=Coalesce(Max('hometeam__team_stat__win'),0),
+            home_losses=Coalesce(Max('hometeam__team_stat__loss'),0),
+            home_ties=Coalesce(Max('hometeam__team_stat__tie'),0),
+            home_otw=Coalesce(Max('hometeam__team_stat__otw'),0),
+            home_otl=Coalesce(Max('hometeam__team_stat__otl'),0),
+            away_wins=Coalesce(Max('awayteam__team_stat__win'),0),
+            away_losses=Coalesce(Max('awayteam__team_stat__loss'),0),
+            away_otw=Coalesce(Max('awayteam__team_stat__otw'),0),
+            away_otl=Coalesce(Max('awayteam__team_stat__otl'),0),
+            away_ties=Coalesce(Max('awayteam__team_stat__tie'),0)):
         if not schedule.get(str(match.week.date), False):
             schedule[str(match.week.date)] = OrderedDict()
         if not schedule[str(match.week.date)].get(
