@@ -103,9 +103,14 @@ class TeamStatDetailView(ListView):
         for i in range(len(team_stat_list)):
             if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points and team_stat_list[i].win == team_stat_list[i-1].win: 
                 # print('points equal for index: {0}'.format(i))
-                need_swap = check_h2h_record(team_stat_list[i], team_stat_list[i-1])
+                teams_played = check_teams_play(team_stat_list[i], team_stat_list[i-1])
+                need_swap = False
+                if teams_played: 
+                    need_swap = check_h2h_record(team_stat_list[i], team_stat_list[i-1])
+                if not teams_played: 
+                    need_swap = check_goal_diff(team_stat_list[i], team_stat_list[i-1])
                 if need_swap:
-                    # print('swapping {0} and {1} at imdex {2}'.format(team_stat_list[i], team_stat_list[i-1], i))
+                    # print('swapping {0} and {1} at index {2}'.format(team_stat_list[i], team_stat_list[i-1], i))
                     team_stat_list[i], team_stat_list[i-1] = team_stat_list[i-1], team_stat_list[i]
 
         return ListAsQuerySet(team_stat_list, model=Team_Stat)
@@ -122,16 +127,42 @@ class ListAsQuerySet(list):
     def order_by(self, *args, **kwargs):
         return self
 
+def check_goal_diff(team1, team2):
+    team1_goaldiff = team1.goals_for - team1.goals_against
+    team2_goaldiff = team2.goals_for - team2.goals_against
+    # print('team1 :' + str(team1_goaldiff))
+    # print('team2 :' + str(team2_goaldiff))
+    if (team1_goaldiff) > (team2_goaldiff): return True
+    return False
+
+def check_teams_play(team1, team2):
+    matchup = MatchUp.objects.filter(Q(awayteam=team1.team) | Q(hometeam=team1.team)).filter(
+            Q(awayteam=team2.team) | Q(hometeam=team2.team)).exclude(is_postseason=True).values(
+                'hometeam', 'awayteam', 'hometeam__team_name', 'awayteam__team_name')
+    if matchup.exists():
+        # print('team1: ' + str(team1.team.team_name) + ' plays ' + str(team2.team.team_name)) 
+        return True
+    return False
+
 def check_h2h_record(team1, team2):
     matchup = MatchUp.objects.filter(Q(awayteam=team1.team) | Q(hometeam=team1.team)).filter(
         Q(awayteam=team2.team) | Q(hometeam=team2.team)).exclude(is_postseason=True).values(
             'hometeam', 'awayteam', 'hometeam__team_name', 'awayteam__team_name')
     matchup_details = add_goals_for_matchups(matchup)
+    team1_win = 0
+    team2_win = 0
     for match in matchup_details:
         if match['hometeam__team_name'] in str(team1.team):
-            if match['home_goals'] > match['away_goals']: return True
+            if match['home_goals'] > match['away_goals'] : team1_win += 1
         if match['awayteam__team_name'] in str(team1.team):
-            if match['away_goals'] > match['home_goals']: return True
+            if match['away_goals'] > match['home_goals']: team1_win += 1
+        if match['hometeam__team_name'] in str(team2.team):
+            if match['home_goals'] > match['away_goals'] : team2_win += 1
+        if match['awayteam__team_name'] in str(team2.team):
+            if match['away_goals'] > match['home_goals']: team2_win += 1
+    # print(team1.team.team_name + ' wins:' + str(team1_win) + team2.team.team_name + ' wins: ' + str(team2_win))
+    if team1_win>team2_win: return True
+    if team1_win == team2_win and (team1_win != 0 and team2_win !=0): return check_goal_diff(team1, team2)
     return False
 
 class PlayerStatDetailView(ListView):
