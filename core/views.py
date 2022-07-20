@@ -162,7 +162,7 @@ def check_h2h_record(team1, team2):
             if match['away_goals'] > match['home_goals']: team2_win += 1
     # print(team1.team.team_name + ' wins:' + str(team1_win) + team2.team.team_name + ' wins: ' + str(team2_win))
     if team1_win>team2_win: return True
-    if team1_win == team2_win and (team1_win != 0 and team2_win !=0): return check_goal_diff(team1, team2)
+    if team1_win == team2_win and team1_win != 0: return check_goal_diff(team1, team2)
     return False
 
 class PlayerStatDetailView(ListView):
