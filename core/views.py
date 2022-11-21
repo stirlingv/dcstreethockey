@@ -101,7 +101,7 @@ class TeamStatDetailView(ListView):
         team_stat_list = d1_team_stat_list + d2_team_stat_list + draft_team_stat_list + monday_a_team_stat_list + monday_b_team_stat_list
 
         for i in range(len(team_stat_list)):
-            if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points and team_stat_list[i].win == team_stat_list[i-1].win: 
+            if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points and team_stat_list[i].total_wins == team_stat_list[i-1].total_wins: 
                 # print('points equal for index: {0}'.format(i))
                 teams_played = check_teams_play(team_stat_list[i], team_stat_list[i-1])
                 need_swap = False
@@ -160,7 +160,7 @@ def check_h2h_record(team1, team2):
             if match['home_goals'] > match['away_goals'] : team2_win += 1
         if match['awayteam__team_name'] in str(team2.team):
             if match['away_goals'] > match['home_goals']: team2_win += 1
-    # print(team1.team.team_name + ' wins:' + str(team1_win) + team2.team.team_name + ' wins: ' + str(team2_win))
+    # print(team1.team.team_name + ' wins:' + str(team1_win) + ' ' + team2.team.team_name + ' wins: ' + str(team2_win))
     if team1_win>team2_win: return True
     if team1_win == team2_win and team1_win != 0: return check_goal_diff(team1, team2)
     return False
