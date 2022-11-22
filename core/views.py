@@ -101,8 +101,8 @@ class TeamStatDetailView(ListView):
         team_stat_list = d1_team_stat_list + d2_team_stat_list + draft_team_stat_list + monday_a_team_stat_list + monday_b_team_stat_list
 
         for i in range(len(team_stat_list)):
-            if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points and team_stat_list[i].total_wins == team_stat_list[i-1].total_wins: 
-                # print('points equal for index: {0}'.format(i))
+            if i > 0 and team_stat_list[i].total_points == team_stat_list[i-1].total_points: #and team_stat_list[i].total_wins == team_stat_list[i-1].total_wins: 
+                print('points equal for index: {0}'.format(i))
                 teams_played = check_teams_play(team_stat_list[i], team_stat_list[i-1])
                 need_swap = False
                 if teams_played: 
