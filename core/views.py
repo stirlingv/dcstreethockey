@@ -241,13 +241,11 @@ def get_player_stats(players, season):
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True,
                                     then=Coalesce('stat__goals_against', 0.0)-Coalesce('stat__empty_net', 0.0)),
-                            default=0.0,
                             output_field=DecimalField(),
                         )
                     )/Sum(
                         Case(
                             When(stat__team=F('roster__team'), stat__team__is_active=True, then=1.0),
-                            default=0.00001,
                             output_field=DecimalField(),
                         )
                     ),
@@ -307,13 +305,11 @@ def get_player_stats(players, season):
                         Case(
                             When(stat__team=F('roster__team'), stat__team__season__id=season,
                                     then=Coalesce('stat__goals_against', 0.0)-Coalesce('stat__empty_net', 0.0)),
-                            default=0.0,
                             output_field=DecimalField(),
                         )
                     )/Sum(
                         Case(
                             When(stat__team=F('roster__team'), stat__team__season__id=season, then=1.0),
-                            default=0.0001,
                             output_field=DecimalField(),
                         )
                     ),
