@@ -104,18 +104,23 @@
 .rostertable th{
     border:1px solid #000000;
     font-weight: bold;
-    width: 20%;
+    width: 15%;
 }
 .rostertable td{
     border: 1px solid #000000;
     border-collapse: collapse;
     display: table-cell;
-    text-align: center;
+    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     padding-left: 2px;
     padding-right: 1px;
+    
+}
+.rostertable td:first-child, .rostertable th:first-child{
+    width: 5%;
+    text-align: center;
 }
 
 section .game{
@@ -268,14 +273,14 @@ section .game:first-of-type{
     padding-right: 1px;
 }
 .stats table th:first-child, .stats table td:first-child{
-      text-align: left;
-      width: 25%;
+    text-align: center;
+    width: 5%;
 }
 
 .stats table th:nth-child(2), .stats table td:nth-child(2){
-    width: 150px;
+  width: 150p;
+text-align: left;
 }
-
 .stats table.roster td + td{
     border-left:1px solid #96a9b5
 }

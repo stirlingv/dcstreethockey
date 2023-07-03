@@ -59,8 +59,8 @@ class MatchUpDetailView(ListView):
         for match in matchups:
             dmatchups[match.id] = {}
             dmatchups[match.id]['matchup'] = match
-            dmatchups[match.id]['hometeamroster'] = Roster.objects.filter(team=match.hometeam).order_by(Lower('player__last_name'), Lower('player__first_name'))
-            dmatchups[match.id]['awayteamroster'] = Roster.objects.filter(team=match.awayteam).order_by(Lower('player__last_name'), Lower('player__first_name'))
+            dmatchups[match.id]['hometeamroster'] = Roster.objects.filter(team=match.hometeam).order_by('player_number', Lower('player__last_name'), Lower('player__first_name'))
+            dmatchups[match.id]['awayteamroster'] = Roster.objects.filter(team=match.awayteam).order_by('player_number', Lower('player__last_name'), Lower('player__first_name'))
 
         context["matchups"] = dmatchups
 

@@ -25,6 +25,7 @@
 						</header>
 					    <table class="roster">
 					    		<tr>
+									<th>#</th>
 						    		<th>Player Name</th>
 						    		<th>Goals</th>
 						    		<th>Assists</th>
@@ -33,6 +34,7 @@
 						    	</tr>
 							{% for x in match.awayteamroster %}  
 							    	<tr>
+										<td>{{x.player_number|default_if_none:""}}</td>
 							    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
 								    	<td>{{y.goals}}</td>
 										<td>{{y.assists}}</td>
@@ -50,6 +52,7 @@
 						</header>
 					    <table class="roster">
 					    		<tr>
+									<th>#</th>
 						    		<th>Player Name</th>
 						    		<th>Goals</th>
 						    		<th>Assists</th>
@@ -58,6 +61,7 @@
 						    	</tr>
 							{% for x in match.hometeamroster %}  
 							    	<tr>
+										<td>{{x.player_number|default_if_none:""}}</td>	
 							    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
                                         <td>{{y.goals}}</td>
                                         <td>{{y.assists}}</td>
