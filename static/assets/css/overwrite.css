@@ -272,16 +272,41 @@ section .game:first-of-type{
     padding-left: 2px;
     padding-right: 1px;
 }
-.stats table th:first-child, .stats table td:first-child{
+.stats table td:first-child{
+    text-align: left;
+    width: 5%;
+}
+
+.stats table td:nth-child(2){
+    width: 150p;
+}
+.stats table.roster td + td{
+    border-left:1px solid #96a9b5
+}
+
+.stats_print table th{
+    border-bottom:1px solid #96a9b5;
+    font-weight: bold;
+    width: 15%;
+    white-space: nowrap;
+    text-align: center;
+}
+.stats_print table td{
+    border-bottom: 1px solid #96a9b5;
+    border-collapse: collapse;
+    display: table-cell;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
+}
+.stats_print table th:first-child, .stats_print table td:first-child{
     text-align: center;
     width: 5%;
 }
 
-.stats table th:nth-child(2), .stats table td:nth-child(2){
-  width: 150p;
-text-align: left;
-}
-.stats table.roster td + td{
+.stats_print table.roster td + td{
     border-left:1px solid #96a9b5
 }
 

@@ -19,7 +19,7 @@
 		</header>
 			<div class="row">
 				<div class="6u 12u(mobile)">
-					<section class="stats">
+					<section class="stats_print">
 						<header>
 							<h3>{{match.matchup.awayteam.team_name}}</h3>
 						</header>
@@ -35,7 +35,7 @@
 							{% for x in match.awayteamroster %}  
 							    	<tr>
 										<td>{{x.player_number|default_if_none:""}}</td>
-							    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
+							    		<td text-align:left>{{x.player.first_name}} {{x.player.last_name}}</td>
 								    	<td>{{y.goals}}</td>
 										<td>{{y.assists}}</td>
 										<td>{{y.goals_against}}</td>
@@ -46,7 +46,7 @@
 					</section>
 					</div>
 					<div class="6u 12u(mobile)">
-					<section class="stats">
+					<section class="stats_print">
 						<header>
 							<h3>{{match.matchup.hometeam.team_name}}</h3>
 						</header>
