@@ -1,25 +1,17 @@
 import datetime
 from datetime import timedelta
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 import decimal
 from functools import reduce
-
 from django.shortcuts import render
+
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max, Min, Exists, Value, Count
+from django.db.models import Sum, Q, Max, Min
 from django.db.models import F, When, IntegerField, Case, DecimalField, ExpressionWrapper
+from django.db import connection
 
-from leagues.models import Season
-from leagues.models import Division
-from leagues.models import MatchUp
-from leagues.models import Stat
-from leagues.models import Roster
-from leagues.models import Player
-from leagues.models import Team
-from leagues.models import Team_Stat
-from leagues.models import Week
-from leagues.models import HomePage
+from leagues.models import Season, Division, MatchUp, Stat, Roster, Player, Team, Team_Stat, Week, HomePage
 # Create your views here.
 
 def home(request):
@@ -33,7 +25,6 @@ def home(request):
 
 def leagues(request):
     return render(request, "leagues/index.html")
-
 
 class MatchUpDetailView(ListView):
     context_object_name = 'matchup_list'
@@ -186,6 +177,47 @@ class PlayerStatDetailView(ListView):
                     '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
         return context
 
+def PlayerAllTimeStats_list(request):
+    context={}
+    rank_list =[]
+    with connection.cursor() as cursor:
+        cursor.execute("select rank () over (order by total_points desc) as rank, \
+                        sub.id, sub.first_name, sub.last_name, sub.total_goals, sub.total_assists, sub.total_points \
+                        from( Select \
+                        leagues_player.id, leagues_player.first_name, leagues_player.last_name, sum(goals) as total_goals, \
+                        sum(assists) as total_assists, (sum(goals) + sum(assists)) as total_points \
+                        from leagues_stat join leagues_player on leagues_stat.player_id = leagues_player.id \
+                        group by leagues_player.id, leagues_player.first_name, leagues_player.last_name \
+                        having sum(goals+assists)>1 ) sub\
+                        order by sub.total_points desc limit 100;")
+        rank_list = namedtuplefetchall(cursor)
+        context["all_ranks"] = rank_list
+        context["d1_ranks"] = get_division_ranks(1)
+        context["d2_ranks"] = get_division_ranks(2)
+        context["draft_ranks"] = get_division_ranks(3)
+        context["mona_ranks"] = get_division_ranks(4)
+        context["monb_ranks"] = get_division_ranks(5)
+        
+    return render(request, "leagues/hof.html", context=context)
+
+def get_division_ranks(division):
+    division_rank_list = []
+    with connection.cursor() as cursor:
+        cursor.execute("select rank () over (order by total_points desc) as rank, \
+                        sub.id, sub.first_name, sub.last_name, sub.total_goals, sub.total_assists, sub.total_points \
+                        from (Select leagues_player.id, leagues_player.first_name, leagues_player.last_name, sum(goals) as total_goals, \
+                        sum(assists) as total_assists, (sum(goals) + sum(assists)) as total_points \
+                        from leagues_stat \
+                        join leagues_player on leagues_stat.player_id = leagues_player.id \
+                        join leagues_team on leagues_stat.team_id = leagues_team.id \
+                        Join leagues_division on leagues_team.division_id=leagues_division.id \
+                        Where leagues_division.id = %s \
+                        group by leagues_player.id, leagues_player.first_name, leagues_player.last_name \
+                        having sum(goals+assists)>1 ) sub \
+                        order by sub.total_points desc limit 50;", [division])
+        division_rank_list = namedtuplefetchall(cursor)
+    return division_rank_list
+
 def get_player_stats(players, season):
     if season == 0:
         return players.values(
@@ -314,7 +346,6 @@ def get_player_stats(players, season):
                         )
                     ),
                     )
-
 
 def get_stats_for_matchup(match):
     return Stat.objects.filter(matchup=match).exclude(
@@ -639,3 +670,11 @@ def get_stats_for_past_team(team):
         'team__division').order_by(
         '-team__season__year','-team__season__season_type')
    
+def namedtuplefetchall(cursor):
+    # """
+    # Return all rows from a cursor as a namedtuple.
+    # Assume the column names are unique.
+    # """
+    desc = cursor.description
+    nt_result = namedtuple("Result", [col[0] for col in desc])
+    return [nt_result(*row) for row in cursor.fetchall()]

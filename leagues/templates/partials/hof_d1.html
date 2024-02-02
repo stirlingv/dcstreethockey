@@ -1,0 +1,20 @@
+<table class="table">
+    <tr>
+        <th>Rank</th>
+        <th>Name</th>
+        <th>Total Points</th>
+        <th>Total Goals</th>
+        <th>Total Assists</th>
+    </tr>
+    {% for player in d1_ranks %}
+    <tr>
+        <td>{{player.rank}}</td>
+        <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}}</td>
+        <td>{{player.total_points}}</td>
+        <td>{{player.total_goals}}</td>
+        <td>{{player.total_assists}}</td>
+    {% empty %}
+        <td>No Offensive stats yet.</td>
+    {% endfor %}
+    </tr>
+</table>

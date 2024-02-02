@@ -1,0 +1,162 @@
+{% extends 'core/base.html' %}
+<head>
+	<style type="text/css" media="screen">
+	</style>
+</head>
+{% load static %}
+{% block content %}
+<div id="content-wrapper" class="hof_stats">
+	<div id="content">
+		<div class="container">
+            <div  class="title"> All Time Offensive Point Leaders</div>
+                <div id="combinedoptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('combined')">
+                    Combined
+                </div>
+                <div id="d1optiondiv" class="optionsdiv" onclick="javascript:handleOption('d1')">
+                    D1
+                </div>
+                <div id="d2optiondiv" class="optionsdiv" onclick="javascript:handleOption('d2')">
+                    D2
+                </div>
+                <div id="draftoptiondiv" class="optionsdiv" onclick="javascript:handleOption('draft')">
+                    Draft
+                </div>
+                <div id="monaoptiondiv" class="optionsdiv" onclick="javascript:handleOption('mona')">
+                    Mon-A
+                </div>
+                <div id="monaoptiondiv" class="optionsdiv" onclick="javascript:handleOption('monb')">
+                    Mon-B
+                </div>
+    
+                <section id="combinedsection" class="stats show">
+                    {% include 'partials/hof_all.html' %}
+                </section>
+                <section id="d1section" class="hidden">
+                    {% include 'partials/hof_d1.html' %}
+                </section>
+                <section id="d2section" class="hidden">
+                    {% include 'partials/hof_d2.html' %}
+                </section>
+                <section id="draftsection" class="hidden">
+                    {% include 'partials/hof_draft.html' %}
+                </section>
+                <section id="monasection" class="hidden">
+                    {% include 'partials/hof_mon_a.html' %}
+                </section><section id="monbsection" class="hidden">
+                    {% include 'partials/hof_mon_b.html' %}
+                </section>
+            </div>
+        </div>
+	</div>
+</div>
+
+<script type="text/javascript">
+    function toggleTable(id) {
+        var stats = document.getElementById("stats-"+id);
+				var showstats = stats.style.display == "block";
+        stats.style.display = showstats ? "none" : "block";
+				document.getElementById("ex-"+id).style.display == showstats ? "block" : "none";
+    }
+    function handleOption(name) {
+        var d1 = document.getElementById("d1section");
+        var combined = document.getElementById("combinedsection");
+        var d2 = document.getElementById("d2section");
+        var draft = document.getElementById("draftsection");
+        var mona = document.getElementById("monasection");
+        var monb = document.getElementById("monbsection");
+        var d1option = document.getElementById("d1optiondiv");
+        var combinedoption = document.getElementById("combinedoptiondiv");
+        var d2option = document.getElementById("d2optiondiv");
+        var monaoption = document.getElementById("monaoptiondiv");
+        var monboption = document.getElementById("monboptiondiv");
+        switch(name){
+            case "combined":
+                d1.className = "hidden";
+                combined.className = "stats show";
+                d2.className = "hidden";
+                draft.className = "hidden";
+                mona.className = "hidden";
+                monb.className = "hidden";
+                d1option.className = "optionsdiv"
+                combinedoption.className = "optionsdiv activeoption"
+                d2option.className = "optionsdiv"
+                draftoption.className = "optionsdiv"
+                monaoption.className = "optionsdiv"
+                monboption.className = "optionsdiv"
+                break;
+            case "d2":
+                d1.className = "hidden";
+                combined.className = "hidden";
+                d2.className = "show";
+                draft.className = "hidden";
+                mona.className = "hidden";
+                monb.className = "hidden";
+                d1option.className = "optionsdiv"
+                combinedoption.className = "optionsdiv"
+                d2option.className = "optionsdiv activeoption"
+                draftoption.className = "optionsdiv"
+                monaoption.className = "optionsdiv"
+                monboption.className = "optionsdiv"
+                break;
+            case "draft":
+                d1.className = "hidden";
+                combined.className = "hidden";
+                d2.className = "hidden";
+                draft.className = "stats show";
+                mona.className = "hidden";
+                monb.className = "hidden";
+                d1option.className = "optionsdiv"
+                combinedoption.className = "optionsdiv"
+                d2option.className = "optionsdiv"
+                draftoption.className = "optionsdiv activeoption"
+                monaoption.className = "optionsdiv";
+                monboption.className = "optionsdiv";
+                break;
+            case "mona":
+                d1.className = "hidden";
+                combined.className = "hidden";
+                d2.className = "hidden";
+                draft.className = "hidden";
+                mona.className = "stats show";
+                monb.className = "hidden";
+                d1option.className = "optionsdiv"
+                combinedoption.className = "optionsdiv"
+                d2option.className = "optionsdiv"
+                draftoption.className = "optionsdiv"
+                monaoption.className = "optionsdiv activeoption";
+                monboption.className = "optionsdiv";
+                break;
+            case "monb":
+                d1.className = "hidden";
+                combined.className = "hidden";
+                d2.className = "hidden";
+                draft.className = "hidden";
+                mona.className = "hidden";
+                monb.className = "stats show";
+                d1option.className = "optionsdiv"
+                combinedoption.className = "optionsdiv"
+                d2option.className = "optionsdiv"
+                draftoption.className = "optionsdiv"
+                monaoption.className = "optionsdiv";
+                monboption.className = "optionsdiv activeoption";
+                break;
+            default:
+                d1.className = "show";
+                combined.className = "hidden";
+                d2.className = "hidden";
+                draft.className = "hidden";
+                mona.className = "hidden";
+                monb.className = "hidden";
+                d1option.className = "optionsdiv"
+                combinedoption.className = "optionsdiv activeoption"
+                d2option.className = "optionsdiv"
+                draftoption.className = "optionsdiv"
+                monaoption.className = "optionsdiv"
+                monboption.className = "optionsdiv"
+        }
+    }
+	function handleDivision(dest){
+	  	window.location = dest;
+	}
+</script>
+{% endblock %}
