@@ -441,3 +441,12 @@ div div#content .matchupheader{
     margin-top: 3em;
 }
 
+.logo-image {
+    max-width: 100%; /* Ensure the logo image fills the column */
+    height: auto; /* Maintain aspect ratio */
+}
+
+.resizable-image {
+    width: 100%; /* Make the other images fill their container */
+    height: auto; /* Maintain aspect ratio */
+}
