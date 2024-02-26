@@ -52,22 +52,69 @@
 .navbar-default .navbar-link:hover {
   color: #fdfbff;
 }
-
-@media (max-width: 767px) {
-  .navbar-default .navbar-nav .open .dropdown-menu > li > a {
-    color: #ecf0f1;
-  }
-  .navbar-default .navbar-nav .open .dropdown-menu > li > a:hover,
-  .navbar-default .navbar-nav .open .dropdown-menu > li > a:focus {
-    color: #fdfbff;
-  }
-  .navbar-default .navbar-nav .open .dropdown-menu > .active > a,
-  .navbar-default .navbar-nav .open .dropdown-menu > .active > a:hover,
-  .navbar-default .navbar-nav .open .dropdown-menu > .active > a:focus {
-    color: #fdfbff;
-    background-color: #54bfac;
-  }
+/* Hide the checkbox */
+.menu-container input[type="checkbox"] {
+    display: none;
 }
+
+/* Style the menu button */
+.menu-container .menu-icon {
+    cursor: pointer;
+    display: none; /* Hide the menu icon by default */
+    font-size: 24px;
+    padding: 10px;
+    color: #333;
+}
+
+/* Style the navigation menu */
+#nav {
+    display: inline; /* Display the navigation menu inline */
+}
+
+/* Hide the menu when the checkbox is unchecked */
+.menu-container input[type="checkbox"]:not(:checked) + label.menu-icon + #nav {
+    display: none;
+}
+
+/* Style the menu links */
+#nav ul {
+    padding: 0;
+    list-style: none;
+}
+
+#nav ul li {
+    margin-bottom: 10px;
+}
+
+#nav ul li a {
+    display: block;
+    padding: 10px;
+    color: #333;
+    text-decoration: none;
+}
+
+/* Media query for smaller screens */
+@media (max-width: 767px) {
+    .desktop-logo {
+        display: none;
+    }
+
+    /* Show the menu toggle button for smaller screens */
+    .menu-container .menu-icon {
+        display: block;
+    }
+
+    /* Hide the navigation menu by default for smaller screens */
+    .menu-container #nav {
+        display: none;
+    }
+
+    /* Show the navigation menu when the checkbox is checked for smaller screens */
+    .menu-container input[type="checkbox"]:checked + label.menu-icon + #nav {
+        display: block;
+    }
+}
+
 
 #datepicker{
     margin-bottom: 20px;
@@ -393,3 +440,4 @@ section .game:first-of-type{
 div div#content .matchupheader{
     margin-top: 3em;
 }
+

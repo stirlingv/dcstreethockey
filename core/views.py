@@ -1,8 +1,6 @@
 import datetime
 from datetime import timedelta
 from collections import OrderedDict, namedtuple
-import decimal
-from functools import reduce
 from django.shortcuts import render
 
 from django.views.generic.list import ListView
