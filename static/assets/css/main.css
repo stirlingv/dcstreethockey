@@ -1068,7 +1068,7 @@
 /* Basic */
 
 	body {
-		background: #D4D9DD url("images/bg03.jpg");
+		background: #D4D9DD url("images/bg04.jpg");
 		color: #474f51;
 		font-size: 13.5pt;
 		font-family: 'Yanone Kaffeesatz';
@@ -1140,6 +1140,8 @@
 			margin: 0 0 0 90px;
 			font-size: 1.2em;
 			font-style: italic;
+			word-break: normal;
+			width: 100%;
 		}
 
 		.quote-list li span {
@@ -1179,7 +1181,7 @@
 
 	.bordered-feature-image {
 		display: block;
-		background: #fff url("images/bg04.png");
+		background: #fff url("images/bg03.jpg");
 		padding: 10px;
 		box-shadow: 3px 3px 3px 1px rgba(0, 0, 0, 0.15);
 		margin: 0 0 1.5em 0;
@@ -1359,7 +1361,9 @@
 			}
 
 				#banner .bordered-feature-image {
-					margin-bottom: 0;
+					max-width: 100%;
+					height: auto;
+					display: block;
 				}
 
 				#banner p {
@@ -1607,14 +1611,14 @@
 
 			#banner {
 				position: relative;
-				color: #fff;
 				text-align: center;
 				padding: 30px 30px 15px 30px;
 				margin-top: 44px;
+				color: #fff;
 			}
 
 				#banner .bordered-feature-image {
-					display: none;
+					position: right;
 				}
 
 				#banner p {

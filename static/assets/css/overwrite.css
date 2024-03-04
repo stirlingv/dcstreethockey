@@ -450,3 +450,21 @@ div div#content .matchupheader{
     width: 100%; /* Make the other images fill their container */
     height: auto; /* Maintain aspect ratio */
 }
+.row {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.banner-image-container {
+    display: flex;
+    align-items: center; /* Vertically center items */
+}
+
+.banner-image-container img {
+    max-width: 100%; /* Maximum width to maintain responsiveness */
+    height: auto;
+}
+
+.banner-content-container {
+    padding-left: 20px; /* Add some space between the image and the text */
+}
