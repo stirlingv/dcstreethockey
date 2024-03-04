@@ -1103,70 +1103,68 @@
 
 /* Multi-use */
 
-	.link-list li {
-		padding: 0.2em 0 0.2em 0;
+.link-list li {
+	padding: 0.2em 0 0.2em 0;
+}
+
+	.link-list li:first-child {
+		padding-top: 0 !important;
+		border-top: 0 !important;
 	}
 
-		.link-list li:first-child {
-			padding-top: 0 !important;
-			border-top: 0 !important;
-		}
-
-		.link-list li:last-child {
-			padding-bottom: 0 !important;
-			border-bottom: 0 !important;
-		}
-
-	.quote-list li {
-		padding: 1em 0 1em 0;
-		overflow: hidden;
+	.link-list li:last-child {
+		padding-bottom: 0 !important;
+		border-bottom: 0 !important;
 	}
 
-		.quote-list li:first-child {
-			padding-top: 0 !important;
-			border-top: 0 !important;
-		}
+.quote-list li {
+	padding: 1em 0 1em 0;
+	overflow: hidden;
+}
 
-		.quote-list li:last-child {
-			padding-bottom: 0 !important;
-			border-bottom: 0 !important;
-		}
+	.quote-list li:first-child {
+		padding-top: 0 !important;
+		border-top: 0 !important;
+	}
 
-		.quote-list li img {
-			float: left;
-		}
+	.quote-list li:last-child {
+		padding-bottom: 0 !important;
+		border-bottom: 0 !important;
+	}
 
-		.quote-list li p {
-			margin: 0 0 0 90px;
-			font-size: 1.2em;
-			font-style: italic;
-			word-break: normal;
-			width: 100%;
-		}
+	.quote-list li img {
+		float: left;
+	}
 
-		.quote-list li span {
-			display: block;
-			margin-left: 90px;
-			font-size: 0.9em;
-			font-weight: 400;
-		}
-
-	.check-list li {
-		padding: 0.7em 0 0.7em 45px;
+	.quote-list li p {
+		margin: 0 0 0 90px;
 		font-size: 1.2em;
-		background: url("images/icon-checkmark.png") 0px 1.05em no-repeat;
+		font-style: italic;
 	}
 
-		.check-list li:first-child {
-			padding-top: 0 !important;
-			border-top: 0 !important;
-			background-position: 0 0.3em;
-		}
+	.quote-list li span {
+		display: block;
+		margin-left: 90px;
+		font-size: 0.9em;
+		font-weight: 400;
+	}
 
-		.check-list li:last-child {
-			padding-bottom: 0 !important;
-			border-bottom: 0 !important;
-		}
+.check-list li {
+	padding: 0.7em 0 0.7em 45px;
+	font-size: 1.2em;
+	background: url("images/icon-checkmark.png") 0px 1.05em no-repeat;
+}
+
+	.check-list li:first-child {
+		padding-top: 0 !important;
+		border-top: 0 !important;
+		background-position: 0 0.3em;
+	}
+
+	.check-list li:last-child {
+		padding-bottom: 0 !important;
+		border-bottom: 0 !important;
+	}
 
 	.feature-image {
 		display: block;
@@ -1291,7 +1289,6 @@
 				background: #353D40 url("images/bg02.jpg");
 				border-bottom: solid 1px #272e31;
 				padding: 45px 0 45px 0;
-				text-shadow: -1px -1px 1px rgba(0, 0, 0, 0.75);
 			}
 
 			#content-wrapper {
@@ -1361,9 +1358,7 @@
 			}
 
 				#banner .bordered-feature-image {
-					max-width: 100%;
-					height: auto;
-					display: block;
+					margin-bottom: 0;
 				}
 
 				#banner p {
