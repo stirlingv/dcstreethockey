@@ -10,9 +10,9 @@ media/teams/
 *.dump
 *.dump*
 queries.txt
-*.json
 log.txt
 media/homepage/*
 pg_upgrade_*
 virtualenve
 db_migration_scripts/*
+*.vscode
