@@ -11,7 +11,10 @@ https://docs.djangoproject.com/en/1.9/ref/settings/
 """
 
 import os, sys
+import socket
 
+if socket.gethostname()=="test.local":
+    from .local import *
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 
@@ -26,8 +29,6 @@ SECRET_KEY = 'k6%7zjqzgk0!&6gzf3uyxlg$odxw9m@6w1$)6y@t*w!a1(o3&g'
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-
-SECURE_SSL_REDIRECT = True
 
 # Application definition
 
