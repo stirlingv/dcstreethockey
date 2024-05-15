@@ -31,7 +31,7 @@ class Player(models.Model):
     last_name = models.CharField(db_index=True, max_length=30)
     email = models.EmailField(null=True, blank=True)
     player_photo = models.ForeignKey(PlayerPhoto, null=True, blank=True, on_delete=models.SET_NULL)
-    gender = models.CharField(max_length=2,choices=GENDER_CHOICES,null=True, blank=True)
+    # gender = models.CharField(max_length=2,choices=GENDER_CHOICES,null=True, blank=True)
 
     class Meta:
         ordering = ('last_name',)
