@@ -5,7 +5,6 @@ services:
   - type: web # valid values: https://render.com/docs/yaml-spec#type
     name: dcstreethockey
     env: python # valid values: https://render.com/docs/yaml-spec#environment
-    dockerfilePath: Dockerfile.render
     plan: free # optional; defaults to starter
     numInstances: 1
     domains: # custom domains
@@ -13,7 +12,7 @@ services:
       - 'www.dcstreethockey.com'
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "python -m gunicorn dcstreethockey.asgi:application -k uvicorn.workers.UvicornWorker"
+    startCommand: "uvicorn dcstreethockey.asgi:application --host 0.0.0.0 --port $PORT"
     envVars:
       - key: DJANGO_SETTINGS_MODULE # Imported from Heroku app
         value: dcstreethockey.settings.production
