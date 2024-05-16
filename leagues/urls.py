@@ -1,23 +1,23 @@
-from django.conf.urls import url
+from django.urls import path, re_path
 from core.views import MatchUpDetailView
 from core.views import TeamStatDetailView
 from core.views import PlayerStatDetailView
 import core.views as core_view
 
 urlpatterns = [
-	url(r'^roster/$', MatchUpDetailView.as_view(), name='rosters'),
-	url(r'^roster/(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})$', MatchUpDetailView.as_view(), name='rosters'),
-	url(r'^team_standings/$', TeamStatDetailView.as_view(), name='team_standings'),
-	url(r'^player_stats/$', PlayerStatDetailView.as_view(), name='player_stats'),
-	url(r'^player_stats/(?P<season>[0-9]+)/$', PlayerStatDetailView.as_view(), name='player_stats'),
-	url(r'^teams/(?P<team>[0-9]+)/$', core_view.teams, name='teams'),
-	url(r'^player/(?P<player>[0-9]+)/$', core_view.player, name='player'),
-	url(r'^hof/$', core_view.PlayerAllTimeStats_list, name='hof'),
-	url(r'^schedule/$', core_view.schedule, name='schedule'),
-	url(r'^scores/$', core_view.scores, name='scores'),
-	url(r'^scores/(?P<division>[0-9])/$', core_view.scores, name='scores'),
-	url(r'^cups/$', core_view.cups, name='cups'),
-	url(r'^cups/(?P<division>[0-9])/$', core_view.cups, name='cups'),
+	path('roster/', MatchUpDetailView.as_view(), name='rosters'),
+	re_path(r'^roster/(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})$', MatchUpDetailView.as_view(), name='rosters'),
+	path('team_standings/', TeamStatDetailView.as_view(), name='team_standings'),
+	path('player_stats/', PlayerStatDetailView.as_view(), name='player_stats'),
+	path('player_stats/<int:season>/', PlayerStatDetailView.as_view(), name='player_stats'),
+	path('teams/<int:team>/', core_view.teams, name='teams'),
+	path('player/<int:player>/', core_view.player, name='player'),
+	path('hof/', core_view.PlayerAllTimeStats_list, name='hof'),
+	path('schedule/', core_view.schedule, name='schedule'),
+	path('scores/', core_view.scores, name='scores'),
+	re_path(r'^scores/(?P<division>[0-9])/$', core_view.scores, name='scores'),
+	path('cups/', core_view.cups, name='cups'),
+	re_path(r'^cups/(?P<division>[0-9])/$', core_view.cups, name='cups'),
 
 ]
 

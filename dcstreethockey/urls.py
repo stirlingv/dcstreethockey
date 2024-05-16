@@ -13,20 +13,20 @@ Including another URLconf
     1. Import the include() function: from django.conf.urls import url, include
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
-from django.conf.urls import include, url
 from django.contrib import admin
 import core.views as core_view
 from django.conf.urls.static import static
 from django.conf import settings
 import debug_toolbar
 from django.urls import include, path
+from django.urls import include, re_path
 import leagues
 
 urlpatterns = [
-	url(r'^$', core_view.home, name='home'),
-    url(r'^admin/', admin.site.urls),
+	path('', core_view.home, name='home'),
+    re_path(r'^admin/', admin.site.urls),
     path('__debug__/', include(debug_toolbar.urls)),
-    url(r'^leagues/', include('leagues.urls', namespace='leagues')),
+    path('leagues/', include('leagues.urls', namespace='leagues')),
 ]  + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 app_name="leagues"

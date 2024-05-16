@@ -11,6 +11,9 @@ services:
     domains: # custom domains
       - 'dcstreethockey.com'
       - 'www.dcstreethockey.com'
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "python -m gunicorn dcstreethockey.asgi:application -k uvicorn.workers.UvicornWorker"
     envVars:
       - key: DJANGO_SETTINGS_MODULE # Imported from Heroku app
         value: dcstreethockey.settings.production

@@ -27,6 +27,12 @@ SECRET_KEY = 'k6%7zjqzgk0!&6gzf3uyxlg$odxw9m@6w1$)6y@t*w!a1(o3&g'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+if not DEBUG:
+    # Tell Django to copy static assets into a path called `staticfiles` (this is specific to Render)
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
+    # and renames the files with unique names for each version to support long-term caching
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 ALLOWED_HOSTS = ['*']
 
@@ -42,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'debug_toolbar',
     'django_extensions',
+    'channels',
     'core',
     'suit',
     'storages',
@@ -91,8 +98,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'dcstreethockey.wsgi.application'
-
+# WSGI_APPLICATION = 'dcstreethockey.wsgi.application'
+ASGI_APPLICATION = 'dcstreethockey.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/1.9/ref/settings/#databases
@@ -119,7 +126,7 @@ if 'test' in sys.argv or 'testserver' in sys.argv:
 elif os.environ.get('RUN_DOCKER', False):
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'ENGINE': 'django.db.backends.postgresql',
             'NAME': 'dcstreethockey',
             'USER': 'dcstreethockey',
             'PASSWORD': 'dcstreethockey',
@@ -131,7 +138,7 @@ elif os.environ.get('RUN_DOCKER', False):
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'ENGINE': 'django.db.backends.postgresql',
             'NAME': 'dcstreethockey',
             'USER': 'user',
             'PASSWORD': 'password',
@@ -173,7 +180,6 @@ TIME_INPUT_FORMATS = ('%I:%M %p',)
 
 USE_I18N = True
 
-USE_L10N = True
 
 USE_TZ = True
 
@@ -200,6 +206,3 @@ STATICFILES_DIRS = (
 LEAGUESFILES_DIRS = (
     os.path.join(BASE_DIR, "leagues"),
 )
-# Configure Django App for Heroku.
-import django_heroku
-django_heroku.settings(locals())
