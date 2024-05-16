@@ -14,7 +14,7 @@ django-debug-toolbar==4.3.0
 django-extensions==3.0.1
 django-localflavor==3.0.1
 django-rest-framework==0.1.0
-django-storages==1.9.1
+django-storages==1.14.3
 django-upgrade==1.17.0
 django-widget-tweaks==1.4.8
 djangorestframework==3.15.0
