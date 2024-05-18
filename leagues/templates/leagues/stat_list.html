@@ -1,34 +1,26 @@
 {% extends 'core/base.html' %}
 {% load static %}
 {% block content %}
-
 <head>
-	<style type="text/css" media="screen">
-	</style>
+    <style type="text/css" media="screen"></style>
 </head>
 <div id="content-wrapper">
-	<div id="content">
-		<div class="container">
-            <div class="title">
-                League Leaders
-            </div>
-            <div class="optionsdiv {% if active_season == 0 %}activeoption{% endif %} "
-                        onclick="javascript:handleSeason('/leagues/player_stats/0')">
+    <div id="content">
+        <div class="container">
+            <div class="title">League Leaders</div>
+            <div class="optionsdiv {% if active_season == 0 %}activeoption{% endif %}" onclick="handleSeason('/leagues/player_stats/0')">
                 Current
             </div>
             {% for season in seasons %}
-                <div class="optionsdiv {% if season.id == active_season %}activeoption{% endif %} "
-                        onclick="javascript:handleSeason('/leagues/player_stats/{{season.id}}')">
-                {{season}}
+                <div class="optionsdiv {% if season.id == active_season %}activeoption{% endif %}" onclick="handleSeason('/leagues/player_stats/{{ season.id }}')">
+                    {{ season }}
                 </div>
             {% endfor %}
             <div class="row stats">
                 {% for division, player_list in player_stat_list.items %}
                     <div class="4u 12u(mobile)">
-                        <section id="playerstatsection-{{division}}"
-                            class="shorttable"
-                            onclick="javascript:togglePlayersTable('{{division}}')">
-                            <h3 class="divisionheader">{{division}}</h3>
+                        <section id="playerstatsection-{{ division }}" class="shorttable" onclick="togglePlayersTable('{{ division }}')">
+                            <h3 class="divisionheader">{{ division }}</h3>
                             {% include 'partials/stats.html' %}
                         </section>
                     </div>
@@ -37,9 +29,9 @@
         </div>
     </div>
 </div>
-    <script type="text/javascript">
-            function handleSeason(dest){
-	  	window.location = dest;
-	  }
+<script type="text/javascript">
+    function handleSeason(dest) {
+        window.location = dest;
+    }
 </script>
 {% endblock %}

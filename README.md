@@ -30,18 +30,15 @@
       - if dcstreethockey doesn't exist continue
    - ```createdb dcstreethockey```
    - ```createuser user```
-1. ```./manage.py runserver```
-   - ```./manage.py runserver 192.168.1.168:8000```
+1. ```uvicorn dcstreethockey.asgi:application --host 0.0.0.0 --port 8000```
 
-## Deploy - keeps dev and heroku in sync
+## Deploy - keeps dev and  in sync
 
 1. ```./manage.py makemigrations```
 1. ```./manage.py migrate```
-1. ```git push heroku master```
-1. ```heroku run python ./manage.py migrate```
 1. ```git push origin master```
 
-## Ensure DJANGO_SETTINGS_MODULE is set for production deployments
+## [OUTDATED] Ensure DJANGO_SETTINGS_MODULE is set for production deployments
 
 1. ```heroku config:set DJANGO_SETTINGS_MODULE=dcstreethockey.settings.production```
 
@@ -57,22 +54,18 @@
    - root@06415f728dae:/app# pg_restore --verbose --clean --no-acl --no-owner -h db -U dcstreethockey -d dcstreethockey latest.dump.[backup number]
 1. <https://devcenter.heroku.com/articles/heroku-postgres-import-export>
 
-### Dump Heroku data to json file
+## Run local database to render
 
-1. heroku run ./manage.py dumpdata > herokudump.json --indent 2
+1. Get Connection Details:
+   - Log in to your Render dashboard and navigate to your PostgreSQL service. Copy the connection string provided, which will be in the format:
 
-## Import/Export CSV file to local postgres db
+```sql
+   postgres://<username>:<password>@<host>:<port>/<database>
+```
 
-1. Import data from CSV - append to table - You can specify the columns to read:
-   - ```\copy leagues_stat(assists,goals_against,player_id,team_id,matchup_id,empty_net,goals) FROM '/Users/stirling/Downloads/stats.csv' DELIMITER ',' CSV HEADER```
-   - Remove HEADER if there is no header in the first row.
-1. Copy data from PostgreSQL table to csv file:
-   - ```\copy leagues_player TO '/Users/stirling/Downloads/sunday_players.csv' DELIMITER ',' CSV HEADER```
-   - Remove HEADER if there is no header in the first row.
-   
-## Push local database to heroku
+1. Save your SQL script locally, e.g., db_migration_scripts/insert_matchup.sql.
+1. Run the following command in your terminal, replacing <connection_string> with the actual connection string and path/to/your/script.sql with the path to your SQL script:
 
-1. Create backup! <https://devcenter.heroku.com/articles/heroku-postgres-import-export>
-1. ```export DATABASE_URL=$(heroku config:get DATABASE_URL -a dcstreethockey)```
-1. ```heroku pg:reset DATABASE_URL```
-1. ```heroku pg:push dcstreethockey DATABASE_URL --app dcstreethockey```
+```bash
+psql postgres://<username>:<password>@<host>:<port>/<database> -f path/to/your/script.sql
+```

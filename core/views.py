@@ -5,8 +5,8 @@ from django.shortcuts import render
 
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max, Min
-from django.db.models import F, When, IntegerField, Case, DecimalField, ExpressionWrapper
+from django.db.models import Sum, Q, Max, Min, FloatField
+from django.db.models import F, When, IntegerField, Case, DecimalField, ExpressionWrapper, Func
 from django.db import connection
 
 from leagues.models import Season, Division, MatchUp, Stat, Roster, Player, Team, Team_Stat, Week, HomePage
@@ -156,23 +156,30 @@ def check_h2h_record(team1, team2):
 
 class PlayerStatDetailView(ListView):
     context_object_name = 'player_stat_list'
+    template_name = 'stat_list.html'
 
     def get_queryset(self):
         return Stat.objects.filter(team__season__is_current_season=True)
-        #return Stat.objects.all()
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
-        season = self.kwargs.get('season','0')
-        context['seasons'] = Season.objects.order_by('-year','-season_type')[:4]
+        season = self.kwargs.get('season', '0')
+        context['seasons'] = Season.objects.order_by('-year', '-season_type')[:4]
         context['active_season'] = int(season)
         context['player_stat_list'] = OrderedDict()
-        for div in Division.objects.all():
-            players = Player.objects.filter(roster__team__division=div)
-            context['player_stat_list'][str(div)] = get_player_stats(
-                    players, context['active_season']).filter(
-                    sum_games_played__gte=1).order_by(
-                    '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
+
+        divisions = Division.objects.all()
+        for div in divisions:
+            players = Player.objects.filter(roster__team__division=div).select_related('roster__team')
+            player_stats = get_player_stats(players, context['active_season']).filter(
+                sum_games_played__gte=1).order_by(
+                '-rounded_average_goals_against'
+            )
+            context['player_stat_list'][str(div)] = player_stats
+            # Print only the desired values in descending order
+            for player in player_stats:
+                print(f"{player['first_name']} {player['last_name']} - {player['rounded_average_goals_against']}")
+                
         return context
 
 def PlayerAllTimeStats_list(request):
@@ -199,6 +206,7 @@ def PlayerAllTimeStats_list(request):
     return render(request, "leagues/hof.html", context=context)
 
 def get_division_ranks(division):
+    
     division_rank_list = []
     with connection.cursor() as cursor:
         cursor.execute("select rank () over (order by total_points desc) as rank, \
@@ -217,134 +225,73 @@ def get_division_ranks(division):
     return division_rank_list
 
 def get_player_stats(players, season):
-    if season == 0:
-        return players.values(
-                    'id',
-                    'last_name',
-                    'first_name',
-                    'roster__team__team_name',
-                    'roster__team__id',
-                    'roster__position1',
-                    'roster__position2',
-                    'roster__is_captain',
-                    ).annotate(
-                    sum_goals=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__goals',0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    sum_assists=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__assists',0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    total_points=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__assists', 0)+Coalesce('stat__goals',0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    sum_goals_against=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__goals_against', 0)-Coalesce('stat__empty_net', 0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    sum_games_played=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True, then=1),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    average_goals_against=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True,
-                                    then=Coalesce('stat__goals_against', 0.0)-Coalesce('stat__empty_net', 0.0)),
-                            output_field=DecimalField(),
-                        )
-                    )/Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__is_active=True, then=1.0),
-                            output_field=DecimalField(),
-                        )
-                    ),
-                    )
-    else:
-        return players.filter(
-                    Q(stat__isnull=True) | Q(stat__matchup__is_postseason=False)).values(
-                    'id',
-                    'last_name',
-                    'first_name',
-                    'roster__team__team_name',
-                    'roster__team__id',
-                    'roster__position1',
-                    'roster__position2',
-                    'roster__is_captain',
-                    ).annotate(
-                    sum_goals=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__season__id=season,
-                                    then=Coalesce('stat__goals',0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    sum_assists=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__season__id=season,
-                                    then=Coalesce('stat__assists',0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    total_points=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__season__id=season,
-                                    then=Coalesce('stat__assists', 0)+Coalesce('stat__goals',0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    sum_goals_against=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__season__id=season,
-                                    then=Coalesce('stat__goals_against', 0)-Coalesce('stat__empty_net', 0)),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    sum_games_played=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__season__id=season, then=1),
-                            default=0,
-                            output_field=IntegerField(),
-                        )
-                    ),
-                    average_goals_against=Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__season__id=season,
-                                    then=Coalesce('stat__goals_against', 0.0)-Coalesce('stat__empty_net', 0.0)),
-                            output_field=DecimalField(),
-                        )
-                    )/Sum(
-                        Case(
-                            When(stat__team=F('roster__team'), stat__team__season__id=season, then=1.0),
-                            output_field=DecimalField(),
-                        )
-                    ),
-                    )
-
+    stat_filters = Q(stat__isnull=True) | Q(stat__matchup__is_postseason=False) if season != 0 else Q(stat__team__is_active=True)
+    
+    return players.filter(
+        stat_filters
+    ).values(
+        'id',
+        'last_name',
+        'first_name',
+        'roster__team__team_name',
+        'roster__team__id',
+        'roster__position1',
+        'roster__position2',
+        'roster__is_captain',
+    ).annotate(
+        sum_goals=Sum(
+            Case(
+                When(stat__team=F('roster__team'), stat__team__season__id=season if season != 0 else F('roster__team__season__id'),
+                     then=F('stat__goals')),
+                default=0,
+                output_field=IntegerField(),
+            )
+        ),
+        sum_assists=Sum(
+            Case(
+                When(stat__team=F('roster__team'), stat__team__season__id=season if season != 0 else F('roster__team__season__id'),
+                     then=F('stat__assists')),
+                default=0,
+                output_field=IntegerField(),
+            )
+        ),
+        total_points=Sum(
+            Case(
+                When(stat__team=F('roster__team'), stat__team__season__id=season if season != 0 else F('roster__team__season__id'),
+                     then=F('stat__assists') + F('stat__goals')),
+                default=0,
+                output_field=IntegerField(),
+            )
+        ),
+        sum_goals_against=Sum(
+            Case(
+                When(stat__team=F('roster__team'), stat__team__season__id=season if season != 0 else F('roster__team__season__id'),
+                     then=F('stat__goals_against') - F('stat__empty_net')),
+                default=0,
+                output_field=IntegerField(),
+            )
+        ),
+        sum_games_played=Sum(
+            Case(
+                When(stat__team=F('roster__team'), stat__team__season__id=season if season != 0 else F('roster__team__season__id'),
+                     then=1),
+                default=0,
+                output_field=IntegerField(),
+            )
+        ),
+        average_goals_against=ExpressionWrapper(
+            F('sum_goals_against') * 1.0 / F('sum_games_played'),
+            output_field=FloatField()
+        )
+    ).annotate(
+        rounded_average_goals_against=Func(
+            F('average_goals_against'),
+            function='ROUND',
+            template='%(function)s(%(expressions)s::numeric, 2)',
+            output_field=DecimalField(max_digits=10, decimal_places=2)
+        )
+    )
+    
 def get_stats_for_matchup(match):
     return Stat.objects.filter(matchup=match).exclude(
             Q(goals=None) & Q(assists=None)).exclude(

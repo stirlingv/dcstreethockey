@@ -7,27 +7,25 @@
         <th>Pts</th>
     </tr>
     {% for player in player_list %}
-    {% if player.total_points > 0 or player.roster__position1 != 4 and player.roster__position2 != 4 %}
+        {% if player.total_points > 0 or player.roster__position1 != 4 and player.roster__position2 != 4 %}
             <tr>
-                {% if player.roster__is_captain %}
-                    <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}} (C)</td>
-                {% else %}
-                    <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}}</td>
-                {% endif %}
-                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{player.roster__team__id}}')">{{player.roster__team__team_name}}</td>
-                <td>{{player.sum_goals}}</td>
-                <td>{{player.sum_assists}}</td>
-                <td>{{player.total_points}}</td>
+                <td class="clickable" onclick="handleTeam('/leagues/player/{{ player.id }}')">
+                    {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
+                </td>
+                <td class="clickable" onclick="handleTeam('/leagues/teams/{{ player.roster__team__id }}')">{{ player.roster__team__team_name }}</td>
+                <td>{{ player.sum_goals }}</td>
+                <td>{{ player.sum_assists }}</td>
+                <td>{{ player.total_points }}</td>
             </tr>
         {% endif %}
     {% empty %}
-            <td colspan=5>No player stats entered yet.</td>
+        <tr>
+            <td colspan="5">No player stats entered yet.</td>
+        </tr>
     {% endfor %}
 </table>
-<div class="expand" id="ex-{{mid}}" onclick="javascript:toggleTable('{{mid}}')">
-    ^
-</div>
-<table class="table goalies" >
+<div class="expand" id="ex-{{ mid }}" onclick="toggleTable('{{ mid }}')">^</div>
+<table class="table goalies">
     <tr>
         <th>Goalie Name</th>
         <th>Team</th>
@@ -38,18 +36,18 @@
     {% for player in player_list %}
         {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
             <tr>
-                {% if player.roster__is_captain %}
-                    <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}} (C)</td>
-                {% else %}
-                    <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{player.id}}')">{{player.first_name}} {{player.last_name}}</td>
-                {% endif %}
-                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{player.roster__team__id}}')">{{player.roster__team__team_name}}</td>
-                <td>{{player.average_goals_against|floatformat:2}}</td>
-                <td>{{player.sum_games_played}}</td>
-                <td>{{player.sum_goals_against}}</td>
+                <td class="clickable" onclick="handleTeam('/leagues/player/{{ player.id }}')">
+                    {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
+                </td>
+                <td class="clickable" onclick="handleTeam('/leagues/teams/{{ player.roster__team__id }}')">{{ player.roster__team__team_name }}</td>
+                <td>{{ player.rounded_average_goals_against }}</td>
+                <td>{{ player.sum_games_played }}</td>
+                <td>{{ player.sum_goals_against }}</td>
             </tr>
         {% endif %}
     {% empty %}
-            <td colspan=5>No team stats entered yet.</td>
+        <tr>
+            <td colspan="5">No team stats entered yet.</td>
+        </tr>
     {% endfor %}
 </table>
