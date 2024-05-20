@@ -5,7 +5,7 @@ from django.shortcuts import render
 
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
-from django.db.models import Sum, Q, Max, Min, FloatField
+from django.db.models import Sum, Q, Max, Min, FloatField, Value
 from django.db.models import F, When, IntegerField, Case, DecimalField, ExpressionWrapper, Func
 from django.db import connection
 
@@ -279,8 +279,12 @@ def get_player_stats(players, season):
                 output_field=IntegerField(),
             )
         ),
-        average_goals_against=ExpressionWrapper(
-            F('sum_goals_against') * 1.0 / F('sum_games_played'),
+        average_goals_against=Case(
+            When(sum_games_played=0, then=Value(0.0)),
+            default=ExpressionWrapper(
+                F('sum_goals_against') * 1.0 / F('sum_games_played'),
+                output_field=FloatField()
+            ),
             output_field=FloatField()
         )
     ).annotate(
