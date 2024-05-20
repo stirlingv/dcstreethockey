@@ -1,0 +1,24 @@
+<table class="table">
+    <tr>
+        <th>Player Name</th>
+        <th>Team</th>
+        <th>G</th>
+        <th>A</th>
+        <th>Pts</th>
+    </tr>
+    {% for player in player_list %}
+        <tr>
+            <td class="clickable" onclick="handleTeam('/leagues/player/{{ player.id }}')">
+                {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
+            </td>
+            <td class="clickable" onclick="handleTeam('/leagues/teams/{{ player.roster__team__id }}')">{{ player.roster__team__team_name }}</td>
+            <td>{{ player.sum_goals }}</td>
+            <td>{{ player.sum_assists }}</td>
+            <td>{{ player.total_points }}</td>
+        </tr>
+    {% empty %}
+        <tr>
+            <td colspan="5">No player stats entered yet.</td>
+        </tr>
+    {% endfor %}
+</table>

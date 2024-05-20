@@ -180,10 +180,10 @@ class Week(models.Model):
         return self.__unicode__()
 
 class MatchUp(models.Model):
-    week = models.ForeignKey(Week, null=True, on_delete=models.CASCADE)
+    week = models.ForeignKey(Week, null=True, on_delete=models.CASCADE, db_index=True)
     time = models.TimeField(db_index=True)
-    awayteam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT)
-    hometeam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT)
+    awayteam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT, db_index=True)
+    hometeam = models.ForeignKey(Team, related_name="+", on_delete=models.PROTECT, db_index=True)
     ref1 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None, on_delete=models.SET_NULL)
     ref2 = models.ForeignKey('Ref', related_name="+", null=True, blank=True, default=None, on_delete=models.SET_NULL)
     notes = models.CharField(max_length=500, null=True, blank=True, default=None)
@@ -193,29 +193,26 @@ class MatchUp(models.Model):
     class Meta:
         ordering = ('-hometeam__season__year','week','time',)
 
-    def __unicode__(self):
-        return u"%s vs %s on %s" % (self.awayteam, self.hometeam, self.week.date)
-
     def __str__(self):
-        return self.__unicode__()
+        return f"{self.awayteam} vs {self.hometeam} on {self.week.date}"
 
 class Stat(models.Model):
-    player = models.ForeignKey(Player, on_delete=models.PROTECT)
-    team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.PROTECT)
-    matchup = models.ForeignKey(MatchUp, null=True, blank=True, on_delete=models.PROTECT)
+    player = models.ForeignKey(Player, on_delete=models.PROTECT, db_index=True)
+    team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.PROTECT, db_index=True)
+    matchup = models.ForeignKey(MatchUp, null=True, blank=True, on_delete=models.PROTECT, db_index=True)
     goals = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
     assists = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
     goals_against = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
     empty_net = models.PositiveSmallIntegerField(null=True, blank=True, default=0)
 
     class Meta:
-        ordering = ('matchup__week__date','matchup__time','team__team_name','player__last_name',)
-
-    def __unicode__(self):
-        return u"%s - %s %s: G:%s A:%s " % (self.matchup.week.date, self.team.team_name, str(self.player), self.goals, self.assists)
+        ordering = ('matchup__week__date', 'matchup__time', 'team__team_name', 'player__last_name',)
+        indexes = [
+            models.Index(fields=['player', 'team', 'matchup']),
+        ]
 
     def __str__(self):
-        return self.__unicode__()
+        return f"{self.matchup.week.date} - {self.team.team_name} {self.player.last_name}: G:{self.goals} A:{self.assists}"
 
 class Ref(models.Model):
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
