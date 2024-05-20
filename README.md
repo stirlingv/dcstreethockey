@@ -42,17 +42,14 @@
 
 1. ```heroku config:set DJANGO_SETTINGS_MODULE=dcstreethockey.settings.production```
 
-## Create backup of heroku database and restore in local postgres instance
+## Create backup of render database and restore in local postgres instance
 
-1. heroku login
-1. heroku pg:backups:capture --app dcstreethockey
-1. heroku pg:backups:download --app dcstreethockey
-1. Restore downloaded db to local postgres instance: 
-   - pg_restore --verbose --clean --no-acl --no-owner -h localhost -U user -d dcstreethockey database_dumps/latest.dump.[backup number]
-1. For docker
-   - docker exec -it 064 bash
-   - root@06415f728dae:/app# pg_restore --verbose --clean --no-acl --no-owner -h db -U dcstreethockey -d dcstreethockey latest.dump.[backup number]
-1. <https://devcenter.heroku.com/articles/heroku-postgres-import-export>
+1. In render UI, click on recovery tab, and downlowd the latest sql.gz file
+1. Then run:
+
+```bash
+psql -U user -d dcstreethockey < ~/Downloads/<<file_name>>.sql
+```
 
 ## Run local database to render
 
