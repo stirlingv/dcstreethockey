@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.db.models import Q
+from datetime import datetime
 from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
 from django.contrib.admin import SimpleListFilter
 from .filters import MatchupDateFilter, RecentSeasonsFilter, CurrentSeasonWeekFilter
@@ -84,7 +85,20 @@ class MatchUpAdmin(admin.ModelAdmin):
     )
     raw_id_fields = ['hometeam', 'awayteam']
 
-    actions = ['show_all_seasons']
+    list_display = ['week', 'formatted_time', 'awayteam', 'hometeam']
+
+    def formatted_time(self, obj):
+        if obj.time:
+            # Assume the time entered is in Eastern Time
+            try:
+                # Format the time as desired (12-hour clock with AM/PM)
+                return obj.time.strftime('%I:%M %p')
+            except ValueError:
+                # If formatting fails, return the original time string
+                return obj.time
+        return None
+
+    formatted_time.short_description = 'Time'
 
     def show_all_seasons(self, request, queryset):
         return queryset
@@ -111,6 +125,13 @@ class MatchUpAdmin(admin.ModelAdmin):
                 except MatchUp.DoesNotExist:
                     print("Could not find the matchup to filter weeks.")
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
+
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        formfield = super().formfield_for_dbfield(db_field, **kwargs)
+        if db_field.name == 'time':
+            # Customize the form field widget for the 'time' field to display time in 12-hour format with AM/PM
+            formfield.widget.format = '%I:%M %p'
+        return formfield
 
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
