@@ -6,9 +6,8 @@ class RecentSeasonsFilter(SimpleListFilter):
     parameter_name = 'season'
 
     def lookups(self, request, model_admin):
-        seasons = Season.objects.all().order_by('-year', '-season_type')
-        recent_seasons = seasons[:5]
-        lookups = [(season.id, f"{season.year} {season.get_season_type_display()}") for season in recent_seasons]
+        seasons = Season.objects.all().order_by('-year', '-season_type')[:5]  # Limit to most recent 5 seasons
+        lookups = [(season.id, f"{season.year} {season.get_season_type_display()}") for season in seasons]
         lookups.append(('all', 'All Seasons'))
         return lookups
 
@@ -18,7 +17,6 @@ class RecentSeasonsFilter(SimpleListFilter):
         elif self.value():
             return queryset.filter(week__season_id=self.value())
         return queryset.filter(week__season__in=Season.objects.all().order_by('-year', '-season_type')[:5])
-
 
 class CurrentSeasonWeekFilter(SimpleListFilter):
     title = 'week'

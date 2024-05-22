@@ -1,28 +1,40 @@
 from django.contrib import admin
-from django.db.models import Q
-from datetime import datetime
+from django.db.models import Q, Max
 from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
-from django.contrib.admin import SimpleListFilter
+from django.utils.http import urlencode
+from django.urls import reverse
+from django.shortcuts import redirect
+
 from .filters import MatchupDateFilter, RecentSeasonsFilter, CurrentSeasonWeekFilter
 
 def get_current_season():
-    return Season.objects.filter(is_current_season=True).first()
+    try:
+        current_season_instance = Season.objects.filter(is_current_season=True).first()
+        return current_season_instance
+    except Season.DoesNotExist:
+        return None
+    
+def get_current_season_for_division(division_id):
+    try:
+        # Find the max year for the given division
+        max_year = Season.objects.filter(
+            team__division_id=division_id
+        ).aggregate(max_year=Max('year'))['max_year']
 
-class CurrentSeasonFilter(SimpleListFilter):
-    title = 'current season'
-    parameter_name = 'current_season'
+        # Find the max season_type for the max year
+        max_season_type = Season.objects.filter(
+            team__division_id=division_id,
+            year=max_year
+        ).aggregate(max_season_type=Max('season_type'))['max_season_type']
 
-    def lookups(self, request, model_admin):
-        return (
-            ('yes', 'Current Season'),
+        # Get the current season instance
+        current_season_instance = Season.objects.get(
+            year=max_year,
+            season_type=max_season_type
         )
-
-    def queryset(self, request, queryset):
-        if self.value() == 'yes':
-            current_season = get_current_season()
-            if current_season:
-                return queryset.filter(week__season=current_season)
-        return queryset
+        return current_season_instance
+    except Season.DoesNotExist:
+        return None
 
 class RosterInline(admin.TabularInline):
     model = Roster
@@ -55,8 +67,8 @@ class StatInline(admin.TabularInline):
                 match = MatchUp.objects.select_related('hometeam', 'awayteam', 'week__season').get(id=match_id)
                 if db_field.name == "player":
                     kwargs['queryset'] = Player.objects.filter(
-                        Q(roster__team__in=[match.hometeam, match.awayteam]) &
-                        Q(roster__team__season=match.week.season) |
+                        (Q(roster__team__in=[match.hometeam, match.awayteam]) &
+                         Q(roster__team__season=match.week.season)) |
                         Q(roster__position1=4) | Q(roster__position2=4)
                     ).distinct()
                 elif db_field.name == "team":
@@ -69,51 +81,42 @@ class StatInline(admin.TabularInline):
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
 class MatchUpAdmin(admin.ModelAdmin):
-    list_select_related = (
-        'hometeam',
-        'awayteam',
-        'week',
-    )
-    inlines = [
-        StatInline,
-    ]
-    list_filter = (
-        ('week__division', admin.RelatedOnlyFieldListFilter),
-        RecentSeasonsFilter,
-        MatchupDateFilter,
-        CurrentSeasonFilter,
-    )
+    list_select_related = ('hometeam', 'awayteam', 'week',)
+    inlines = [StatInline,]
+    list_filter = ('week__division', 'week__season')
     raw_id_fields = ['hometeam', 'awayteam']
-
     list_display = ['week', 'formatted_time', 'awayteam', 'hometeam']
 
     def formatted_time(self, obj):
         if obj.time:
-            # Assume the time entered is in Eastern Time
             try:
-                # Format the time as desired (12-hour clock with AM/PM)
                 return obj.time.strftime('%I:%M %p')
             except ValueError:
-                # If formatting fails, return the original time string
                 return obj.time
         return None
 
     formatted_time.short_description = 'Time'
 
-    def show_all_seasons(self, request, queryset):
-        return queryset
-
-    show_all_seasons.short_description = "Show All Seasons"
-
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.prefetch_related('hometeam', 'awayteam', 'week__season')
+        division_id = request.GET.get('week__division__exact')
+        season_id = request.GET.get('week__season__exact')
+
+        if division_id:
+            qs = qs.filter(week__division_id=division_id)
+            if not season_id:
+                current_season_instance = get_current_season_for_division(division_id)
+                if current_season_instance:
+                    qs = qs.filter(week__season=current_season_instance)
+        elif season_id:
+            qs = qs.filter(week__season_id=season_id)
+
+        return qs
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         if db_field.name in ["hometeam", "awayteam"]:
             kwargs['queryset'] = Team.objects.filter(is_active=True).select_related('division')
         elif db_field.name == "week":
-            # Filter weeks by division and season of the matchup
             matchup_id = request.resolver_match.kwargs.get('object_id')
             if matchup_id:
                 try:
@@ -126,13 +129,15 @@ class MatchUpAdmin(admin.ModelAdmin):
                     print("Could not find the matchup to filter weeks.")
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
-    def formfield_for_dbfield(self, db_field, **kwargs):
-        formfield = super().formfield_for_dbfield(db_field, **kwargs)
-        if db_field.name == 'time':
-            # Customize the form field widget for the 'time' field to display time in 12-hour format with AM/PM
-            formfield.widget.format = '%I:%M %p'
-        return formfield
-
+    def render_change_list(self, request, *args, **kwargs):
+        extra_context = kwargs.get('extra_context', {})
+        # Get the five most recent seasons
+        recent_seasons = Season.objects.order_by('-year', '-season_type')[:5]
+        # Add the recent seasons to the context
+        extra_context['recent_seasons'] = recent_seasons
+        kwargs['extra_context'] = extra_context
+        return super().render_change_list(request, *args, **kwargs)
+    
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
     extra = 4
@@ -144,36 +149,40 @@ class MatchUpInline(admin.TabularInline):
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
 class WeekAdmin(admin.ModelAdmin):
-    list_select_related = (
-        'division',
-        'season',
-    )
-    inlines = [
-        MatchUpInline,
-    ]
-    list_filter = ['season', 'division', CurrentSeasonFilter]
+    list_select_related = ('division', 'season',)
+    inlines = [MatchUpInline,]
+    list_filter = ['season', 'division']
 
     actions = ['show_all_seasons']
 
     def show_all_seasons(self, request, queryset):
         return queryset
-
     show_all_seasons.short_description = "Show All Seasons"
+
+    def changelist_view(self, request, extra_context=None):
+        if not request.GET.get('season__id__exact'):
+            current_season = get_current_season()
+            if current_season:
+                query_string = urlencode({'season__id__exact': current_season.id})
+                url = f"{request.path}?{query_string}"
+                return redirect(url)
+        return super().changelist_view(request, extra_context=extra_context)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        current_season = get_current_season()
-        if current_season:
-            # Filter the queryset to include only the weeks for the current season
-            qs = qs.filter(season=current_season)
-            # Get the matchup ID from the request URL
-            matchup_id = request.resolver_match.kwargs.get('object_id')
-            if matchup_id:
-                # Get the division IDs of the awayteam and hometeam in the selected matchup
-                division_ids = MatchUp.objects.filter(id=matchup_id).values_list('awayteam__division', 'hometeam__division')
-                # Filter the queryset to include only the weeks with divisions matching those of the teams in the matchup
-                qs = qs.filter(division__in=division_ids)
+        season_id = request.GET.get('season__id__exact')
+        if season_id:
+            qs = qs.filter(season_id=season_id)
         return qs
+
+    def render_change_list(self, request, *args, **kwargs):
+        extra_context = kwargs.get('extra_context', {})
+        # Get the five most recent seasons
+        recent_seasons = Season.objects.order_by('-year', '-season_type')[:5]
+        # Add the recent seasons to the context
+        extra_context['recent_seasons'] = recent_seasons
+        kwargs['extra_context'] = extra_context
+        return super().render_change_list(request, *args, **kwargs)
 
 class TeamAdmin(admin.ModelAdmin):
     inlines = [TeamStatInline, RosterInline,]
