@@ -1,20 +1,24 @@
-<table class="table">
-    <tr>
-        <th>Rank</th>
-        <th>Name</th>
-        <th>Total Points</th>
-        <th>Total Goals</th>
-        <th>Total Assists</th>
-    </tr>
-    {% for player in player_ranks %}
-    <tr>
-        <td>{{ player.rank }}</td>
-        <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{ player.id }}')">{{ player.first_name }} {{ player.last_name }}</td>
-        <td>{{ player.total_points }}</td>
-        <td>{{ player.total_goals }}</td>
-        <td>{{ player.total_assists }}</td>
-    {% empty %}
-        <td colspan="5">No Offensive stats yet.</td>
-    {% endfor %}
-    </tr>
+<table class="table playerRankingsTable" id="{{ section_name }}_table">
+    <thead>
+        <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th class="clickable" onclick="sortTable('{{ section_name }}_table', 2)">Total Points</th>
+            <th class="clickable" onclick="sortTable('{{ section_name }}_table', 3)">Total Goals</th>
+            <th class="clickable" onclick="sortTable('{{ section_name }}_table', 4)">Total Assists</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for player in player_ranks %}
+        <tr>
+            <td>{{ player.rank }}</td>
+            <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{ player.id }}')">{{ player.first_name }} {{ player.last_name }}</td>
+            <td>{{ player.total_points }}</td>
+            <td>{{ player.total_goals }}</td>
+            <td>{{ player.total_assists }}</td>
+        {% empty %}
+            <td colspan="5">No Offensive stats yet.</td>
+        {% endfor %}
+        </tr>
+    </tbody>
 </table>
