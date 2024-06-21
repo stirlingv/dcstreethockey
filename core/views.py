@@ -184,57 +184,142 @@ class PlayerStatDetailView(ListView):
 
 def PlayerAllTimeStats_list(request):
     context = {}
-    
+    gender_filter = request.GET.get('gender', 'all')
+
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
-                   sub.id, sub.first_name, sub.last_name, sub.total_goals, 
-                   sub.total_assists, sub.total_points 
-            FROM (
-                SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
-                       SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
-                       (SUM(goals) + SUM(assists)) AS total_points 
-                FROM leagues_stat 
-                JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
-                GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
-                HAVING SUM(goals+assists) > 1 
-            ) sub
-            ORDER BY sub.total_points DESC 
-            LIMIT 100;
-        """)
+        if gender_filter == 'all':
+            query = """
+                SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                       sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                       sub.total_assists, sub.total_points 
+                FROM (
+                    SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                           SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                           (SUM(goals) + SUM(assists)) AS total_points 
+                    FROM leagues_stat 
+                    JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                    GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                    HAVING SUM(goals+assists) > 1 
+                ) sub
+                ORDER BY sub.total_points DESC 
+                LIMIT 100;
+            """
+        elif gender_filter == 'F':
+            query = """
+                SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                       sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                       sub.total_assists, sub.total_points 
+                FROM (
+                    SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                           SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                           (SUM(goals) + SUM(assists)) AS total_points 
+                    FROM leagues_stat 
+                    JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                    WHERE leagues_player.gender = 'F'
+                    GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                    HAVING SUM(goals+assists) > 1 
+                ) sub
+                ORDER BY sub.total_points DESC;
+            """
+        else:
+            query = """
+                SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                       sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                       sub.total_assists, sub.total_points 
+                FROM (
+                    SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                           SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                           (SUM(goals) + SUM(assists)) AS total_points 
+                    FROM leagues_stat 
+                    JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                    WHERE leagues_player.gender = %s
+                    GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                    HAVING SUM(goals+assists) > 1 
+                ) sub
+                ORDER BY sub.total_points DESC 
+                LIMIT 100;
+            """
+        if gender_filter in ['M', 'NB', 'NA']:
+            cursor.execute(query, [gender_filter])
+        else:
+            cursor.execute(query)
         context["all_ranks"] = namedtuplefetchall(cursor)
-    
-    context["d1_ranks"] = get_division_ranks(1)
-    context["d2_ranks"] = get_division_ranks(2)
-    context["draft_ranks"] = get_division_ranks(3)
-    context["mona_ranks"] = get_division_ranks(4)
-    context["monb_ranks"] = get_division_ranks(5)
-        
+
+    context["d1_ranks"] = get_division_ranks(1, gender_filter)
+    context["d2_ranks"] = get_division_ranks(2, gender_filter)
+    context["draft_ranks"] = get_division_ranks(3, gender_filter)
+    context["mona_ranks"] = get_division_ranks(4, gender_filter)
+    context["monb_ranks"] = get_division_ranks(5, gender_filter)
+    context["selected_gender"] = gender_filter
+
     return render(request, "leagues/hof.html", context=context)
 
-def get_division_ranks(division):
+def get_division_ranks(division, gender_filter):
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
-                   sub.id, sub.first_name, sub.last_name, sub.total_goals, 
-                   sub.total_assists, sub.total_points 
-            FROM (
-                SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
-                       SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
-                       (SUM(goals) + SUM(assists)) AS total_points 
-                FROM leagues_stat 
-                JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
-                JOIN leagues_team ON leagues_stat.team_id = leagues_team.id 
-                JOIN leagues_division ON leagues_team.division_id = leagues_division.id 
-                WHERE leagues_division.id = %s 
-                GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
-                HAVING SUM(goals+assists) > 1 
-            ) sub
-            ORDER BY sub.total_points DESC 
-            LIMIT 50;
-        """, [division])
+        if gender_filter == 'all':
+            query = """
+                SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                       sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                       sub.total_assists, sub.total_points 
+                FROM (
+                    SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                           SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                           (SUM(goals) + SUM(assists)) AS total_points 
+                    FROM leagues_stat 
+                    JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                    JOIN leagues_team ON leagues_stat.team_id = leagues_team.id 
+                    JOIN leagues_division ON leagues_team.division_id = leagues_division.id 
+                    WHERE leagues_division.id = %s 
+                    GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                    HAVING SUM(goals+assists) > 1 
+                ) sub
+                ORDER BY sub.total_points DESC 
+                LIMIT 50;
+            """
+            cursor.execute(query, [division])
+        elif gender_filter == 'F':
+            query = """
+                SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                       sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                       sub.total_assists, sub.total_points 
+                FROM (
+                    SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                           SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                           (SUM(goals) + SUM(assists)) AS total_points 
+                    FROM leagues_stat 
+                    JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                    JOIN leagues_team ON leagues_stat.team_id = leagues_team.id 
+                    JOIN leagues_division ON leagues_team.division_id = leagues_division.id 
+                    WHERE leagues_division.id = %s AND leagues_player.gender = 'F'
+                    GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                    HAVING SUM(goals+assists) > 1 
+                ) sub
+                ORDER BY sub.total_points DESC;
+            """
+            cursor.execute(query, [division])
+        else:
+            query = """
+                SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                       sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                       sub.total_assists, sub.total_points 
+                FROM (
+                    SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                           SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                           (SUM(goals) + SUM(assists)) AS total_points 
+                    FROM leagues_stat 
+                    JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                    JOIN leagues_team ON leagues_stat.team_id = leagues_team.id 
+                    JOIN leagues_division ON leagues_team.division_id = leagues_division.id 
+                    WHERE leagues_division.id = %s AND leagues_player.gender = %s
+                    GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                    HAVING SUM(goals+assists) > 1 
+                ) sub
+                ORDER BY sub.total_points DESC 
+                LIMIT 50;
+            """
+            cursor.execute(query, [division, gender_filter])
         return namedtuplefetchall(cursor)
-
+    
 def get_player_stats(players, season):
     stat_filters = Q(stat__isnull=True) | Q(stat__matchup__is_postseason=False) if season != 0 else Q(stat__team__is_active=True)
     
