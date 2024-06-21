@@ -183,46 +183,57 @@ class PlayerStatDetailView(ListView):
         return context
 
 def PlayerAllTimeStats_list(request):
-    context={}
-    rank_list =[]
+    context = {}
+    
     with connection.cursor() as cursor:
-        cursor.execute("select rank () over (order by total_points desc) as rank, \
-                        sub.id, sub.first_name, sub.last_name, sub.total_goals, sub.total_assists, sub.total_points \
-                        from( Select \
-                        leagues_player.id, leagues_player.first_name, leagues_player.last_name, sum(goals) as total_goals, \
-                        sum(assists) as total_assists, (sum(goals) + sum(assists)) as total_points \
-                        from leagues_stat join leagues_player on leagues_stat.player_id = leagues_player.id \
-                        group by leagues_player.id, leagues_player.first_name, leagues_player.last_name \
-                        having sum(goals+assists)>1 ) sub\
-                        order by sub.total_points desc limit 100;")
-        rank_list = namedtuplefetchall(cursor)
-        context["all_ranks"] = rank_list
-        context["d1_ranks"] = get_division_ranks(1)
-        context["d2_ranks"] = get_division_ranks(2)
-        context["draft_ranks"] = get_division_ranks(3)
-        context["mona_ranks"] = get_division_ranks(4)
-        context["monb_ranks"] = get_division_ranks(5)
+        cursor.execute("""
+            SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                   sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                   sub.total_assists, sub.total_points 
+            FROM (
+                SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                       SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                       (SUM(goals) + SUM(assists)) AS total_points 
+                FROM leagues_stat 
+                JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                HAVING SUM(goals+assists) > 1 
+            ) sub
+            ORDER BY sub.total_points DESC 
+            LIMIT 100;
+        """)
+        context["all_ranks"] = namedtuplefetchall(cursor)
+    
+    context["d1_ranks"] = get_division_ranks(1)
+    context["d2_ranks"] = get_division_ranks(2)
+    context["draft_ranks"] = get_division_ranks(3)
+    context["mona_ranks"] = get_division_ranks(4)
+    context["monb_ranks"] = get_division_ranks(5)
         
     return render(request, "leagues/hof.html", context=context)
 
 def get_division_ranks(division):
-    
-    division_rank_list = []
     with connection.cursor() as cursor:
-        cursor.execute("select rank () over (order by total_points desc) as rank, \
-                        sub.id, sub.first_name, sub.last_name, sub.total_goals, sub.total_assists, sub.total_points \
-                        from (Select leagues_player.id, leagues_player.first_name, leagues_player.last_name, sum(goals) as total_goals, \
-                        sum(assists) as total_assists, (sum(goals) + sum(assists)) as total_points \
-                        from leagues_stat \
-                        join leagues_player on leagues_stat.player_id = leagues_player.id \
-                        join leagues_team on leagues_stat.team_id = leagues_team.id \
-                        Join leagues_division on leagues_team.division_id=leagues_division.id \
-                        Where leagues_division.id = %s \
-                        group by leagues_player.id, leagues_player.first_name, leagues_player.last_name \
-                        having sum(goals+assists)>1 ) sub \
-                        order by sub.total_points desc limit 50;", [division])
-        division_rank_list = namedtuplefetchall(cursor)
-    return division_rank_list
+        cursor.execute("""
+            SELECT rank () OVER (ORDER BY total_points DESC) AS rank, 
+                   sub.id, sub.first_name, sub.last_name, sub.total_goals, 
+                   sub.total_assists, sub.total_points 
+            FROM (
+                SELECT leagues_player.id, leagues_player.first_name, leagues_player.last_name, 
+                       SUM(goals) AS total_goals, SUM(assists) AS total_assists, 
+                       (SUM(goals) + SUM(assists)) AS total_points 
+                FROM leagues_stat 
+                JOIN leagues_player ON leagues_stat.player_id = leagues_player.id 
+                JOIN leagues_team ON leagues_stat.team_id = leagues_team.id 
+                JOIN leagues_division ON leagues_team.division_id = leagues_division.id 
+                WHERE leagues_division.id = %s 
+                GROUP BY leagues_player.id, leagues_player.first_name, leagues_player.last_name 
+                HAVING SUM(goals+assists) > 1 
+            ) sub
+            ORDER BY sub.total_points DESC 
+            LIMIT 50;
+        """, [division])
+        return namedtuplefetchall(cursor)
 
 def get_player_stats(players, season):
     stat_filters = Q(stat__isnull=True) | Q(stat__matchup__is_postseason=False) if season != 0 else Q(stat__team__is_active=True)
@@ -295,7 +306,7 @@ def get_player_stats(players, season):
             output_field=DecimalField(max_digits=10, decimal_places=2)
         )
     )
-    
+
 def get_stats_for_matchup(match):
     return Stat.objects.filter(matchup=match).exclude(
             Q(goals=None) & Q(assists=None)).exclude(
