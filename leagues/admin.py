@@ -1,5 +1,7 @@
+from dal import autocomplete
 from django.contrib import admin
 from django.db.models import Q, Max
+from django import forms
 from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
 from django.utils.http import urlencode
 from django.urls import reverse
@@ -36,10 +38,18 @@ def get_current_season_for_division(division_id):
     except Season.DoesNotExist:
         return None
 
+class RosterInlineForm(forms.ModelForm):
+    class Meta:
+        model = Roster
+        fields = '__all__'
+        widgets = {
+            'player': autocomplete.ModelSelect2(url='leagues:player-autocomplete')
+        }
+
 class RosterInline(admin.TabularInline):
     model = Roster
+    form = RosterInlineForm
     extra = 1
-    raw_id_fields = ['player']
 
 class TeamStatInline(admin.TabularInline):
     model = Team_Stat
@@ -185,7 +195,7 @@ class WeekAdmin(admin.ModelAdmin):
         return super().render_change_list(request, *args, **kwargs)
 
 class TeamAdmin(admin.ModelAdmin):
-    inlines = [TeamStatInline, RosterInline,]
+    inlines = [RosterInline]
     list_filter = ['is_active', 'division', 'season']
     save_as = True
     raw_id_fields = ['division', 'season']
