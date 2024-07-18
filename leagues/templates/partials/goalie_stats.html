@@ -8,7 +8,6 @@
     </tr>
     {% for player in player_list %}
         {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
-            {%if player.sum_games_played >= 3%}
             <tr>
                 <td class="clickable" onclick="handleTeam('/leagues/player/{{ player.id }}')">
                     {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
@@ -18,7 +17,6 @@
                 <td>{{ player.sum_games_played }}</td>
                 <td>{{ player.sum_goals_against }}</td>
             </tr>
-            {% endif %}
         {% endif %}
     {% empty %}
         <tr>

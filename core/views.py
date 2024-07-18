@@ -173,7 +173,7 @@ class PlayerStatDetailView(ListView):
             players = Player.objects.filter(roster__team__division=div).select_related('roster__team')
             player_stats = get_player_stats(players, context['active_season']).filter(
                 sum_games_played__gte=1).order_by(
-                '-total_points', '-sum_goals', '-sum_assists', 'rounded_average_goals_against'
+                'rounded_average_goals_against', '-total_points', '-sum_goals', '-sum_assists'
             )
             context['player_stat_list'][str(div)] = player_stats
             # # Print only the desired values in descending order
