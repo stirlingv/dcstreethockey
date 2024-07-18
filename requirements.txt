@@ -22,7 +22,6 @@ docutils==0.15.2
 gunicorn==22.0.0
 h11==0.14.0
 idna==3.7
-install
 jmespath==0.10.0
 oauthlib==3.2.2
 packaging==24.0
