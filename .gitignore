@@ -17,3 +17,4 @@ virtualenve
 db_migration_scripts/*
 *.vscode
 venv/
+*.log

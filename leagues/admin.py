@@ -2,6 +2,7 @@ from dal import autocomplete
 from django.contrib import admin
 from django.db.models import Q, Max
 from django import forms
+from .forms import MatchUpForm
 from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
 from django.utils.http import urlencode
 from django.urls import reverse
@@ -91,6 +92,7 @@ class StatInline(admin.TabularInline):
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
 class MatchUpAdmin(admin.ModelAdmin):
+    form = MatchUpForm
     list_select_related = ('hometeam', 'awayteam', 'week',)
     inlines = [StatInline,]
     list_filter = ('week__division', 'week__season')
@@ -147,9 +149,10 @@ class MatchUpAdmin(admin.ModelAdmin):
         extra_context['recent_seasons'] = recent_seasons
         kwargs['extra_context'] = extra_context
         return super().render_change_list(request, *args, **kwargs)
-    
+
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
+    form = MatchUpForm
     extra = 4
     raw_id_fields = ['awayteam', 'hometeam']
 
