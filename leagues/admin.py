@@ -198,7 +198,7 @@ class WeekAdmin(admin.ModelAdmin):
         return super().render_change_list(request, *args, **kwargs)
 
 class TeamAdmin(admin.ModelAdmin):
-    inlines = [RosterInline]
+    inlines = [TeamStatInline, RosterInline]
     list_filter = ['is_active', 'division', 'season']
     save_as = True
     raw_id_fields = ['division', 'season']
