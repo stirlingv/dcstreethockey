@@ -1,12 +1,17 @@
-from dal import autocomplete
-from django.contrib import admin
-from django.db.models import Q, Max
+# leagues/admin.py
 from django import forms
-from .forms import MatchUpForm
-from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
+from django.contrib import admin
+from django.db import models
+from django.db.models import Q, Max
 from django.utils.http import urlencode
 from django.urls import reverse
 from django.shortcuts import redirect
+
+from dal import autocomplete
+from .forms import MatchUpForm
+from .fields import TwelveHourTimeField
+from .widgets import Time12HourWidget
+from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
 
 from .filters import MatchupDateFilter, RecentSeasonsFilter, CurrentSeasonWeekFilter
 
@@ -16,21 +21,18 @@ def get_current_season():
         return current_season_instance
     except Season.DoesNotExist:
         return None
-    
+
 def get_current_season_for_division(division_id):
     try:
-        # Find the max year for the given division
         max_year = Season.objects.filter(
             team__division_id=division_id
         ).aggregate(max_year=Max('year'))['max_year']
 
-        # Find the max season_type for the max year
         max_season_type = Season.objects.filter(
             team__division_id=division_id,
             year=max_year
         ).aggregate(max_season_type=Max('season_type'))['max_season_type']
 
-        # Get the current season instance
         current_season_instance = Season.objects.get(
             year=max_year,
             season_type=max_season_type
@@ -99,6 +101,10 @@ class MatchUpAdmin(admin.ModelAdmin):
     raw_id_fields = ['hometeam', 'awayteam']
     list_display = ['week', 'formatted_time', 'awayteam', 'hometeam']
 
+    formfield_overrides = {
+        models.TimeField: {'form_class': TwelveHourTimeField, 'widget': Time12HourWidget},
+    }
+
     def formatted_time(self, obj):
         if obj.time:
             try:
@@ -115,13 +121,15 @@ class MatchUpAdmin(admin.ModelAdmin):
         season_id = request.GET.get('week__season__exact')
 
         if division_id:
-            qs = qs.filter(week__division_id=division_id)
-            if not season_id:
-                current_season_instance = get_current_season_for_division(division_id)
-                if current_season_instance:
-                    qs = qs.filter(week__season=current_season_instance)
+            current_season_instance = get_current_season_for_division(division_id)
+            if current_season_instance:
+                qs = qs.filter(week__season=current_season_instance)
         elif season_id:
             qs = qs.filter(week__season_id=season_id)
+        else:
+            current_season = get_current_season()
+            if current_season:
+                qs = qs.filter(week__season=current_season)
 
         return qs
 
@@ -143,9 +151,7 @@ class MatchUpAdmin(admin.ModelAdmin):
 
     def render_change_list(self, request, *args, **kwargs):
         extra_context = kwargs.get('extra_context', {})
-        # Get the five most recent seasons
         recent_seasons = Season.objects.order_by('-year', '-season_type')[:5]
-        # Add the recent seasons to the context
         extra_context['recent_seasons'] = recent_seasons
         kwargs['extra_context'] = extra_context
         return super().render_change_list(request, *args, **kwargs)
@@ -155,6 +161,17 @@ class MatchUpInline(admin.TabularInline):
     form = MatchUpForm
     extra = 4
     raw_id_fields = ['awayteam', 'hometeam']
+
+    formfield_overrides = {
+        models.TimeField: {'form_class': TwelveHourTimeField, 'widget': Time12HourWidget},
+    }
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        current_season = get_current_season()
+        if current_season:
+            qs = qs.filter(week__season=current_season)
+        return qs
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         if db_field.name in ["awayteam", "hometeam"]:
@@ -186,13 +203,15 @@ class WeekAdmin(admin.ModelAdmin):
         season_id = request.GET.get('season__id__exact')
         if season_id:
             qs = qs.filter(season_id=season_id)
+        else:
+            current_season = get_current_season()
+            if current_season:
+                qs = qs.filter(season=current_season)
         return qs
 
     def render_change_list(self, request, *args, **kwargs):
         extra_context = kwargs.get('extra_context', {})
-        # Get the five most recent seasons
         recent_seasons = Season.objects.order_by('-year', '-season_type')[:5]
-        # Add the recent seasons to the context
         extra_context['recent_seasons'] = recent_seasons
         kwargs['extra_context'] = extra_context
         return super().render_change_list(request, *args, **kwargs)
@@ -228,6 +247,10 @@ class PlayerPhotoAdmin(admin.ModelAdmin):
 
 admin.site.register(Player, PlayerAdmin)
 admin.site.register(Team, TeamAdmin)
-admin.site.register(MatchUp, MatchUpAdmin)
 admin.site.register(Week, WeekAdmin)
 admin.site.register(Season, SeasonAdmin)
+admin.site.register(Division)
+admin.site.register(Roster)
+admin.site.register(Team_Stat)
+admin.site.register(MatchUp, MatchUpAdmin)
+admin.site.register(Stat)

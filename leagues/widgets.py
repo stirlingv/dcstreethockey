@@ -1,6 +1,5 @@
 # leagues/widgets.py
 from django import forms
-from django.utils.safestring import mark_safe
 import datetime
 
 class Time12HourWidget(forms.TimeInput):
@@ -10,19 +9,25 @@ class Time12HourWidget(forms.TimeInput):
     def render(self, name, value, attrs=None, renderer=None):
         if isinstance(value, str):
             try:
-                value = datetime.datetime.strptime(value, '%H:%M').time()
+                value = datetime.datetime.strptime(value, '%H:%M:%S').time()  # Handle value from the database
             except ValueError:
-                pass
-        elif value is not None and not isinstance(value, str):
+                try:
+                    value = datetime.datetime.strptime(value, '%I:%M %p').time()
+                except ValueError:
+                    pass
+        elif value is not None:
             value = value.strftime('%I:%M %p')
         return super().render(name, value, attrs, renderer)
     
     def format_value(self, value):
         if isinstance(value, str):
             try:
-                value = datetime.datetime.strptime(value, '%H:%M').time()
+                value = datetime.datetime.strptime(value, '%H:%M:%S').time()  # Handle value from the database
             except ValueError:
-                return value
+                try:
+                    value = datetime.datetime.strptime(value, '%I:%M %p').time()
+                except ValueError:
+                    return value
         if value is None:
             return ''
         return value.strftime('%I:%M %p')
