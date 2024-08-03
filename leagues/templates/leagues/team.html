@@ -8,15 +8,16 @@
 <div id="content-wrapper" class="team">
 	<div id="content">
 		<div class="container">
-            {% if team.team_photo %}
-            <img class="teampic" src="{{MEDIA_URL}}{{team.team_photo.photo}}">
-            {% endif %}
+            
             <div class="title">
                 {% if team.season.year < 2022 %}
                     {{team.team_name}} ({{team.wins}}-{{team.losses}}-{{team.ties}})
                 {% else %}
                     {{team.team_name}} ({{team.wins}}-{{team.otw}}-{{team.otl}}-{{team.losses}})
                 {% endif %}
+                    {% if team.team_photo %}
+                    <img class="teampic" src="{{MEDIA_URL}}{{team.team_photo.photo}}">
+                    {% endif %}
             </div>
             <h3 class="division">{{team.division}}</h3>
             <div class="cleardiv">
