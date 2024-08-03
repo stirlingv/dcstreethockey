@@ -12,8 +12,10 @@ from .forms import MatchUpForm
 from .fields import TwelveHourTimeField
 from .widgets import Time12HourWidget
 from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
+import logging
 
-from .filters import MatchupDateFilter, RecentSeasonsFilter, CurrentSeasonWeekFilter
+logger = logging.getLogger(__name__)
+
 
 def get_current_season():
     try:
@@ -121,17 +123,16 @@ class MatchUpAdmin(admin.ModelAdmin):
         season_id = request.GET.get('week__season__exact')
 
         if division_id:
-            current_season_instance = get_current_season_for_division(division_id)
-            if current_season_instance:
-                qs = qs.filter(week__season=current_season_instance)
+            qs = qs.filter(week__division_id=division_id)
+            if not season_id:
+                current_season_instance = get_current_season_for_division(division_id)
+                if current_season_instance:
+                    qs = qs.filter(week__season=current_season_instance)
         elif season_id:
             qs = qs.filter(week__season_id=season_id)
-        else:
-            current_season = get_current_season()
-            if current_season:
-                qs = qs.filter(week__season=current_season)
 
         return qs
+
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         if db_field.name in ["hometeam", "awayteam"]:
@@ -168,20 +169,21 @@ class MatchUpInline(admin.TabularInline):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        current_season = get_current_season()
-        if current_season:
-            qs = qs.filter(week__season=current_season)
+        # Get the week_id from the URL parameters
+        week_id = request.resolver_match.kwargs.get('object_id')
+        if week_id:
+            qs = qs.filter(week_id=week_id)
+        else:
+            current_season = get_current_season()
+            if current_season:
+                qs = qs.filter(week__season=current_season)
+        logger.debug(f"MatchUpInline queryset: {qs.query}")
         return qs
-
-    def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
-        if db_field.name in ["awayteam", "hometeam"]:
-            kwargs['queryset'] = Team.objects.filter(is_active=True).select_related('division')
-        return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
 class WeekAdmin(admin.ModelAdmin):
     list_select_related = ('division', 'season',)
     inlines = [MatchUpInline,]
-    list_filter = ['season', 'division']
+    list_filter = ['division','season']
 
     actions = ['show_all_seasons']
 
@@ -203,10 +205,6 @@ class WeekAdmin(admin.ModelAdmin):
         season_id = request.GET.get('season__id__exact')
         if season_id:
             qs = qs.filter(season_id=season_id)
-        else:
-            current_season = get_current_season()
-            if current_season:
-                qs = qs.filter(season=current_season)
         return qs
 
     def render_change_list(self, request, *args, **kwargs):
@@ -215,7 +213,7 @@ class WeekAdmin(admin.ModelAdmin):
         extra_context['recent_seasons'] = recent_seasons
         kwargs['extra_context'] = extra_context
         return super().render_change_list(request, *args, **kwargs)
-
+    
 class TeamAdmin(admin.ModelAdmin):
     inlines = [TeamStatInline, RosterInline]
     list_filter = ['is_active', 'division', 'season']
