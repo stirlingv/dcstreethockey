@@ -72,12 +72,46 @@
 					$('#titleBar, #navPanel, #page-wrapper')
 						.css('transition', 'none');
 
+		// Image Modal Functionality
+		const images = document.querySelectorAll('.resizable-image');
+		const modal = document.createElement('div');
+		const modalImg = document.createElement('img');
+		const closeBtn = document.createElement('span');
+
+		modal.className = 'image-modal';
+		modalImg.className = 'image-modal-content';
+		closeBtn.className = 'close-modal';
+		closeBtn.innerHTML = '&times;';
+
+		modal.appendChild(modalImg);
+		modal.appendChild(closeBtn);
+		document.body.appendChild(modal);
+
+		images.forEach(image => {
+			image.addEventListener('click', function() {
+				modal.style.display = 'block';
+				modalImg.src = this.src;
+			});
+		});
+
+		closeBtn.addEventListener('click', function() {
+			modal.style.display = 'none';
+		});
+
+		modal.addEventListener('click', function(e) {
+			if (e.target !== modalImg) {
+				modal.style.display = 'none';
+			}
+		});
+
 	});
 
 })(jQuery);
+
 function handleTeam(dest){
     window.location = dest;
 }
+
 function togglePlayersTable(id) {
     var playersTable = document.getElementById("playerstatsection-"+id);
     var showall = playersTable.className.includes("shorttable");
