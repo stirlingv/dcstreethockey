@@ -9,7 +9,7 @@
 	<div id="content">
 		<div class="container">
             {% if team.team_photo %}
-            <img class="teampic" src="{{MEDIA_URL}}{{team.team_photo.photo}}">
+            <img class="resizable-image" src="{{MEDIA_URL}}{{team.team_photo.photo}}">
             {% endif %}
             <div class="title">
                 {% if team.season.year < 2022 %}

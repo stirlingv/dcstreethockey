@@ -10,7 +10,7 @@
 		<div class="container">
             {% for player_info in player %}
                 {% if player_info.player_photo %}
-                    <img class="teampic" src="{{MEDIA_URL}}{{player.player_photo.photo}}">
+                    <img class="resizable-image" src="{{MEDIA_URL}}{{player.player_photo.photo}}">
                 {% endif %}
                 <div class="title">
                         {{player_info.first_name}} {{player_info.last_name}} 

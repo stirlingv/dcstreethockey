@@ -419,12 +419,6 @@ section .game:first-of-type{
     width: 35%;
 }
 
-.teampic {
-    display: block;
-    max-width: 480px;
-    width: 98%;
-    margin: 0 auto;
-}
 
 .cleardiv{
     clear:right;
