@@ -1,32 +1,31 @@
+{% load static %}
 <div id="header-wrapper">
+    <header id="header" class="container">
+        <div class="row">
+            <div class="12u">
+                <!-- Logo -->
+                <h1>
+					<a href="{% url 'home' %}" id="logo">
+						{% if homepage_logo %}
+							<img class="desktop-logo" src="{{ homepage_logo.url }}" alt="">
+						{% else %}
+							<img class="desktop-logo" src="{% static 'images/DCSH_Final_Website_FB.jpg' %}" alt="">
+						{% endif %}
 
-	<header id="header" class="container">
-		<div class="row">
-			<div class="12u">
-			
-				<!-- Logo -->
-				<h1>
-                    <a href="{% url 'home' %}" id="logo">
-                        <img class="desktop-logo" src="{{ MEDIA_URL }}{{ homepage.logo }}" alt="">
-                        DC Street Hockey
-                    </a>
-                </h1>
+						DC Street Hockey
+					</a>
+				</h1>				
 
-					<!-- <a href="#" class="button-big">Go on, click me!</a> -->
-					<nav id="nav">
-
-					<a href="{% url 'leagues:team_standings' %}">Standings</a>
-					<a href="{% url 'leagues:player_stats' %}">League Leaders</a>
-					<a href="{% url 'leagues:hof' %}">Hall Of Fame</a>
-					<a href="{% url 'leagues:scores' %}">Scores</a>
-					<a href="{% url 'leagues:schedule' %}">Schedule</a>
-					<a href="{% url 'leagues:cups' %}">Championships</a>
-					<a href="https://forms.gle/w68fCbHrVq8iXBBA9" target="_blank">Sign Up!</a>
-					</nav>
-
-			</div>
-
-		</div>
-	</header>
-	
+                <nav id="nav">
+                    <a href="{% url 'leagues:schedule' %}">Schedule</a>
+                    <a href="{% url 'leagues:team_standings' %}">Standings</a>
+                    <a href="{% url 'leagues:player_stats' %}">League Leaders</a>
+                    <a href="{% url 'leagues:hof' %}">Hall Of Fame</a>
+                    <a href="{% url 'leagues:scores' %}">Scores</a>
+                    <a href="{% url 'leagues:cups' %}">Championships</a>
+                    <a href="https://forms.gle/w68fCbHrVq8iXBBA9" target="_blank">Sign Up!</a>
+                </nav>
+            </div>
+        </div>
+    </header>
 </div>
