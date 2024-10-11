@@ -36,7 +36,7 @@
 
 1. ```./manage.py makemigrations```
 1. ```./manage.py migrate```
-1. ```git push origin master```
+1. ```git push origin main```
 
 ## [OUTDATED] Ensure DJANGO_SETTINGS_MODULE is set for production deployments
 
