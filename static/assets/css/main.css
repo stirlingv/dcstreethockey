@@ -29,6 +29,30 @@
 .table .stat-column {
 	width: 7%; /* Adjust as needed to make the other columns smaller and of equal size */
 }
+/* Style for the playerRankingsTable */
+.playerRankingsTable {
+    width: 100%;
+    border-collapse: collapse; /* Ensures the table borders are collapsed */
+}
+
+.playerRankingsTable th, .playerRankingsTable td {
+    padding: 2px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Ensure the headers align with the data */
+.playerRankingsTable th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+	text-align: center; /* Center the headers */
+}
+
+/* Center the data cells under the headers */
+.playerRankingsTable td {
+    text-align: center;
+}
+
 /* Style for the team-stats-table columns */
 .team-stats-table {
     width: 100%;
