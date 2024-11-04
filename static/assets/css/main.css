@@ -29,7 +29,31 @@
 .table .stat-column {
 	width: 7%; /* Adjust as needed to make the other columns smaller and of equal size */
 }
+/* Style for the team-stats-table columns */
+.team-stats-table {
+    width: 100%;
+    table-layout: auto; /* Allows the table to adjust column widths based on content */
+}
 
+.team-stats-table th, .team-stats-table td {
+    padding: 2px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+/* Style for the team name column */
+.team-stats-table .team-name {
+    max-width: 51%; /* Max width for the team name column */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Style for the stat columns */
+.team-stats-table .stat-column {
+    min-width: 7%; /* Min width for the other columns */
+    text-align: center;
+}
 /* Reset */
 
 	html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, big, cite, code, del, dfn, em, img, ins, kbd, q, s, samp, small, strike, strong, sub, sup, tt, var, b, u, i, center, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, canvas, details, embed, figure, figcaption, footer, header, hgroup, menu, nav, output, ruby, section, summary, time, mark, audio, video {
