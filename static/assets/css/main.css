@@ -1368,6 +1368,12 @@
 					padding-right: 1em;
 					margin: 0 0 1em 0;
 				}
+				#banner .banner-logo-container {
+					flex: 0 0 auto;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+				}
 
 		/* Features */
 

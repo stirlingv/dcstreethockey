@@ -1,15 +1,17 @@
+{% load static %}
 <div id="header-wrapper">
     <div id="banner">
         <div class="container">
             <div class="row">
-                {% comment %} <div class="6u 12u(mobile)">
-                    <!-- Banner Image -->
-                    <a href="#" class="bordered-feature-image"><img src="{{MEDIA_URL}}{{homepage.logo}}" alt="" /></a>
-                </div> {% endcomment %}
                 <div class="6u 12u(mobile)">
-                    <p>Welcome to DC Street Hockey</p>
-                    <p>{{homepage.announcement}}</p>
-                    <a href="https://maps.app.goo.gl/eVUTT3jCLJKBQXEGA" class="button-big" target="_blank">Directions to Rink</a>
+                    <div class="banner-content">
+                        <p>Welcome to DC Street Hockey</p>
+                        <p>{{homepage.announcement}}</p>
+                        <a href="https://maps.app.goo.gl/eVUTT3jCLJKBQXEGA" class="button-big" target="_blank">Directions to Rink</a>
+                    </div>
+                </div>
+                <div class="6u 12u(mobile) banner-logo-container">
+                    <img src="{{ homepage.logo.url }}" alt="Logo" class="banner-logo">
                 </div>
             </div>
         </div>
