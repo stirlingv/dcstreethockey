@@ -33,5 +33,17 @@
     function handleSeason(dest) {
         window.location = dest;
     }
+
+    function toggleTable(division) {
+        const section = document.getElementById(`playerstatsection-${division}`);
+        const expand = document.getElementById(`ex-${division}`);
+        if (section.classList.contains('expanded')) {
+            section.classList.remove('expanded');
+            expand.innerHTML = 'v'; // Down arrow when collapsed
+        } else {
+            section.classList.add('expanded');
+            expand.innerHTML = '^'; // Up arrow when expanded
+        }
+    }
 </script>
 {% endblock %}
