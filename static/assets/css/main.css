@@ -19,7 +19,7 @@
 }
 /* Style for the team name column */
 .table .team-name, .table .player-name {
-	width: 40%; /* Adjust as needed to make the team name column larger */
+	width: 35%; /* Adjust as needed to make the team name column larger */
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -27,7 +27,7 @@
 }
 /* Style for the stat columns */
 .table .stat-column {
-	width: 7%; /* Adjust as needed to make the other columns smaller and of equal size */
+	width: 10%; /* Adjust as needed to make the other columns smaller and of equal size */
 }
 /* Style for the playerRankingsTable */
 .playerRankingsTable {
