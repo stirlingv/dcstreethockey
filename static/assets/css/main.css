@@ -28,6 +28,7 @@
 /* Style for the stat columns */
 .table .stat-column {
 	width: 10%; /* Adjust as needed to make the other columns smaller and of equal size */
+	text-align: center;
 }
 /* Style for the playerRankingsTable */
 .playerRankingsTable {
