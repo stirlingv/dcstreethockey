@@ -30,6 +30,11 @@
 	width: 10%; /* Adjust as needed to make the other columns smaller and of equal size */
 	text-align: center;
 }
+/* Style for the player-name, team-name, and stat-column headers */
+.table th.team-name, .table th.player-name, .table th.stat-column {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
 /* Style for the playerRankingsTable */
 .playerRankingsTable {
     width: 100%;
@@ -78,6 +83,13 @@
 .team-stats-table .stat-column {
     min-width: 7%; /* Min width for the other columns */
     text-align: center;
+}
+
+/* Style for the team-stats-table header columns */
+.team-stats-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+    text-align: center; /* Center the headers */
 }
 /* Reset */
 
