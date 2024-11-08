@@ -24,5 +24,31 @@
         </tr>
     {% endfor %}
 </table>
+<table class="table">
+    <tr>
+        <th class="player-name">Goalie Name</th>
+        <th class="team-name">Team</th>
+        <th class="stat-column">GAA</th>
+        <th class="stat-column">GP</th>
+        <th class="stat-column">GA</th>
+    </tr>
+    {% for player in player_list %}
+        {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
+            <tr>
+                <td class="player-name clickable" onclick="handleTeam('/leagues/player/{{ player.id }}')">
+                    {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
+                </td>
+                <td class="team-name clickable" onclick="handleTeam('/leagues/teams/{{ player.roster__team__id }}')">{{ player.roster__team__team_name }}</td>
+                <td class="stat-column">{{ player.rounded_average_goals_against }}</td>
+                <td class="stat-column">{{ player.sum_games_played }}</td>
+                <td class="stat-column">{{ player.sum_goals_against }}</td>
+            </tr>
+        {% endif %}
+    {% empty %}
+        <tr>
+            <td colspan="5">No goalie stats entered yet.</td>
+        </tr>
+    {% endfor %}
+</table>
 <div class="expand" id="ex-{{ division }}" onclick="toggleTable('{{ division }}')">^</div>
 
