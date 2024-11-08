@@ -28,32 +28,32 @@
                         <div class="12u 12u(mobile)">
                             <table class="table">
                                 <tr>
-                                    <th>Year</th>
-                                    <th>Season</th>
-                                    <th>Team (Record)</th>
-                                    <th>Div</th>
-                                    <th>G</th>
-                                    <th>A</th>
-                                    <th>Pts</th>
+                                    <th class="stat-column">Year</th>
+                                    <th class="stat-column">Season</th>
+                                    <th class="stat-column">Team (Record)</th>
+                                    <th class="stat-column">Div</th>
+                                    <th class="stat-column">G</th>
+                                    <th class="stat-column">A</th>
+                                    <th class="stat-column">Pts</th>
                                 </tr>
                                 {% load helpers %}
                                 {% for stat in offensive_stats %}
                                 <tr>
-                                    <td>{{stat.team__season__year}}</td>
-                                    <td>{{stat.team__season__season_type|season_type}}</td>
-                                    <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
+                                    <td class="stat-column">{{stat.team__season__year}}</td>
+                                    <td class="stat-column">{{stat.team__season__season_type|season_type}}</td>
+                                    <td  class="stat-column clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
                                         {% if stat.team__season__year < 2022 %}
                                             {{stat.team__team_name}} ({{stat.team_wins}} - {{stat.team_losses}} - {{stat.team__team_stat__tie}})
                                         {% else %}
                                             {{stat.team__team_name}} ({{stat.team_wins}} - {{stat.team_otw}}  - {{stat.team_otl}}- {{stat.team_losses}})
                                         {% endif %}
                                     </td>
-                                    <td>{{stat.team__division|division_type}}</td>
-                                    <td>{{stat.sum_goals}}</td>
-                                    <td>{{stat.sum_assists}}</td>
-                                    <td>{{stat.total_points}}</td>
+                                    <td class="stat-column">{{stat.team__division|division_type}}</td>
+                                    <td class="stat-column">{{stat.sum_goals}}</td>
+                                    <td class="stat-column">{{stat.sum_assists}}</td>
+                                    <td class="stat-column">{{stat.total_points}}</td>
                                 {% empty %}
-                                    <td>No Offensive stats yet.</td>
+                                    <td colspan="7">No Offensive stats yet.</td>
                                 {% endfor %}
                                 </tr>
                             </table>
@@ -68,32 +68,32 @@
                     <div class="12u 12u(mobile)">
                         <table class="table">
                             <tr>
-                                <th>Year</th>
-                                <th>Season</th>
-                                <th>Team Name (Record)</th>
-                                <th>Div</th>
-                                <th>GAA</th>
-                                <th>GP</th>
-                                <th>GA</th>
+                                <th class="stat-column">Year</th>
+                                <th class="stat-column">Season</th>
+                                <th class="stat-column">Team Name (Record)</th>
+                                <th class="stat-column">Div</th>
+                                <th class="stat-column">GAA</th>
+                                <th class="stat-column">GP</th>
+                                <th class="stat-column">GA</th>
                             </tr>
                             {% load helpers %}
                             {% for stat in goalie_stats %}
                             <tr>
-                                <td>{{stat.team__season__year}}</td>
-                                <td>{{stat.team__season__season_type|season_type}}</td>
-                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
+                                <td class="stat-column">{{stat.team__season__year}}</td>
+                                <td class="stat-column">{{stat.team__season__season_type|season_type}}</td>
+                                <td  class="team-name clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
                                     {% if stat.team__season__year < 2022 %}
                                         {{stat.team__team_name}} ({{stat.team_wins}} - {{stat.team_losses}} - {{stat.team__team_stat__tie}})
                                     {% else %}
                                         {{stat.team__team_name}} ({{stat.team_wins}} - {{stat.team_otw}}  - {{stat.team_otl}}- {{stat.team_losses}})
                                     {% endif %}
                                 </td>
-                                <td>{{stat.team__division|division_type}}</td>
-                                <td>{{stat.average_goals_against|floatformat:2}}</td>
-                                <td>{{stat.sum_games_played}}</td>
-                                <td>{{stat.sum_goals_against}}</td>
+                                <td class="stat-column">{{stat.team__division|division_type}}</td>
+                                <td class="stat-column">{{stat.average_goals_against|floatformat:2}}</td>
+                                <td class="stat-column">{{stat.sum_games_played}}</td>
+                                <td class="stat-column">{{stat.sum_goals_against}}</td>
                             {% empty %}
-                                <td>No Goalie stats yet.</td>
+                                <td colspan="7">No Goalie stats yet.</td>
                             {% endfor %}
                             </tr>
                         </table>
