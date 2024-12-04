@@ -1969,3 +1969,18 @@
 			}
 
 	}
+
+#playerTrendsSnapshot {
+    height: 200px; /* Set a specific height for the canvas */
+}
+
+#playerTrendsChart {
+    height: 400px; /* Set a specific height for the canvas */
+}
+
+.chart-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px; /* Adjust as needed */
+}

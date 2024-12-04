@@ -57,11 +57,17 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: true, // Ensure the aspect ratio is maintained
                 scales: {
                     x: {
                         title: {
                             display: true,
                             text: 'Season'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value.length > 10 ? value.substr(0, 10) + '...' : value;
+                            }
                         }
                     },
                     y: {
