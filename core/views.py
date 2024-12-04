@@ -1,7 +1,8 @@
 import datetime
 from datetime import timedelta
 from collections import OrderedDict, namedtuple
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse, JsonResponse
 
 from django.views.generic.list import ListView
 from django.db.models.functions import Lower, Coalesce
@@ -33,7 +34,7 @@ class MatchUpDetailView(ListView):
 
     def get_queryset(self):
         self._next_week = Week.objects.filter(date__gte=datetime.datetime.today()).order_by('date')
-        if self._next_week:
+        if (self._next_week):
             self._next_week = self._next_week[0]
         else:
             #No upcoming matches so use most recent.
@@ -567,12 +568,33 @@ def player(request, player=0):
     context = {}
     player_id = int(player)
     context['view'] = "player"
-    player = Player.objects.filter(id=player_id)
+    player = get_object_or_404(Player, id=player_id)
     context['player'] = player
     context['career_stats'] = get_career_stats_for_player(player_id)
     context['seasons'] = get_seasons_played(player_id)
     context['goalie_stats'] = get_goalie_stats(player_id)
     context['offensive_stats'] = get_offensive_stats_for_player(player_id)
+
+    # Calculate player trends
+    offensive_stats = Stat.objects.filter(player=player).select_related('team__season').values('team__season__year', 'team__season__season_type').annotate(
+        total_goals=Sum('goals'),
+        total_assists=Sum('assists')
+    ).order_by('team__season__year', 'team__season__season_type')
+    
+    season_mapping = {
+        1: 'Spring',
+        2: 'Summer',
+        3: 'Fall',
+        4: 'Winter'
+    }
+    
+    player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')}" for stat in offensive_stats]
+    player_goals = [stat['total_goals'] for stat in offensive_stats]
+    player_assists = [stat['total_assists'] for stat in offensive_stats]
+
+    context['player_seasons'] = player_seasons
+    context['player_goals'] = player_goals
+    context['player_assists'] = player_assists
 
     return render(request, "leagues/player.html", context=context)
 
@@ -723,3 +745,63 @@ def namedtuplefetchall(cursor):
     desc = cursor.description
     nt_result = namedtuple("Result", [col[0] for col in desc])
     return [nt_result(*row) for row in cursor.fetchall()]
+
+def player_search_view(request):
+    query = request.GET.get('q')
+    timespan = request.GET.get('timespan', '10')  # Default to 10 seasons
+    context = {'view': 'player_search'}
+
+    # Define a mapping of season numbers to season names
+    season_mapping = {
+        1: 'Spring',
+        2: 'Summer',
+        3: 'Fall',
+        4: 'Winter'
+    }
+
+    if query:
+        try:
+            player = get_object_or_404(Player, first_name__icontains=query.split()[0], last_name__icontains=query.split()[1])
+            offensive_stats = Stat.objects.filter(player=player).select_related('team__season').values('team__season__year', 'team__season__season_type', 'team__team_name').annotate(
+                total_goals=Sum('goals'),
+                total_assists=Sum('assists')
+            ).order_by('-team__season__year', '-team__season__season_type')
+            
+            if timespan != 'all':
+                timespan = int(timespan)
+                offensive_stats = offensive_stats[:timespan]
+            
+            player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})" for stat in offensive_stats]
+            player_goals = [stat['total_goals'] for stat in offensive_stats]
+            player_assists = [stat['total_assists'] for stat in offensive_stats]
+
+            context.update({
+                'player': player,
+                'player_seasons': player_seasons,
+                'player_goals': player_goals,
+                'player_assists': player_assists,
+                'timespan': timespan,
+            })
+
+            # Debug statements
+            print(f"Player: {player.first_name} {player.last_name}")
+            print(f"Seasons: {player_seasons}")
+            print(f"Goals: {player_goals}")
+            print(f"Assists: {player_assists}")
+
+        except Exception as e:
+            print(f"Error: {e}")
+
+    return render(request, 'leagues/player_search.html', context=context)
+
+def player_autocomplete(request):
+    if 'term' in request.GET:
+        qs = Player.objects.filter(
+            Q(first_name__icontains=request.GET.get('term')) | 
+            Q(last_name__icontains=request.GET.get('term'))
+        )
+        players = list()
+        for player in qs:
+            players.append(player.first_name + ' ' + player.last_name)
+        return JsonResponse(players, safe=False)
+    return JsonResponse([], safe=False)

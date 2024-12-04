@@ -1,0 +1,88 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block content %}
+<div id="content-wrapper" class="team">
+    <div id="content">
+        <div class="container">
+            <h2>Search for a Player</h2>
+            <form id="playerSearchForm" method="GET" action="{% url 'leagues:player_search' %}">
+                <input type="text" name="q" placeholder="Enter player name" value="{{ request.GET.q }}" required>
+                <label for="timespan">Seasons to Display:</label>
+                <select name="timespan" id="timespan" onchange="document.getElementById('playerSearchForm').submit();">
+                    <option value="5" {% if timespan == 5 %}selected{% endif %}>5</option>
+                    <option value="10" {% if timespan == 10 %}selected{% endif %}>10</option>
+                    <option value="15" {% if timespan == 15 %}selected{% endif %}>15</option>
+                    <option value="20" {% if timespan == 20 %}selected{% endif %}>20</option>
+                    <option value="all" {% if timespan == 'all' %}selected{% endif %}>All</option>
+                </select>
+            </form>
+
+            {% if player %}
+                <h2 class="clickable" onclick="javascript:handleTeam('/leagues/player/{{ player.id }}')">{{ player.first_name }} {{ player.last_name }}</h2>
+                <h3>Player Trends</h3>
+                <canvas id="playerTrendsChart"></canvas>
+            {% else %}
+                <p>No player found or no data available.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if player %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('playerTrendsChart').getContext('2d');
+        var playerTrendsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ player_seasons|safe }}, // List of seasons
+                datasets: [
+                    {
+                        label: 'Goals',
+                        data: {{ player_goals|safe }}, // List of goals per season
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        fill: false
+                    },
+                    {
+                        label: 'Assists',
+                        data: {{ player_assists|safe }}, // List of assists per season
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Season'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Count'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                return tooltipItems[0].label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

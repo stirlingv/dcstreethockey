@@ -10,14 +10,12 @@
 <!-- Latest compiled and minified CSS -->
 
 	<head>
-		<title href="{% url 'home' %}">DC Street Hockey</title>
+		<title href="{% url 'home' %}">{% block title %}DC Street Hockey{% endblock %}</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<!--[if lte IE 8]><script src="{% get_static_prefix %}assets/js/ie/html5shiv.js"></script><![endif]-->
 		<link rel="stylesheet" href="{% get_static_prefix %}assets/css/main.css" />
-		<!--[if lte IE 9]><link rel="stylesheet" href="{% get_static_prefix %}assets/css/ie9.css" /><![endif]-->
-		<!--http://work.smarchal.com/twbscolor/-->
 		<link rel="stylesheet" href="{% get_static_prefix %}assets/css/overwrite.css" />
+		{% block extra_head %}{% endblock %}
 
 	</head>
 
@@ -25,24 +23,20 @@
 		<div id="page-wrapper">
 
 			{% include "core/header.html" %}
-			
 			{% block content %}{% endblock %}
-
 			{% include "core/footer.html" %}
-
 			{% include "core/copywrite.html" %}
-
-
 		</div>
 
 		<!-- Scripts -->
-			<script src="{% get_static_prefix %}assets/js/jquery.min.js"></script>
-			<script src="{% get_static_prefix %}assets/js/skel.min.js"></script>
-			<script src="{% get_static_prefix %}assets/js/skel-viewport.min.js"></script>
-			<script src="{% get_static_prefix %}assets/js/util.js"></script>
-			<!--[if lte IE 8]><script src="{% get_static_prefix %}assets/js/ie/respond.min.js"></script><![endif]-->
-			<script src="{% get_static_prefix %}assets/js/main.js"></script>
-			<script src="{% static 'assets/js/banner.js' %}"></script>
-
+		<script src="{% get_static_prefix %}assets/js/jquery.min.js"></script>
+		<script src="{% get_static_prefix %}assets/js/skel.min.js"></script>
+		<script src="{% get_static_prefix %}assets/js/skel-viewport.min.js"></script>
+		<script src="{% get_static_prefix %}assets/js/util.js"></script>
+		<!--[if lte IE 8]><script src="{% get_static_prefix %}assets/js/ie/respond.min.js"></script><![endif]-->
+		<script src="{% get_static_prefix %}assets/js/main.js"></script>
+		<script src="{% static 'assets/js/banner.js' %}"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+		{% block extra_scripts %}{% endblock %}
 	</body>
 </html>

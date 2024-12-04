@@ -1,10 +1,8 @@
 from django.urls import path, re_path
-from core.views import MatchUpDetailView, TeamStatDetailView, PlayerStatDetailView
-from .autocomplete import PlayerAutocomplete
+from core.views import MatchUpDetailView, TeamStatDetailView, PlayerStatDetailView, player_search_view
 import core.views as core_view
 
 urlpatterns = [
-    path('player-autocomplete/', PlayerAutocomplete.as_view(), name='player-autocomplete'),
     path('roster/', MatchUpDetailView.as_view(), name='rosters'),
     re_path(r'^roster/(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})$', MatchUpDetailView.as_view(), name='rosters'),
     path('team_standings/', TeamStatDetailView.as_view(), name='team_standings'),
@@ -18,6 +16,7 @@ urlpatterns = [
     re_path(r'^scores/(?P<division>[0-9])/$', core_view.scores, name='scores'),
     path('cups/', core_view.cups, name='cups'),
     re_path(r'^cups/(?P<division>[0-9])/$', core_view.cups, name='cups'),
+    path('player_search/', player_search_view, name='player_search'),
 ]
 
 app_name = "leagues"
