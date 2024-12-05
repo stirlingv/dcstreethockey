@@ -747,7 +747,7 @@ def namedtuplefetchall(cursor):
     return [nt_result(*row) for row in cursor.fetchall()]
 
 def player_search_view(request):
-    query = request.GET.get('q')
+    player_id = request.GET.get('player_id')
     timespan = request.GET.get('timespan', '10')  # Default to 10 seasons
     context = {'view': 'player_search'}
 
@@ -758,10 +758,13 @@ def player_search_view(request):
         3: 'Fall',
         4: 'Winter'
     }
-
-    if query:
+    
+    all_players = Player.objects.all()
+    context['all_players'] = all_players
+    
+    if player_id:
         try:
-            player = get_object_or_404(Player, first_name__icontains=query.split()[0], last_name__icontains=query.split()[1])
+            player = get_object_or_404(Player, id=player_id)
             offensive_stats = Stat.objects.filter(player=player).select_related('team__season').values('team__season__year', 'team__season__season_type', 'team__team_name').annotate(
                 total_goals=Sum('goals'),
                 total_assists=Sum('assists')
@@ -770,6 +773,9 @@ def player_search_view(request):
             if timespan != 'all':
                 timespan = int(timespan)
                 offensive_stats = offensive_stats[:timespan]
+            
+            # Reverse the order to display the most recent seasons on the far right
+            offensive_stats = list(offensive_stats)[::-1]
             
             player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})" for stat in offensive_stats]
             player_goals = [stat['total_goals'] for stat in offensive_stats]
@@ -781,6 +787,7 @@ def player_search_view(request):
                 'player_goals': player_goals,
                 'player_assists': player_assists,
                 'timespan': timespan,
+                'player_id': player_id,
             })
 
             # Debug statements
@@ -793,15 +800,3 @@ def player_search_view(request):
             print(f"Error: {e}")
 
     return render(request, 'leagues/player_search.html', context=context)
-
-def player_autocomplete(request):
-    if 'term' in request.GET:
-        qs = Player.objects.filter(
-            Q(first_name__icontains=request.GET.get('term')) | 
-            Q(last_name__icontains=request.GET.get('term'))
-        )
-        players = list()
-        for player in qs:
-            players.append(player.first_name + ' ' + player.last_name)
-        return JsonResponse(players, safe=False)
-    return JsonResponse([], safe=False)

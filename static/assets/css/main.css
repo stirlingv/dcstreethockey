@@ -1970,17 +1970,26 @@
 
 	}
 
-#playerTrendsSnapshot {
-    height: 200px; /* Set a specific height for the canvas */
-}
-
-#playerTrendsChart {
-    height: 400px; /* Set a specific height for the canvas */
-}
-
-.chart-label {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100px; /* Adjust as needed */
-}
+	#playerTrendsSnapshot {
+		height: 200px; /* Set a specific height for the canvas */
+	}
+	
+	#playerTrendsChart {
+		height: 400px; /* Set a specific height for the canvas */
+	}
+	
+	.chart-label {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 100px; /* Adjust as needed */
+	}
+	
+	.custom-dropdown {
+		width: auto;
+		min-width: 100px;
+		max-width: 300px; /* Adjust as needed */
+		padding: 5px;
+		height: auto; /* Ensure both dropdowns are the same height */
+		box-sizing: border-box; /* Include padding and border in the element's total width and height */
+	}

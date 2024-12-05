@@ -30,7 +30,7 @@
                 </div>
                 <div class="4u 12u(mobile)">
                     <h3>Player Trends Snapshot</h3>
-                    <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'leagues:player_search' %}?q={{ player.first_name }}+{{ player.last_name }}'"></canvas>
+                    <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'leagues:player_search' %}?player_id={{ player.id }}'"></canvas>
                 </div>
             </div>
             <section class="rostersection">

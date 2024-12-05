@@ -6,7 +6,12 @@
         <div class="container">
             <h2>Search for a Player</h2>
             <form id="playerSearchForm" method="GET" action="{% url 'leagues:player_search' %}">
-                <input type="text" name="q" placeholder="Enter player name" value="{{ request.GET.q }}" required>
+                <select id="playerSearchInput" name="player_id" class="custom-dropdown" placeholder="Enter player name" required>
+                    <option value="">Enter player name</option>
+                    {% for player in all_players %}
+                        <option value="{{ player.id }}" {% if player_id == player.id|stringformat:"s" %}selected{% endif %}>{{ player.first_name }} {{ player.last_name }}</option>
+                    {% endfor %}
+                </select>
                 <label for="timespan">Seasons to Display:</label>
                 <select name="timespan" id="timespan" onchange="document.getElementById('playerSearchForm').submit();">
                     <option value="5" {% if timespan == 5 %}selected{% endif %}>5</option>
@@ -30,6 +35,20 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+    $(document).ready(function() {
+        $('#playerSearchInput').selectize({
+            create: false,
+            sortField: 'text',
+            onChange: function(value) {
+                if (value) {
+                    document.getElementById('playerSearchForm').submit();
+                }
+            }
+        });
+    });
+</script>
+
 {% if player %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -37,7 +56,7 @@
         var playerTrendsChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: {{ player_seasons|safe }}, // List of seasons
+                labels: {{ player_seasons|safe }}, // List of seasons with year, season, and team name
                 datasets: [
                     {
                         label: 'Goals',
@@ -63,11 +82,6 @@
                         title: {
                             display: true,
                             text: 'Season'
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return value.length > 10 ? value.substr(0, 10) + '...' : value;
-                            }
                         }
                     },
                     y: {
