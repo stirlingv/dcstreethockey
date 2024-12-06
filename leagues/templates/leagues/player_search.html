@@ -20,6 +20,13 @@
                     <option value="20" {% if timespan == 20 %}selected{% endif %}>20</option>
                     <option value="all" {% if timespan == 'all' %}selected{% endif %}>All</option>
                 </select>
+                <label for="division">Division:</label>
+                <select name="division" id="division" onchange="document.getElementById('playerSearchForm').submit();">
+                    <option value="all" {% if division == 'all' %}selected{% endif %}>All Divisions</option>
+                    {% for div in divisions %}
+                        <option value="{{ div.0 }}" {% if division == div.0|stringformat:"s" %}selected{% endif %}>{{ div.1 }}</option>
+                    {% endfor %}
+                </select>
             </form>
 
             {% if player %}

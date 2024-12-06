@@ -749,6 +749,7 @@ def namedtuplefetchall(cursor):
 def player_search_view(request):
     player_id = request.GET.get('player_id')
     timespan = request.GET.get('timespan', '10')  # Default to 10 seasons
+    division = request.GET.get('division', 'all')  # Default to all divisions
     context = {'view': 'player_search'}
 
     # Define a mapping of season numbers to season names
@@ -762,13 +763,21 @@ def player_search_view(request):
     all_players = Player.objects.all()
     context['all_players'] = all_players
     
+    divisions = Division.DIVISION_TYPE
+    context['divisions'] = divisions
+
     if player_id:
         try:
             player = get_object_or_404(Player, id=player_id)
-            offensive_stats = Stat.objects.filter(player=player).select_related('team__season').values('team__season__year', 'team__season__season_type', 'team__team_name').annotate(
+            offensive_stats = Stat.objects.filter(player=player).select_related('team__season', 'team__division').values(
+                'team__season__year', 'team__season__season_type', 'team__team_name', 'team__division'
+            ).annotate(
                 total_goals=Sum('goals'),
                 total_assists=Sum('assists')
             ).order_by('-team__season__year', '-team__season__season_type')
+            
+            if division != 'all':
+                offensive_stats = offensive_stats.filter(team__division=division)
             
             if timespan != 'all':
                 timespan = int(timespan)
@@ -788,6 +797,7 @@ def player_search_view(request):
                 'player_assists': player_assists,
                 'timespan': timespan,
                 'player_id': player_id,
+                'division': division,
             })
 
             # Debug statements
