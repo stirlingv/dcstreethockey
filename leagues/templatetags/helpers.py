@@ -1,5 +1,6 @@
 from django import template
- 
+from leagues.models import Division
+
 register = template.Library()
 
 @register.filter
@@ -20,3 +21,10 @@ def season_type(season):
     if season == 4: return "Winter"
 
     return season
+
+@register.filter
+def get_division_name(value):
+    for division in Division.DIVISION_TYPE:
+        if division[0] == int(value):
+            return division[1]
+    return ''

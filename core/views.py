@@ -770,7 +770,7 @@ def player_search_view(request):
         try:
             player = get_object_or_404(Player, id=player_id)
             offensive_stats = Stat.objects.filter(player=player).select_related('team__season', 'team__division').values(
-                'team__season__year', 'team__season__season_type', 'team__team_name', 'team__division'
+                'team__season__year', 'team__season__season_type', 'team__team_name', 'team__division', 'team__id'
             ).annotate(
                 total_goals=Sum('goals'),
                 total_assists=Sum('assists')
@@ -786,9 +786,25 @@ def player_search_view(request):
             # Reverse the order to display the most recent seasons on the far right
             offensive_stats = list(offensive_stats)[::-1]
             
-            player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})" for stat in offensive_stats]
-            player_goals = [stat['total_goals'] for stat in offensive_stats]
-            player_assists = [stat['total_assists'] for stat in offensive_stats]
+            # Check the player's position for each season and filter out seasons with zero goals and zero assists if the player's primary position is not goalie or defense
+            filtered_stats = []
+            for stat in offensive_stats:
+                roster_entry = Roster.objects.filter(player=player, team_id=stat['team__id']).first()
+                primary_position = roster_entry.position1 if roster_entry else None
+                if primary_position not in [3, 4]:  # 3: Defense, 4: Goalie
+                    if stat['total_goals'] > 0 or stat['total_assists'] > 0:
+                        filtered_stats.append(stat)
+                else:
+                    filtered_stats.append(stat)
+            
+            player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})" for stat in filtered_stats]
+            player_goals = [stat['total_goals'] for stat in filtered_stats]
+            player_assists = [stat['total_assists'] for stat in filtered_stats]
+            player_points = [goals + assists for goals, assists in zip(player_goals, player_assists)]
+
+            average_goals = sum(player_goals) / len(player_goals) if player_goals else 0
+            average_assists = sum(player_assists) / len(player_assists) if player_assists else 0
+            average_points = sum(player_points) / len(player_points) if player_points else 0
 
             context.update({
                 'player': player,
@@ -798,6 +814,9 @@ def player_search_view(request):
                 'timespan': timespan,
                 'player_id': player_id,
                 'division': division,
+                'average_goals': average_goals,
+                'average_assists': average_assists,
+                'average_points': average_points,
             })
 
             # Debug statements
@@ -805,6 +824,10 @@ def player_search_view(request):
             print(f"Seasons: {player_seasons}")
             print(f"Goals: {player_goals}")
             print(f"Assists: {player_assists}")
+            print(f"Points: {player_points}")
+            print(f"Average Goals: {average_goals}")
+            print(f"Average Assists: {average_assists}")
+            print(f"Average Points: {average_points}")
 
         except Exception as e:
             print(f"Error: {e}")
