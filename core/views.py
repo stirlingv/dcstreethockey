@@ -11,6 +11,7 @@ from django.db.models import F, When, IntegerField, Case, DecimalField, Expressi
 from django.db import connection
 
 from leagues.models import Season, Division, MatchUp, Stat, Roster, Player, Team, Team_Stat, Week, HomePage
+import numpy as np
 # Create your views here.
 
 def home(request):
@@ -806,11 +807,22 @@ def player_search_view(request):
             average_assists = sum(player_assists) / len(player_assists) if player_assists else 0
             average_points = sum(player_points) / len(player_points) if player_points else 0
 
+            # Calculate trend line for total points
+            x = np.arange(len(player_points))
+            y = np.array(player_points)
+            if len(x) > 1:  # Ensure there are enough points to calculate a trend line
+                trend = np.polyfit(x, y, 1)
+                trend_line = trend[0] * x + trend[1]
+            else:
+                trend_line = y  # Not enough points to calculate a trend line
+
             context.update({
                 'player': player,
                 'player_seasons': player_seasons,
                 'player_goals': player_goals,
                 'player_assists': player_assists,
+                'player_points': player_points,
+                'trend_line': trend_line.tolist(),  # Convert numpy array to list for JSON serialization
                 'timespan': timespan,
                 'player_id': player_id,
                 'division': division,
@@ -828,6 +840,7 @@ def player_search_view(request):
             print(f"Average Goals: {average_goals}")
             print(f"Average Assists: {average_assists}")
             print(f"Average Points: {average_points}")
+            print(f"Trend Line: {trend_line}")
 
         except Exception as e:
             print(f"Error: {e}")
