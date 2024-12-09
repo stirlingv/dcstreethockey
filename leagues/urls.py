@@ -1,5 +1,5 @@
 from django.urls import path, re_path
-from core.views import MatchUpDetailView, TeamStatDetailView, PlayerStatDetailView, player_search_view, PlayerAutocomplete
+from core.views import MatchUpDetailView, TeamStatDetailView, PlayerStatDetailView, player_trends_view, PlayerAutocomplete
 import core.views as core_view
 
 urlpatterns = [
@@ -16,7 +16,7 @@ urlpatterns = [
     re_path(r'^scores/(?P<division>[0-9])/$', core_view.scores, name='scores'),
     path('cups/', core_view.cups, name='cups'),
     re_path(r'^cups/(?P<division>[0-9])/$', core_view.cups, name='cups'),
-    path('player_search/', player_search_view, name='player_search'),
+    path('player_trends/', player_trends_view, name='player_trends'),
     path('player-autocomplete/', PlayerAutocomplete.as_view(), name='player-autocomplete'),
 ]
 

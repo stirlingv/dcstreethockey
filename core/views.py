@@ -748,11 +748,23 @@ def namedtuplefetchall(cursor):
     nt_result = namedtuple("Result", [col[0] for col in desc])
     return [nt_result(*row) for row in cursor.fetchall()]
 
-def player_search_view(request):
+class PlayerAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return Player.objects.none()
+
+        qs = Player.objects.all()
+
+        if self.q:
+            qs = qs.filter(Q(first_name__icontains=self.q) | Q(last_name__icontains=self.q))
+
+        return qs
+
+def player_trends_view(request):
     player_id = request.GET.get('player_id')
     timespan = request.GET.get('timespan', '10')  # Default to 10 seasons
     division = request.GET.get('division', 'all')  # Default to all divisions
-    context = {'view': 'player_search'}
+    context = {'view': 'player_trends'}
 
     # Define a mapping of season numbers to season names
     season_mapping = {
@@ -761,10 +773,10 @@ def player_search_view(request):
         3: 'Fall',
         4: 'Winter'
     }
-    
+
     all_players = Player.objects.all()
     context['all_players'] = all_players
-    
+
     divisions = Division.DIVISION_TYPE
     context['divisions'] = divisions
 
@@ -846,16 +858,4 @@ def player_search_view(request):
         except Exception as e:
             print(f"Error: {e}")
 
-    return render(request, 'leagues/player_search.html', context=context)
-
-class PlayerAutocomplete(autocomplete.Select2QuerySetView):
-    def get_queryset(self):
-        if not self.request.user.is_authenticated:
-            return Player.objects.none()
-
-        qs = Player.objects.all()
-
-        if self.q:
-            qs = qs.filter(Q(first_name__icontains=self.q) | Q(last_name__icontains=self.q))
-
-        return qs
+    return render(request, 'leagues/player_trends.html', context=context)

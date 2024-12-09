@@ -10,7 +10,7 @@ from django.urls import get_resolver
 urlpatterns = [
     path('', core_view.home, name='home'),
     path('admin/', admin.site.urls),
-    path('leagues/', include('leagues.urls', namespace='leagues')), 
+    path('leagues/', include('leagues.urls')), 
     path('__debug__/', include(debug_toolbar.urls)),
 ]  + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
