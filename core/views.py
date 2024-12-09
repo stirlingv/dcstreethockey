@@ -762,9 +762,12 @@ class PlayerAutocomplete(autocomplete.Select2QuerySetView):
 
 def player_trends_view(request):
     player_id = request.GET.get('player_id')
-    timespan = request.GET.get('timespan', 'all')  # Default to all seasons
+    timespan = request.GET.get('timespan', request.session.get('timespan', 'all'))  # Default to all seasons if not provided
     division = request.GET.get('division', 'all')  # Default to all divisions
     context = {'view': 'player_trends'}
+
+    # Store the timespan in the session
+    request.session['timespan'] = timespan
 
     # Define a mapping of season numbers to season names
     season_mapping = {
