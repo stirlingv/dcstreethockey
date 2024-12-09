@@ -856,6 +856,6 @@ class PlayerAutocomplete(autocomplete.Select2QuerySetView):
         qs = Player.objects.all()
 
         if self.q:
-            qs = qs.filter(name__icontains=self.q)
+            qs = qs.filter(Q(first_name__icontains=self.q) | Q(last_name__icontains=self.q))
 
         return qs
