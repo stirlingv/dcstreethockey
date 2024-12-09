@@ -24,7 +24,12 @@ def season_type(season):
 
 @register.filter
 def get_division_name(value):
+    try:
+        value = int(value)
+    except (ValueError, TypeError):
+        return 'Unknown'
+    
     for division in Division.DIVISION_TYPE:
-        if division[0] == int(value):
+        if division[0] == value:
             return division[1]
-    return ''
+    return 'Unknown'
