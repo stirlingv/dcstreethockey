@@ -5,7 +5,7 @@
 <div id="content-wrapper" class="team">
     <div id="content">
         <div class="container">
-            <h2 class="clickable" onclick="javascript:handleTeam('/leagues/player/{{ player.id }}')">{{ player.first_name }} {{ player.last_name }}</h2>
+            <h2 class="clickable title" onclick="javascript:handleTeam('/leagues/player/{{ player.id }}')">{{ player.first_name }} {{ player.last_name }}</h2>
             <h3>
                 Average Goals/Season: {{ average_goals|floatformat:2 }} &nbsp;
                 Average Assists/Season: {{ average_assists|floatformat:2 }} &nbsp;
@@ -86,7 +86,7 @@
                         fill: false
                     },
                     {
-                        label: 'Trend Line',
+                        label: 'Point Trend',
                         data: {{ trend_line|safe }}, // Trend line for total points
                         borderColor: 'rgba(255, 206, 86, 1)',
                         backgroundColor: 'rgba(255, 206, 86, 0.2)',

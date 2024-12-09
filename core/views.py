@@ -12,6 +12,7 @@ from django.db import connection
 
 from leagues.models import Season, Division, MatchUp, Stat, Roster, Player, Team, Team_Stat, Week, HomePage
 import numpy as np
+from dal import autocomplete
 # Create your views here.
 
 def home(request):
@@ -846,3 +847,15 @@ def player_search_view(request):
             print(f"Error: {e}")
 
     return render(request, 'leagues/player_search.html', context=context)
+
+class PlayerAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return Player.objects.none()
+
+        qs = Player.objects.all()
+
+        if self.q:
+            qs = qs.filter(name__icontains=self.q)
+
+        return qs

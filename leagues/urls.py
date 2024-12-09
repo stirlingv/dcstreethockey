@@ -1,5 +1,5 @@
 from django.urls import path, re_path
-from core.views import MatchUpDetailView, TeamStatDetailView, PlayerStatDetailView, player_search_view
+from core.views import MatchUpDetailView, TeamStatDetailView, PlayerStatDetailView, player_search_view, PlayerAutocomplete
 import core.views as core_view
 
 urlpatterns = [
@@ -17,6 +17,7 @@ urlpatterns = [
     path('cups/', core_view.cups, name='cups'),
     re_path(r'^cups/(?P<division>[0-9])/$', core_view.cups, name='cups'),
     path('player_search/', player_search_view, name='player_search'),
+    path('player-autocomplete/', PlayerAutocomplete.as_view(), name='player-autocomplete'),
 ]
 
 app_name = "leagues"
