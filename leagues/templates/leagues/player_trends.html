@@ -25,11 +25,11 @@
                 </select>
                 <label for="timespan">Seasons to Display:</label>
                 <select name="timespan" id="timespan" onchange="document.getElementById('playerSearchForm').submit();">
-                    <option value="5" {% if timespan == 5 %}selected{% endif %}>5</option>
-                    <option value="10" {% if timespan == 10 %}selected{% endif %}>10</option>
-                    <option value="15" {% if timespan == 15 %}selected{% endif %}>15</option>
-                    <option value="20" {% if timespan == 20 %}selected{% endif %}>20</option>
                     <option value="all" {% if timespan == 'all' %}selected{% endif %}>All</option>
+                    <option value="5" {% if timespan == '5' %}selected{% endif %}>5</option>
+                    <option value="10" {% if timespan == '10' %}selected{% endif %}>10</option>
+                    <option value="15" {% if timespan == '15' %}selected{% endif %}>15</option>
+                    <option value="20" {% if timespan == '20' %}selected{% endif %}>20</option>
                 </select>
                 <label for="division">Division:</label>
                 <select name="division" id="division" onchange="document.getElementById('playerSearchForm').submit();">
