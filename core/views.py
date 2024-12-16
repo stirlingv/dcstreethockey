@@ -751,13 +751,17 @@ def calculate_player_stats(player, season_mapping):
     player_points = [goals + assists for goals, assists in zip(player_goals, player_assists)]
 
     # Calculate trend line for total points
-    x = np.arange(len(player_points))
-    y = np.array(player_points)
-    if len(x) > 1:  # Ensure there are enough points to calculate a trend line
-        trend = np.polyfit(x, y, 1)
-        trend_line = trend[0] * x + trend[1]
+    if player_points:
+        x = np.arange(len(player_points))
+        y = np.array(player_points)
+        if len(x) > 1:  # Ensure there are enough points to calculate a trend line
+            trend = np.polyfit(x, y, 1)
+            trend_line = trend[0] * x + trend[1]
+        else:
+            trend_line = y  # Not enough points to calculate a trend line
+        trend_line = trend_line.tolist()  # Convert numpy array to list for JSON serialization
     else:
-        trend_line = y.tolist()  # Not enough points to calculate a trend line
+        trend_line = []
 
     return {
         'offensive_stats': offensive_stats_table,  # Most recent to earliest for table
@@ -765,9 +769,9 @@ def calculate_player_stats(player, season_mapping):
         'player_goals': player_goals,
         'player_assists': player_assists,
         'player_points': player_points,
-        'trend_line': trend_line.tolist()  # Convert numpy array to list for JSON serialization
+        'trend_line': trend_line
     }
-    
+
 def player_view(request, player_id):
     player = get_object_or_404(Player, id=player_id)
     season_mapping = {

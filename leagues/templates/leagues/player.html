@@ -22,8 +22,10 @@
                     {% endif %}
                 </div>
                 <div class="4u 12u(mobile)">
+                    {% if offensive_stats %}
                     <h3>Player Trends Snapshot</h3>
                     <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'leagues:player_trends' %}?player_id={{ player.id }}'"></canvas>
+                    {% endif %}
                 </div>
             </div>
             <section class="rostersection">
@@ -39,6 +41,7 @@
                                 <th class="stat-column">Assists</th>
                                 <th class="stat-column">Pts</th>
                             </tr>
+                            {% if offensive_stats %}
                             {% for stat in offensive_stats %}
                             <tr>
                                 <td>{{ stat.team__season__year }}</td>
@@ -56,6 +59,11 @@
                                 <td>{{ stat.sum_goals|add:stat.sum_assists|default:0 }}</td>
                             </tr>
                             {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td colspan="7">No offensive stats available.</td>
+                            </tr>
+                            {% endif %}
                         </table>
                     </div>
                 </div>
@@ -74,27 +82,24 @@
                                     <th class="stat-column">GAA</th>
                                     <th class="stat-column">GP</th>
                                     <th class="stat-column">GA</th>
-                            </tr>
-                            {% load helpers %}
-                            {% for stat in goalie_stats %}
-                            <tr>
-                                <td class="stat-column">{{stat.team__season__year}}</td>
-                                <td class="stat-column">{{stat.team__season__season_type|season_type}}</td>
-                                <td  class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
-                                    {% if stat.team__season__year < 2022 %}
-                                        {{stat.team__team_name}} ({{stat.team_wins}} - {{stat.team_losses}} - {{stat.team__team_stat__tie}})
-                                    {% else %}
-                                        {{stat.team__team_name}} ({{stat.team_wins}} - {{stat.team_otw}}  - {{stat.team_otl}}- {{stat.team_losses}})
-                                    {% endif %}
-                                </td>
-                                <td class="stat-column">{{stat.team__division|division_type}}</td>
-                                <td class="stat-column">{{stat.average_goals_against|floatformat:2}}</td>
-                                <td class="stat-column">{{stat.sum_games_played}}</td>
-                                <td class="stat-column">{{stat.sum_goals_against}}</td>
-                            {% empty %}
-                                <td colspan="7">No Goalie stats yet.</td>
-                            {% endfor %}
-                            </tr>
+                                </tr>
+                                {% for stat in goalie_stats %}
+                                <tr>
+                                    <td>{{ stat.team__season__year }}</td>
+                                    <td>{{ stat.team__season__season_type|season_type }}</td>
+                                    <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ stat.team__id }}')">
+                                        {% if stat.team__season__year < 2022 %}
+                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
+                                        {% else %}
+                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_otw|default:0 }}  - {{ stat.team_otl|default:0 }}- {{ stat.team_losses|default:0 }})
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ stat.team__division|division_type }}</td>
+                                    <td>{{ stat.average_goals_against|floatformat:2 }}</td>
+                                    <td>{{ stat.sum_games_played|default:0 }}</td>
+                                    <td>{{ stat.sum_goals_against|default:0 }}</td>
+                                </tr>
+                                {% endfor %}
                             </table>
                         </div>
                     </div>
@@ -106,6 +111,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{% if offensive_stats %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         console.log("JavaScript loaded");
@@ -114,6 +120,7 @@
         console.log("Player Goals: ", {{ player_goals|safe }});
         console.log("Player Assists: ", {{ player_assists|safe }});
         console.log("Trend Line: ", {{ trend_line|safe }});
+
         var ctx = document.getElementById('playerTrendsSnapshot').getContext('2d');
         var playerTrendsSnapshot = new Chart(ctx, {
             type: 'line',
@@ -179,4 +186,5 @@
         });
     });
 </script>
+{% endif %}
 {% endblock %}
