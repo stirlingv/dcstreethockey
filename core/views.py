@@ -808,15 +808,17 @@ def player_trends_view(request):
             for stat in offensive_stats:
                 roster_entry = Roster.objects.filter(player=player, team_id=stat['team__id']).first()
                 primary_position = roster_entry.position1 if roster_entry else None
+                total_goals = stat['total_goals'] if stat['total_goals'] is not None else 0
+                total_assists = stat['total_assists'] if stat['total_assists'] is not None else 0
                 if primary_position not in [3, 4]:  # 3: Defense, 4: Goalie
-                    if stat['total_goals'] > 0 or stat['total_assists'] > 0:
+                    if total_goals > 0 and total_assists > 0:
                         filtered_stats.append(stat)
                 else:
                     filtered_stats.append(stat)
             
             player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})" for stat in filtered_stats]
-            player_goals = [stat['total_goals'] for stat in filtered_stats]
-            player_assists = [stat['total_assists'] for stat in filtered_stats]
+            player_goals = [stat['total_goals'] if stat['total_goals'] is not None else 0 for stat in filtered_stats]
+            player_assists = [stat['total_assists'] if stat['total_assists'] is not None else 0 for stat in filtered_stats]
             player_points = [goals + assists for goals, assists in zip(player_goals, player_assists)]
 
             average_goals = sum(player_goals) / len(player_goals) if player_goals else 0
