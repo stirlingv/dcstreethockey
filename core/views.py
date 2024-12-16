@@ -566,40 +566,6 @@ def cups(request, division=1):
         context['matchups'] = get_detailed_matchups(matchups)
     return render(request, "leagues/cups.html", context=context)
 
-def player(request, player=0):
-    context = {}
-    player_id = int(player)
-    context['view'] = "player"
-    player = get_object_or_404(Player, id=player_id)
-    context['player'] = player
-    context['career_stats'] = get_career_stats_for_player(player_id)
-    context['seasons'] = get_seasons_played(player_id)
-    context['goalie_stats'] = get_goalie_stats(player_id)
-    context['offensive_stats'] = get_offensive_stats_for_player(player_id)
-
-    # Calculate player trends
-    offensive_stats = Stat.objects.filter(player=player).select_related('team__season').values('team__season__year', 'team__season__season_type').annotate(
-        total_goals=Sum('goals'),
-        total_assists=Sum('assists')
-    ).order_by('team__season__year', 'team__season__season_type')
-    
-    season_mapping = {
-        1: 'Spring',
-        2: 'Summer',
-        3: 'Fall',
-        4: 'Winter'
-    }
-    
-    player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')}" for stat in offensive_stats]
-    player_goals = [stat['total_goals'] for stat in offensive_stats]
-    player_assists = [stat['total_assists'] for stat in offensive_stats]
-
-    context['player_seasons'] = player_seasons
-    context['player_goals'] = player_goals
-    context['player_assists'] = player_assists
-
-    return render(request, "leagues/player.html", context=context)
-
 def get_career_stats_for_player(player_id=0):
 
     if get_goalie_games_played(player_id) > 0: 
@@ -760,6 +726,69 @@ class PlayerAutocomplete(autocomplete.Select2QuerySetView):
 
         return qs
 
+def calculate_player_stats(player, season_mapping):
+    offensive_stats = Stat.objects.filter(player=player).select_related('team__season', 'team__division').values(
+        'team__season__year', 'team__season__season_type', 'team__team_name', 'team__division', 'team__id'
+    ).annotate(
+        sum_goals=Sum('goals'),
+        sum_assists=Sum('assists'),
+        team_wins=Max('team__team_stat__win'),
+        team_losses=Max('team__team_stat__loss'),
+        team_ties=Max('team__team_stat__tie'),
+        team_otw=Max('team__team_stat__otw'),
+        team_otl=Max('team__team_stat__otl')
+    ).order_by('team__season__year', 'team__season__season_type')  # Earliest to most recent for trend chart
+
+    # Filter out seasons where both goals and assists are zero
+    offensive_stats = [stat for stat in offensive_stats if (stat['sum_goals'] or 0) > 0 or (stat['sum_assists'] or 0) > 0]
+
+    # Create a separate list for the table with most recent seasons on top
+    offensive_stats_table = list(offensive_stats)[::-1]
+
+    player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})" for stat in offensive_stats]
+    player_goals = [stat['sum_goals'] if stat['sum_goals'] is not None else 0 for stat in offensive_stats]
+    player_assists = [stat['sum_assists'] if stat['sum_assists'] is not None else 0 for stat in offensive_stats]
+    player_points = [goals + assists for goals, assists in zip(player_goals, player_assists)]
+
+    # Calculate trend line for total points
+    x = np.arange(len(player_points))
+    y = np.array(player_points)
+    if len(x) > 1:  # Ensure there are enough points to calculate a trend line
+        trend = np.polyfit(x, y, 1)
+        trend_line = trend[0] * x + trend[1]
+    else:
+        trend_line = y.tolist()  # Not enough points to calculate a trend line
+
+    return {
+        'offensive_stats': offensive_stats_table,  # Most recent to earliest for table
+        'player_seasons': player_seasons,
+        'player_goals': player_goals,
+        'player_assists': player_assists,
+        'player_points': player_points,
+        'trend_line': trend_line.tolist()  # Convert numpy array to list for JSON serialization
+    }
+    
+def player_view(request, player_id):
+    player = get_object_or_404(Player, id=player_id)
+    season_mapping = {
+        1: 'Spring',
+        2: 'Summer',
+        3: 'Fall',
+        4: 'Winter'
+    }
+    stats = calculate_player_stats(player, season_mapping)
+
+    context = {
+        'view': 'player',
+        'player': player,
+        'career_stats': get_career_stats_for_player(player_id),
+        'seasons': get_seasons_played(player_id),
+        'goalie_stats': get_goalie_stats(player_id),
+        **stats,
+        # Add other context variables as needed
+    }
+
+    return render(request, 'leagues/player.html', context)
 def player_trends_view(request):
     player_id = request.GET.get('player_id')
     timespan = request.GET.get('timespan', request.session.get('timespan', 'all'))  # Default to all seasons if not provided
@@ -768,14 +797,6 @@ def player_trends_view(request):
 
     # Store the timespan in the session
     request.session['timespan'] = timespan
-
-    # Define a mapping of season numbers to season names
-    season_mapping = {
-        1: 'Spring',
-        2: 'Summer',
-        3: 'Fall',
-        4: 'Winter'
-    }
 
     all_players = Player.objects.all()
     context['all_players'] = all_players
@@ -786,11 +807,20 @@ def player_trends_view(request):
     if player_id:
         try:
             player = get_object_or_404(Player, id=player_id)
+            season_mapping = {
+                1: 'Spring',
+                2: 'Summer',
+                3: 'Fall',
+                4: 'Winter'
+            }
+            stats = calculate_player_stats(player, season_mapping)
+
+            # Apply division and timespan filters if necessary
             offensive_stats = Stat.objects.filter(player=player).select_related('team__season', 'team__division').values(
                 'team__season__year', 'team__season__season_type', 'team__team_name', 'team__division', 'team__id'
             ).annotate(
-                total_goals=Sum('goals'),
-                total_assists=Sum('assists')
+                sum_goals=Sum('goals'),
+                sum_assists=Sum('assists')
             ).order_by('-team__season__year', '-team__season__season_type')
             
             if division != 'all':
@@ -808,17 +838,17 @@ def player_trends_view(request):
             for stat in offensive_stats:
                 roster_entry = Roster.objects.filter(player=player, team_id=stat['team__id']).first()
                 primary_position = roster_entry.position1 if roster_entry else None
-                total_goals = stat['total_goals'] if stat['total_goals'] is not None else 0
-                total_assists = stat['total_assists'] if stat['total_assists'] is not None else 0
+                sum_goals = stat['sum_goals'] if stat['sum_goals'] is not None else 0
+                sum_assists = stat['sum_assists'] if stat['sum_assists'] is not None else 0
                 if primary_position not in [3, 4]:  # 3: Defense, 4: Goalie
-                    if total_goals > 0 and total_assists > 0:
+                    if sum_goals > 0 or sum_assists > 0:
                         filtered_stats.append(stat)
                 else:
                     filtered_stats.append(stat)
             
             player_seasons = [f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})" for stat in filtered_stats]
-            player_goals = [stat['total_goals'] if stat['total_goals'] is not None else 0 for stat in filtered_stats]
-            player_assists = [stat['total_assists'] if stat['total_assists'] is not None else 0 for stat in filtered_stats]
+            player_goals = [stat['sum_goals'] if stat['sum_goals'] is not None else 0 for stat in filtered_stats]
+            player_assists = [stat['sum_assists'] if stat['sum_assists'] is not None else 0 for stat in filtered_stats]
             player_points = [goals + assists for goals, assists in zip(player_goals, player_assists)]
 
             average_goals = sum(player_goals) / len(player_goals) if player_goals else 0
