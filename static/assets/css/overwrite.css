@@ -505,3 +505,11 @@ div div#content .matchupheader{
     display: flex;
     flex-wrap: wrap;
 }
+.nbhl-link {
+    color: inherit; /* Inherit the color from the parent element */
+    text-decoration: none; /* Remove the default underline */
+}
+
+.nbhl-link:hover {
+    text-decoration: underline; /* Add underline on hover */
+}
