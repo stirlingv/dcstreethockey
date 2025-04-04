@@ -143,8 +143,8 @@ else:
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': 'dcstreethockey',
-            'USER': 'user',
-            'PASSWORD': 'password',
+            'USER': 'dcstreethockey',
+            'PASSWORD': 'dcstreethockey',
             'HOST': '',  # Set to empty string for localhost.
             'PORT': '',  # Set to empty string for default.
             'CONN_MAX_AGE': 600,  # number of seconds database connections should persist for

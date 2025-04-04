@@ -1,105 +1,61 @@
 {% load static %}
-
+{% load helpers %}
 <div id="content-wrapper">
-	<div id="content">
-		<div class="container">
-			{% include "core/weather.html" %}
-			<div class="row">
-				<!-- Box #1 -->
-				<div class="4u 12u(mobile)">
-					<section>
-						<header>
-							<h2>Sunday</h2>
-							{% for row in one_row %}
-								{% if row.week.division|stringformat:"s" == "Sunday D1" or row.week.division|stringformat:"s" == "Sunday D2"%}
-									<h3>{{row.week.date}}</h3>
-								{% endif %}
-							{% endfor %}
-						</header>
-						<ul class="quote-list">
-							{% for match in matchup %}
-								{% if match.week.division|stringformat:"s" == "Sunday D1" or match.week.division|stringformat:"s" == "Sunday D2"%}
-								<li >
-									<p>
-										<table class="game-overview">
-											<tr>{{match.time}}</tr> 
-											<tr>
-												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
-												<td>vs.</td>
-												<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
-											</tr>
-										</table>
-									</p>
-								</li>
-								{% endif %}
-							{% endfor %}
-						</ul>
-					</section>
-
-				</div>
-				<!-- Box #2 -->
-				<div class="4u 12u(mobile)">
-						<section>
-							<header>
-								<h2>Monday</h2>
-								{% for row in one_row %}
-									{% if row.week.division|stringformat:"s" == "Monday A League" or match.week.division|stringformat:"s" == "Monday B League" %}
-										<h3>{{row.week.date}}</h3>
-									{% endif %}
-								{% endfor %}
-							</header>
-							<ul class="quote-list">
-								{% for match in matchup %}
-									{% if match.week.division|stringformat:"s" ==  "Monday A League" or match.week.division|stringformat:"s" == "Monday B League" %}
-									<li >
-											<p>
-												<table class="game-overview">
-													<tr>{{match.time}}</tr> 
-													<tr>
-														<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
-														<td>vs.</td>
-														<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
-													</tr>
-												</table>
-											</p>
-										</li>
-									{% endif %}
-								{% endfor %}
-							</ul>
-						</section>
-					</div>
-				<!-- Box #3 -->
-				<div class="4u 12u(mobile)">
-					<section>
-						<header>
-							<h2>Wednesday</h2>
-							{% for row in one_row %}
-								{% if row.week.division|stringformat:"s" == "Wednesday Draft League" %}
-									<h3>{{row.week.date}}</h3>
-								{% endif %}
-							{% endfor %}
-						</header>
-						<ul class="quote-list">
-							{% for match in matchup %}
-								{% if match.week.division|stringformat:"s" == "Wednesday Draft League" %}
-								<li >
-										<p>
-											<table class="game-overview">
-												<tr>{{match.time}}</tr> 
-												<tr>
-													<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">{{match.awayteam.team_name}}</td> 
-													<td>vs.</td>
-													<td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')"> {{match.hometeam.team_name}}</td>
-												</tr>
-											</table>
-										</p>
-									</li>
-								{% endif %}
-							{% endfor %}
-						</ul>
-					</section>
-				</div>
-			</div>
-		</div>
-	</div>
+    <div id="content">
+        <div class="container">
+            <div class="row">
+                <!-- Iterate over unique game dates -->
+                {% for row in one_row %}
+                <div class="4u 12u(mobile)">
+                    <section>
+                        <header>
+                            <!-- Simplify the division name -->
+                            <h2 class="division-name">{{ row.week.division|simplify_division_name }}</h2>
+                            <div class="date-weather-container">
+                                <!-- Display the date -->
+                                <h3 class="game-date">{{ row.week.date }}</h3>
+                                {% with row.week.date|date:"Y-m-d" as formatted_date %}
+                                    {% with weather_data|get_item:formatted_date as weather %}
+                                        {% if weather %}
+                                            <!-- Display the weather information next to the date -->
+                                            <div class="weather-header">
+                                                <span class="weather-emoji">{{ weather.description|weather_emoji }}</span>
+                                                <span class="weather-info">
+                                                    {{ weather.temp|floatformat:0 }}°F, {{ weather.description }}<br>
+                                                    Wind: {{ weather.wind_speed|floatformat:1 }} mph, Rain: {{ weather.rain|floatformat:1 }} in
+                                                </span>
+                                            </div>
+                                        {% else %}
+                                            <div class="weather-header">
+                                                <p>Weather data not available.</p>
+                                            </div>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endwith %}
+                            </div>
+                        </header>
+                        <ul class="quote-list">
+                            {% for match in matchup %}
+                                {% if match.week.date == row.week.date %}
+                                <li>
+                                    <p>
+                                        <table class="game-overview">
+                                            <tr>{{ match.time }}</tr>
+                                            <tr>
+                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.awayteam.id }}')">{{ match.awayteam.team_name }}</td>
+                                                <td>vs.</td>
+                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.hometeam.id }}')">{{ match.hometeam.team_name }}</td>
+                                            </tr>
+                                        </table>
+                                    </p>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    </section>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 </div>

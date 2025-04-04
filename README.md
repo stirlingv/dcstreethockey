@@ -44,25 +44,50 @@
 
 ## Create backup of render database and restore in local postgres instance
 
-1. In render UI, click on recovery tab, and downlowd the latest sql.gz file
-1. Then run:
+1. Run pg_dump to generate an export of the database on render: 
 
-```bash
-psql -U user -d dcstreethockey < ~/Downloads/<<file_name>>.sql
-```
+    ```bash
+    pg_dump -d <<external render DB connection>> > ~/Downloads/<<file_name>>.sql 
+    ```
+
+1. Delete local postgres db
+
+    ```bash
+    dropdb dcstreethockey
+    ```
+
+1. Create local db
+
+    ```bash
+    createdb dcstreethockey
+    ```
+
+1. Run restore:
+
+    ```bash
+    psql -U user -d dcstreethockey < ~/Downloads/<<file_name>>.sql
+    ```
+
+1. Might need to re-grant permissions to dcstreethockey user:
+
+    ```sql
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dcstreethockey;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dcstreethockey;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO dcstreethockey;
+    ```
 
 ## Run local database to render
 
 1. Get Connection Details:
    - Log in to your Render dashboard and navigate to your PostgreSQL service. Copy the connection string provided, which will be in the format:
 
-```sql
-   postgres://<username>:<password>@<host>:<port>/<database>
-```
+    ```sql
+    postgres://<username>:<password>@<host>:<port>/<database>
+    ```
 
 1. Save your SQL script locally, e.g., db_migration_scripts/insert_matchup.sql.
 1. Run the following command in your terminal, replacing <connection_string> with the actual connection string and path/to/your/script.sql with the path to your SQL script:
 
-```bash
-psql postgres://<username>:<password>@<host>:<port>/<database> -f path/to/your/script.sql
-```
+    ```bash
+    psql postgres://<username>:<password>@<host>:<port>/<database> -f path/to/your/script.sql
+    ```

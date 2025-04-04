@@ -13,14 +13,68 @@ from django.db import connection
 from leagues.models import Season, Division, MatchUp, Stat, Roster, Player, Team, Team_Stat, Week, HomePage
 import numpy as np
 from dal import autocomplete
+import os, requests
 # Create your views here.
 
 def home(request):
     context = {}
-    # context["season"] = Season.objects.get(is_current_season=1)
+    # Get today's date and the next 7 days
+    today = datetime.date.today()
+    next_week = today + timedelta(days=6)
+
+    # Filter matchups for the next 7 days
+    matchups = MatchUp.objects.filter(week__date__range=(today, next_week)).order_by('time')
+    one_row = MatchUp.objects.filter(week__date__range=(today, next_week)).order_by('week__date').distinct('week__date')
+
+    # Initialize weather data dictionary
+    weather_data = {}
+
+    # Fetch weather data for each unique game date in `one_row`
+    api_key = os.environ.get("OPENWEATHERMAP_API_KEY")
+    if not api_key:
+        raise ValueError("The OpenWeatherMap API key is not set in the environment variables.")
+
+    base_url = "https://api.openweathermap.org/data/2.5/forecast"
+    params = {
+        "q": "Alexandria,VA,US",
+        "appid": api_key,
+        "units": "imperial",  # Use Fahrenheit
+    }
+
+    try:
+        response = requests.get(base_url, params=params)
+        if response.status_code == 200:
+            forecast = response.json()
+            # Extract weather data for each game date
+            for row in one_row:
+                game_date = row.week.date.strftime("%Y-%m-%d")  # Ensure the date is in the correct format
+                total_rain_mm = 0  # Initialize total rain for the day in mm
+                for item in forecast["list"]:
+                    if game_date in item["dt_txt"]:
+                        # Add rain for the 3-hour period, if available
+                        rain_mm = item.get("rain", {}).get("3h", 0)
+                        total_rain_mm += rain_mm
+                        # Store weather data for the first matching entry (e.g., temperature, wind, description)
+                        if game_date not in weather_data:
+                            weather_data[game_date] = {
+                                "temp": item["main"].get("temp", "N/A"),
+                                "wind_speed": item["wind"].get("speed", "N/A"),
+                                "description": item["weather"][0].get("description", "N/A"),
+                                "rain": 0,  # Placeholder for total rain in inches
+                            }
+                # Convert total rain from mm to inches and update the weather data
+                if game_date in weather_data:
+                    weather_data[game_date]["rain"] = round(total_rain_mm * 0.0393701, 2)  # Convert to inches and round to 2 decimals
+        else:
+            print(f"Error fetching weather data: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+    # Add weather data and other context variables
+    context["weather_data"] = weather_data
     context["season"] = Season.objects.all()
-    context["matchup"]  = MatchUp.objects.order_by('time').filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=6)))
-    context["one_row"]  = MatchUp.objects.filter(week__date__range=(datetime.date.today(), datetime.date.today() + timedelta(days=6))).order_by('week__date').distinct('week__date')
+    context["matchup"] = matchups
+    context["one_row"] = one_row
     context["homepage"] = HomePage.objects.last()
     return render(request, "core/home.html", context=context)
 

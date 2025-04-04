@@ -1993,3 +1993,60 @@
 		height: auto; /* Ensure both dropdowns are the same height */
 		box-sizing: border-box; /* Include padding and border in the element's total width and height */
 	}
+
+.weather-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.weather-emoji {
+    font-size: 24px;
+    margin-right: 10px;
+}
+
+.weather-info {
+    font-size: 14px;
+    color: #555;
+}
+
+/* Container for date and weather */
+.date-weather-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+/* Style for the date */
+.game-date {
+    font-size: 18px;
+    font-weight: bold;
+    margin-right: 15px;
+}
+
+/* Weather header styling */
+.weather-header {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #555;
+}
+
+/* Weather emoji styling */
+.weather-emoji {
+    font-size: 24px;
+    margin-right: 10px;
+}
+
+/* Weather info styling */
+.weather-info {
+    font-size: 14px;
+    color: #555;
+}
+
+/* Center the division name */
+.division-name {
+    text-align: center;
+}

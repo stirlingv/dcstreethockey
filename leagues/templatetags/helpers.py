@@ -33,3 +33,46 @@ def get_division_name(value):
         if division[0] == value:
             return division[1]
     return 'Unknown'
+
+@register.filter
+def get_item(dictionary, key):
+    print(f"get_item called with dictionary: {dictionary}, key: {key}")
+    try:
+        return dictionary.get(key)
+    except AttributeError:
+        return None
+
+@register.filter
+def simplify_division_name(division):
+    """Simplify division names for display."""
+    # If division is a model instance, get its name field
+    if hasattr(division, 'name'):
+        division_name = division.name
+    else:
+        division_name = str(division)  # Convert to string if it's not a model instance
+
+    # Simplify the division name
+    if "Wednesday" in division_name:
+        return "Wednesday"
+    if "Sunday" in division_name:
+        return "Sunday"
+    if "Monday" in division_name:
+        return "Monday"
+    return division_name
+
+@register.filter
+def weather_emoji(description):
+    """Return an emoji based on the weather description."""
+    if "clear" in description.lower():
+        return "☀️"  # Sun emoji
+    if "cloud" in description.lower():
+        return "☁️"  # Cloud emoji
+    if "rain" in description.lower():
+        return "🌧️"  # Rain emoji
+    if "snow" in description.lower():
+        return "❄️"  # Snow emoji
+    if "storm" in description.lower():
+        return "⛈️"  # Storm emoji
+    if "mist" in description.lower() or "fog" in description.lower():
+        return "🌫️"  # Fog emoji
+    return "🌈"  # Default emoji (rainbow)
