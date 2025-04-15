@@ -17,12 +17,9 @@ import os, requests
 # Create your views here.
 
 def home(request):
-    context = {}
-    # Get today's date and the next 7 days
-    today = datetime.date.today()
-    next_week = today + timedelta(days=6)
-
     # Filter matchups for the next 7 days
+    today = datetime.date.today()
+    next_week = today + datetime.timedelta(days=6)
     matchups = MatchUp.objects.filter(week__date__range=(today, next_week)).order_by('time')
     one_row = MatchUp.objects.filter(week__date__range=(today, next_week)).order_by('week__date').distinct('week__date')
 
@@ -34,21 +31,25 @@ def home(request):
     if not api_key:
         raise ValueError("The OpenWeatherMap API key is not set in the environment variables.")
 
-    base_url = "https://api.openweathermap.org/data/2.5/forecast"
-    params = {
-        "q": "Alexandria,VA,US",
-        "appid": api_key,
-        "units": "imperial",  # Use Fahrenheit
-    }
+    forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
+    current_weather_url = "https://api.openweathermap.org/data/2.5/weather"
 
     try:
-        response = requests.get(base_url, params=params)
-        if response.status_code == 200:
-            forecast = response.json()
+        # Fetch 5-day forecast data
+        forecast_params = {
+            "q": "Alexandria,VA,US",
+            "appid": api_key,
+            "units": "imperial",  # Use Fahrenheit
+        }
+        forecast_response = requests.get(forecast_url, params=forecast_params)
+        if forecast_response.status_code == 200:
+            forecast = forecast_response.json()
             # Extract weather data for each game date
             for row in one_row:
                 game_date = row.week.date.strftime("%Y-%m-%d")  # Ensure the date is in the correct format
                 total_rain_mm = 0  # Initialize total rain for the day in mm
+                weather_found = False
+
                 for item in forecast["list"]:
                     if game_date in item["dt_txt"]:
                         # Add rain for the 3-hour period, if available
@@ -60,22 +61,39 @@ def home(request):
                                 "temp": item["main"].get("temp", "N/A"),
                                 "wind_speed": item["wind"].get("speed", "N/A"),
                                 "description": item["weather"][0].get("description", "N/A"),
-                                "rain": 0,  # Placeholder for total rain in inches
+                                "rain": total_rain_mm * 0.0393701,  # Convert rain to inches
                             }
-                # Convert total rain from mm to inches and update the weather data
-                if game_date in weather_data:
-                    weather_data[game_date]["rain"] = round(total_rain_mm * 0.0393701, 2)  # Convert to inches and round to 2 decimals
-        else:
-            print(f"Error fetching weather data: {response.status_code} - {response.text}")
+                            weather_found = True
+                            break
+
+                # If no forecast data is found for today, fetch current weather
+                if not weather_found and row.week.date == today:
+                    current_params = {
+                        "q": "Alexandria,VA,US",
+                        "appid": api_key,
+                        "units": "imperial",
+                    }
+                    current_response = requests.get(current_weather_url, params=current_params)
+                    if current_response.status_code == 200:
+                        current_weather = current_response.json()
+                        weather_data[game_date] = {
+                            "temp": current_weather["main"].get("temp", "N/A"),
+                            "wind_speed": current_weather["wind"].get("speed", "N/A"),
+                            "description": current_weather["weather"][0].get("description", "N/A"),
+                            "rain": current_weather.get("rain", {}).get("1h", 0) * 0.0393701,  # Rain in inches
+                        }
+
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error fetching weather data: {e}")
 
     # Add weather data and other context variables
-    context["weather_data"] = weather_data
-    context["season"] = Season.objects.all()
-    context["matchup"] = matchups
-    context["one_row"] = one_row
-    context["homepage"] = HomePage.objects.last()
+    context = {
+        "weather_data": weather_data,
+        "season": Season.objects.all(),
+        "matchup": matchups,
+        "one_row": one_row,
+        "homepage": HomePage.objects.last(),
+    }
     return render(request, "core/home.html", context=context)
 
 def leagues(request):

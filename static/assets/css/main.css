@@ -2050,3 +2050,13 @@
 .division-name {
     text-align: center;
 }
+
+.weather-link {
+    text-decoration: none; /* Remove underline */
+    color: inherit; /* Inherit text color */
+}
+
+.weather-link:hover {
+    text-decoration: underline; /* Add underline on hover */
+    color: #007BFF; /* Optional: Change color on hover */
+}

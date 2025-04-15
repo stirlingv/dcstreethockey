@@ -19,11 +19,13 @@
                                         {% if weather %}
                                             <!-- Display the weather information next to the date -->
                                             <div class="weather-header">
-                                                <span class="weather-emoji">{{ weather.description|weather_emoji }}</span>
-                                                <span class="weather-info">
-                                                    {{ weather.temp|floatformat:0 }}°F, {{ weather.description }}<br>
-                                                    Wind: {{ weather.wind_speed|floatformat:1 }} mph, Rain: {{ weather.rain|floatformat:1 }} in
-                                                </span>
+                                                <a href="https://openweathermap.org/city/4744091" target="_blank" class="weather-link">
+                                                    <span class="weather-emoji">{{ weather.description|weather_emoji }}</span>
+                                                    <span class="weather-info">
+                                                        {{ weather.temp|floatformat:0 }}°F, {{ weather.description }}<br>
+                                                        Wind: {{ weather.wind_speed|floatformat:1 }} mph, Rain: {{ weather.rain|floatformat:1 }} in
+                                                    </span>
+                                                </a>
                                             </div>
                                         {% else %}
                                             <div class="weather-header">
