@@ -96,6 +96,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.media',
                 'dcstreethockey.context_processors.homepage_logo',
+                'core.context_processors.jersey_path',
             ],
         },
     },

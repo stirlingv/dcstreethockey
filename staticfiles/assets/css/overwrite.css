@@ -1,0 +1,515 @@
+
+.navbar-default {
+  background-color: #45374b;
+  border-color: #54bfac;
+}
+.navbar-default .navbar-brand {
+  color: #ecf0f1;
+}
+.navbar-default .navbar-brand:hover,
+.navbar-default .navbar-brand:focus {
+  color: #fdfbff;
+}
+.navbar-default .navbar-text {
+  color: #ecf0f1;
+}
+.navbar-default .navbar-nav > li > a {
+  color: #ecf0f1;
+}
+.navbar-default .navbar-nav > li > a:hover,
+.navbar-default .navbar-nav > li > a:focus {
+  color: #fdfbff;
+}
+.navbar-default .navbar-nav > .active > a,
+.navbar-default .navbar-nav > .active > a:hover,
+.navbar-default .navbar-nav > .active > a:focus {
+  color: #fdfbff;
+  background-color: #54bfac;
+}
+.navbar-default .navbar-nav > .open > a,
+.navbar-default .navbar-nav > .open > a:hover,
+.navbar-default .navbar-nav > .open > a:focus {
+  color: #fdfbff;
+  background-color: #54bfac;
+}
+.navbar-default .navbar-toggle {
+  border-color: #54bfac;
+}
+.navbar-default .navbar-toggle:hover,
+.navbar-default .navbar-toggle:focus {
+  background-color: #54bfac;
+}
+.navbar-default .navbar-toggle .icon-bar {
+  background-color: #ecf0f1;
+}
+.navbar-default .navbar-collapse,
+.navbar-default .navbar-form {
+  border-color: #ecf0f1;
+}
+.navbar-default .navbar-link {
+  color: #ecf0f1;
+}
+.navbar-default .navbar-link:hover {
+  color: #fdfbff;
+}
+/* Hide the checkbox */
+.menu-container input[type="checkbox"] {
+    display: none;
+}
+
+/* Style the menu button */
+.menu-container .menu-icon {
+    cursor: pointer;
+    display: none; /* Hide the menu icon by default */
+    font-size: 24px;
+    padding: 10px;
+    color: #333;
+}
+
+/* Style the navigation menu */
+#nav {
+    display: inline; /* Display the navigation menu inline */
+}
+
+/* Hide the menu when the checkbox is unchecked */
+.menu-container input[type="checkbox"]:not(:checked) + label.menu-icon + #nav {
+    display: none;
+}
+
+/* Style the menu links */
+#nav ul {
+    padding: 0;
+    list-style: none;
+}
+
+#nav ul li {
+    margin-bottom: 10px;
+}
+
+#nav ul li a {
+    display: block;
+    padding: 10px;
+    color: #333;
+    text-decoration: none;
+}
+
+/* Media query for smaller screens */
+@media (max-width: 767px) {
+    .desktop-logo {
+        display: none;
+    }
+
+    /* Show the menu toggle button for smaller screens */
+    .menu-container .menu-icon {
+        display: block;
+    }
+
+    /* Hide the navigation menu by default for smaller screens */
+    .menu-container #nav {
+        display: none;
+    }
+
+    /* Show the navigation menu when the checkbox is checked for smaller screens */
+    .menu-container input[type="checkbox"]:checked + label.menu-icon + #nav {
+        display: block;
+    }
+}
+
+
+#datepicker{
+    margin-bottom: 20px;
+}
+
+@media screen and (min-width: 737px){
+    .team #content section{
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+    }
+    .schedule #content section{
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+    }
+}
+.goalies{
+                margin-top: 10px;
+        }
+.rostertable{
+    border-collapse: collapse;
+    border: 1px solid #000000;
+    vertical-align: top;
+    display: inline-block;
+    empty-cells: show;
+}
+.rostertable caption{
+    text-align: left
+}
+
+.rostertable tr{
+    border:1px solid #000000;
+    empty-cells: show
+}
+.rostertable th{
+    border:1px solid #000000;
+    font-weight: bold;
+    width: 15%;
+}
+.rostertable td{
+    border: 1px solid #000000;
+    border-collapse: collapse;
+    display: table-cell;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
+    
+}
+.rostertable td:first-child, .rostertable th:first-child{
+    width: 5%;
+    text-align: center;
+}
+
+section .game{
+    padding-top: 20px;
+    border-bottom: 1px solid #474f51;
+}
+
+section .game:first-of-type{
+    padding-top: 0;
+}
+
+.hidden{
+    display: none;
+}
+
+.show{
+    display: block;
+}
+
+.division{
+    padding-bottom:15px;
+}
+
+.divisionheader{
+    margin-bottom:10px;
+    text-align: center;
+}
+
+.optionsdiv{
+    clear: right;
+    display: inline-block;
+    margin-right: 20px;
+    margin-bottom: 20px;
+    font-size: 1.6em;
+    line-height: 1.1em;
+    cursor:pointer;
+}
+
+.optionsdiv:hover{
+    text-decoration: underline;
+}
+
+.activeoption{
+    text-decoration: underline;
+}
+
+.clickable:hover{
+    text-decoration: underline;
+    cursor: pointer;
+}
+.clickable.title{
+    font-size: 2em;
+    font-weight: 500;
+    line-height: 1.1em;
+    padding-bottom:10px;
+    color: #d80000 !important;
+}
+.game-overview{
+    margin: 10px 0;
+    width: 100%;
+}
+.game-overview tr{
+    font-size: 1.4em;
+    line-height: 1.5em;
+}
+.title{
+    font-size: 2em;
+    font-weight: 500;
+    line-height: 1.1em;
+    padding-bottom:10px;
+    color: #d80000;
+}
+.game-overview tr td:first-child{
+    width: 30%;
+}
+.game-overview tr td:nth-child(2){
+    width: 20%;
+}
+.game-overview tr td:nth-child(3){
+    width: 30%;
+}
+.game-overview tr td:nth-child(4){
+    width: 20%;
+}
+#schedulesection table td:nth-child(2){
+      text-align:center;
+      color: #d80000;
+}
+.winner{
+    font-weight: 400;
+}
+.game:hover{
+    cursor: pointer;
+}
+.expand{
+    color: #96a9b5;
+    font-size: 50px;
+    text-align: center;
+    transform: scale(1, -1);
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ddd
+}
+.collapse{
+    clear: both;
+    padding-top: 5px;
+    margin-bottom: 10px;
+    font-size: 50px;
+    text-align: center;
+    display: block;
+    width: 100%;
+    color: #96a9b5;
+}
+.collapse:hover, .expand:hover{
+    color: #d80000;
+    cursor: pointer;
+}
+
+.stats table{
+    empty-cells: show;
+    width: 100%;
+    margin-bottom: 20px;
+}
+.stats table caption{
+    text-align: left;
+    margin-bottom: 10px;
+    margin-top: 10px;
+}
+
+.stats table tr{
+    empty-cells: show;
+    white-space: nowrap;
+}
+
+.shorttable table tr:nth-child(n+22){
+    display: none;
+}
+
+.longtable div{
+    display: none;
+}
+
+.stats table th{
+    border-bottom:1px solid #96a9b5;
+    font-weight: bold;
+    width: 12%;
+    white-space: nowrap;
+}
+.stats table td{
+    border-bottom: 1px solid #96a9b5;
+    border-collapse: collapse;
+    display: table-cell;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
+}
+.stats table th:first-child, .stats table td:first-child{
+    text-align: left;
+}
+
+.stats table td:nth-child(2){
+    width: 150p;
+}
+.stats table.roster td + td{
+    border-left:1px solid #96a9b5
+}
+
+.stats_print table th{
+    border-bottom:1px solid #96a9b5;
+    font-weight: bold;
+    width: 15%;
+    white-space: nowrap;
+    text-align: center;
+}
+.stats_print table td{
+    border-bottom: 1px solid #96a9b5;
+    border-collapse: collapse;
+    display: table-cell;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
+}
+.stats_print table th:first-child, .stats_print table td:first-child{
+    text-align: center;
+    width: 5%;
+}
+
+.stats_print table.roster td + td{
+    border-left:1px solid #96a9b5
+}
+
+.standingssec div div{
+    padding-top: 0px;
+}
+
+.standingssec div div table{
+    margin-top: 0px;
+}
+.hof_stats table{
+    table-layout: fixed;
+    width: 100%;
+    overflow: scroll;
+}
+.hof_stats table th{
+    border-bottom:1px solid #96a9b5;
+    font-weight: bold;
+}
+
+.hof_stats table td{
+    border-bottom: 1px solid #96a9b5;
+    border-collapse: collapse;
+    display: table-cell;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
+}
+.hof_stats table th:first-child, .hof_stats table td:first-child{
+    text-align: left;
+    width: 5%;
+}
+.player_stats table{
+    table-layout: fixed;
+    width: 100%;
+    overflow: scroll;
+}
+.player_stats table th{
+    border-bottom:1px solid #96a9b5;
+    font-weight: bold;
+}
+
+.player_stats table td{
+    border-bottom: 1px solid #96a9b5;
+    border-collapse: collapse;
+    display: table-cell;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 2px;
+    padding-right: 1px;
+}
+
+.player_stats table th:first-child, .player_stats table td:first-child{
+    text-align: left;
+}
+
+/*for team name*/
+.player_stats table th:nth-child(3), .player_stats table td:nth-child(3){
+    width: 35%;
+}
+
+
+.cleardiv{
+    clear:right;
+}
+
+.print-image{
+    float: right;
+}
+
+div div#content .matchupheader{
+    margin-top: 3em;
+}
+
+.logo-image {
+    max-width: 100%; /* Ensure the logo image fills the column */
+    height: auto; /* Maintain aspect ratio */
+}
+
+/* Base style for images */
+.resizable-image {
+    width: 100%;
+    height: auto;
+    cursor: pointer; /* Make it clear the image is clickable */
+    transition: transform 0.2s ease-in-out; /* Optional: Adds a slight scaling effect on hover */
+}
+
+/* The Modal (background) */
+.image-modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1000; /* Sit on top */
+    padding-top: 60px; /* Location of the box */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0, 0, 0, 0.8); /* Black with transparency */
+}
+
+/* Modal Content (the image) */
+.image-modal-content {
+    margin: auto;
+    display: block;
+    width: 80%;
+    max-width: 700px;
+    animation: zoomIn 0.6s; /* Optional: Add a zoom-in effect */
+}
+
+/* Close button */
+.close-modal {
+    position: absolute;
+    top: 30px;
+    right: 35px;
+    color: white;
+    font-size: 40px;
+    font-weight: bold;
+    transition: 0.3s;
+    cursor: pointer;
+}
+
+.close-modal:hover,
+.close-modal:focus {
+    color: #bbb;
+}
+
+/* Animation for zooming in the image */
+@keyframes zoomIn {
+    from {
+        transform: scale(0.7);
+    }
+    to {
+        transform: scale(1);
+    }
+}
+.row {
+    display: flex;
+    flex-wrap: wrap;
+}
+.nbhl-link {
+    color: inherit; /* Inherit the color from the parent element */
+    text-decoration: none; /* Remove the default underline */
+}
+
+.nbhl-link:hover {
+    text-decoration: underline; /* Add underline on hover */
+}

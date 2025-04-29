@@ -68,12 +68,15 @@
     psql -U user -d dcstreethockey < ~/Downloads/<<file_name>>.sql
     ```
 
-1. Might need to re-grant permissions to dcstreethockey user:
+1. Update db permissions to empower the dcstreethockey user:
 
     ```sql
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dcstreethockey;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dcstreethockey;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO dcstreethockey;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dcstreethockey;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dcstreethockey;
+    GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO dcstreethockey;
     ```
 
 ## Run local database to render

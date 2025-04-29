@@ -1,4 +1,5 @@
 from django import template
+from django.templatetags.static import static 
 from leagues.models import Division
 
 register = template.Library()
@@ -76,3 +77,7 @@ def weather_emoji(description):
     if "mist" in description.lower() or "fog" in description.lower():
         return "🌫️"  # Fog emoji
     return "🌈"  # Default emoji (rainbow)
+@register.simple_tag
+def jersey_path():
+    """Returns the static path for jersey images."""
+    return static('img/emojis/')

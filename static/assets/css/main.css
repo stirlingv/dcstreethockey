@@ -16,6 +16,7 @@
 	padding: 2px;
 	text-align: left;
 	border-bottom: 1px solid #ddd;
+	white-space: nowrap;
 }
 /* Style for the team name column */
 .table .team-name, .table .player-name {
@@ -1217,9 +1218,6 @@
 		border-bottom: 0 !important;
 	}
 
-	.quote-list li img {
-		float: left;
-	}
 
 	.quote-list li p {
 		margin: 0 0 0 90px;
@@ -1227,12 +1225,12 @@
 		font-style: italic;
 	}
 
-	.quote-list li span {
+	/* .quote-list li span {
 		display: block;
 		margin-left: 90px;
 		font-size: 0.9em;
 		font-weight: 400;
-	}
+	} */
 
 .check-list li {
 	padding: 0.7em 0 0.7em 45px;
@@ -2060,3 +2058,34 @@
     text-decoration: underline; /* Add underline on hover */
     color: #007BFF; /* Optional: Change color on hover */
 }
+/* Team color emoji */
+.team-color {
+	font-size: inherit; /* Inherit the font size from the parent element */
+    line-height: inherit; /* Inherit the line height from the parent element */
+    vertical-align: middle; /* Align emoji with the text */
+}
+
+.team-color-emoji {
+    width: 20px; /* Adjust size as needed */
+    height: auto;
+    vertical-align: middle; /* Align with text */
+    margin: 0 5px; /* Add spacing around the image */
+}
+
+/* Ensure the content in the vs-section is aligned properly */
+.vs-section {
+    white-space: nowrap; /* Prevent line breaks */
+    text-align: center; /* Center-align the content */
+    vertical-align: middle; /* Align content vertically in the middle */
+}
+
+.vs-section img {
+    vertical-align: middle; /* Align images with the text */
+    margin: 0 5px; /* Add spacing around the images */
+}
+
+.vs-section {
+    font-size: 16px; /* Adjust font size as needed */
+    line-height: 1; /* Ensure consistent line height */
+}
+

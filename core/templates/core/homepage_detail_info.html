@@ -42,11 +42,28 @@
                                 <li>
                                     <p>
                                         <table class="game-overview">
-                                            <tr>{{ match.time }}</tr>
+                                            <tr>{{ match.time|date:"g:i A" }}</tr>
                                             <tr>
-                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.awayteam.id }}')">{{ match.awayteam.team_name }}</td>
-                                                <td>vs.</td>
-                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.hometeam.id }}')">{{ match.hometeam.team_name }}</td>
+                                                <!-- Away Team -->
+                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.awayteam.id }}')">
+                                                    {{ match.awayteam.team_name }}
+                                                </td>
+                                                <!-- VS with team colors -->
+                                                <td class="vs-section">
+                                                    <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png" 
+                                                         alt="{{ match.awayteam.team_color }} jersey" 
+                                                         title="{{ match.awayteam.team_color }}" 
+                                                         class="team-color-emoji">
+                                                    vs.
+                                                    <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png" 
+                                                         alt="{{ match.hometeam.team_color }} jersey" 
+                                                         title="{{ match.hometeam.team_color }}" 
+                                                         class="team-color-emoji">
+                                                </td>
+                                                <!-- Home Team -->
+                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.hometeam.id }}')">
+                                                    {{ match.hometeam.team_name }}
+                                                </td>
                                             </tr>
                                         </table>
                                     </p>
