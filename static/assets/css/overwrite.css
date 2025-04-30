@@ -252,6 +252,18 @@ section .game:first-of-type{
 .game-overview tr td:nth-child(4){
     width: 20%;
 }
+.game-schedule tr td:first-child{
+    width: 45%;
+    text-align: right;
+}
+.game-schedule tr td:nth-child(2){
+    width: 100px;
+    text-align: center;
+}
+.game-schedule tr td:last-child {
+    width: 45%;
+    text-align: left;
+}
 #schedulesection table td:nth-child(2){
       text-align:center;
       color: #d80000;
