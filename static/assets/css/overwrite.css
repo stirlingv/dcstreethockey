@@ -230,7 +230,7 @@ section .game:first-of-type{
     width: 100%;
 }
 .game-overview tr{
-    font-size: 1.4em;
+    /* font-size: 1.4em; */
     line-height: 1.5em;
 }
 .title{
