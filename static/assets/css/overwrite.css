@@ -255,6 +255,7 @@ section .game:first-of-type{
 .game-schedule tr td:first-child{
     width: 45%;
     text-align: right;
+    font-weight: bold;
 }
 .game-schedule tr td:nth-child(2){
     width: 100px;
@@ -263,6 +264,7 @@ section .game:first-of-type{
 .game-schedule tr td:last-child {
     width: 45%;
     text-align: left;
+    font-weight: bold;
 }
 #schedulesection table td:nth-child(2){
       text-align:center;
