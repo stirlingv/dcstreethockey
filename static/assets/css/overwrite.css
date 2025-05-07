@@ -255,6 +255,7 @@ section .game:first-of-type{
 .game-schedule tr td:first-child{
     width: 40%; /* Increase width for the away team column */
     text-align: right;
+    vertical-align: middle;
     font-weight: bold;
     word-wrap: break-word; /* Allow breaking long words */
     hyphens: auto; /* Enable hyphenation for long words */
@@ -267,6 +268,7 @@ section .game:first-of-type{
 .game-schedule tr td:last-child {
     width: 40%; /* Increase width for the home team column */
     text-align: left;
+    vertical-align: middle;
     font-weight: bold;
     word-wrap: break-word; /* Allow breaking long words */
     hyphens: auto; /* Enable hyphenation for long words */
