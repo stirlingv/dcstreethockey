@@ -1,12 +1,13 @@
- {% load static %}
- {% include "core/weather.html" %}
- {% for date, value in schedule.items %}
+{% load static %}
+{% load helpers %}
+{% include "core/weather.html" %}
+{% for date, value in schedule.items %}
     {% for division, value2 in value.items %}
         {% if view == "schedule" %}
             <section id="schedulesection">
                 <a href="/leagues/roster/{{date}}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
-            <h3>{{division}} | {{date}}</h3>
-        {% endif %}
+                <h3>{{division}} | {{date}}</h3>
+            {% endif %}
             {% for match in value2 %}
                 <div class="game">
                     {% if view == "schedule" %}
@@ -16,8 +17,11 @@
                     {% endif %}
                     <table class="game-overview">
                         <tr>
-                            <td class="clickable" 
-                                onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">
+                            <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">
+                                <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png" 
+                                     alt="{{ match.awayteam.team_color }} jersey" 
+                                     title="{{ match.awayteam.team_color }}" 
+                                     class="team-color-emoji">
                                 {% if match.awayteam.season.year < 2022 %}
                                     {{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})
                                 {% else %}
@@ -25,14 +29,17 @@
                                 {% endif %}
                             </td>
                             <td>@</td>
-                            <td class="clickable"
-                                onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')">
+                            <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')">
+                                <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png" 
+                                     alt="{{ match.hometeam.team_color }} jersey" 
+                                     title="{{ match.hometeam.team_color }}" 
+                                     class="team-color-emoji">
                                 {% if match.hometeam.season.year < 2022 %}
                                     {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})
                                 {% else %}
                                     {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_otw}}-{{match.home_otl}}-{{match.home_losses}})
                                 {% endif %}
-                        </td>
+                            </td>
                         </tr>
                     </table>
                 </div> <!-- /game -->
