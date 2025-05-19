@@ -17,7 +17,7 @@
                     {% endif %}
                     <table class="game-overview">
                         <tr>
-                            <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.awayteam.id}}')">
+                            <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.awayteam.id %}')">
                                 <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png" 
                                      alt="{{ match.awayteam.team_color }} jersey" 
                                      title="{{ match.awayteam.team_color }}" 
@@ -29,7 +29,7 @@
                                 {% endif %}
                             </td>
                             <td>@</td>
-                            <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{match.hometeam.id}}')">
+                            <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.hometeam.id %}')">
                                 <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png" 
                                      alt="{{ match.hometeam.team_color }} jersey" 
                                      title="{{ match.hometeam.team_color }}" 

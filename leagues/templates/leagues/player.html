@@ -24,7 +24,7 @@
                 <div class="4u 12u(mobile)">
                     {% if offensive_stats %}
                     <h3>Player Trends Snapshot</h3>
-                    <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'leagues:player_trends' %}?player_id={{ player.id }}'"></canvas>
+                    <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
                     {% endif %}
                 </div>
             </div>
@@ -46,7 +46,7 @@
                             <tr>
                                 <td>{{ stat.team__season__year }}</td>
                                 <td>{{ stat.team__season__season_type|season_type }}</td>
-                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ stat.team__id }}')">
+                                <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
                                     {% if stat.team__season__year < 2022 %}
                                         {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
                                     {% else %}
@@ -87,7 +87,7 @@
                                 <tr>
                                     <td>{{ stat.team__season__year }}</td>
                                     <td>{{ stat.team__season__season_type|season_type }}</td>
-                                    <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ stat.team__id }}')">
+                                    <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')"
                                         {% if stat.team__season__year < 2022 %}
                                             {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
                                         {% else %}

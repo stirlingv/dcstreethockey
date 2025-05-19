@@ -9,10 +9,10 @@
     {% for player in player_list %}
         {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
             <tr>
-                <td class="clickable" onclick="handleTeam('/leagues/player/{{ player.id }}')">
+                <td class="clickable" onclick="handleTeam('{% url "player" player.id %}')">
                     {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
                 </td>
-                <td class="clickable" onclick="handleTeam('/leagues/teams/{{ player.roster__team__id }}')">{{ player.roster__team__team_name }}</td>
+                <td class="clickable" onclick="handleTeam('{% url "teams" player.roster__team__id %}')">{{ player.roster__team__team_name }}</td>
                 <td>{{ player.rounded_average_goals_against }}</td>
                 <td>{{ player.sum_games_played }}</td>
                 <td>{{ player.sum_goals_against }}</td>

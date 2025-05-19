@@ -8,7 +8,9 @@
             {% if not player_id %}
                 <h2>Search for a player to see their trend history</h2>
             {% else %}
-                <h2 class="clickable title" onclick="javascript:handleTeam('/leagues/player/{{ player.id }}')">{{ player.first_name }} {{ player.last_name }}</h2>
+                <h2 class="clickable title" onclick="javascript:handleTeam('{% url "player" player.id %}')">
+                    {{ player.first_name }} {{ player.last_name }}
+                </h2>
                 <h3>
                     Average Goals/Season: {{ average_goals|floatformat:2 }} &nbsp;
                     Average Assists/Season: {{ average_assists|floatformat:2 }} &nbsp;
@@ -16,7 +18,7 @@
                     Displaying for: {{ timespan }} seasons, Division: {% if division == 'all' %}All Divisions{% else %}{{ division|get_division_name }}{% endif %}
                 </h3>
             {% endif %}
-            <form id="playerSearchForm" method="GET" action="{% url 'leagues:player_trends' %}">
+            <form id="playerSearchForm" method="GET" action="{% url 'player_trends' %}">
                 <select id="playerSearchInput" name="player_id" class="custom-dropdown" placeholder="Enter player name" required>
                     <option value="">Enter player name</option>
                     {% for player in all_players %}

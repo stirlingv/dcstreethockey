@@ -13,7 +13,7 @@
 
         <td>{{stat.team__season__year}}</td>
         <td>{{stat.team__season__season_type|season_type}}</td>
-        <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{stat.team__id}}')">
+        <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
             {% if stat.team__season__year < 2022 %}
                 {{stat.team__team_name}} ({{stat.win}} - {{stat.loss}} - {{stat.tie}})
             {% else %}

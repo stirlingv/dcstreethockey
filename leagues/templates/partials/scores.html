@@ -13,7 +13,7 @@
                 <table class="game-overview">
                     <tr>
                         <td
-                            onclick="javascript:handleTeam('/leagues/teams/{{value2.match.awayteam.id}}')"
+                            onclick="javascript:handleTeam('{% url "teams" value2.match.awayteam.id %}')"
                             class="clickable
                             {% if value2.match.home_goals < value2.match.away_goals %}
                                 winner
@@ -26,7 +26,7 @@
                             {% endif %}
                             >{{value2.match.away_goals}}</td>
                         <td 
-                            onclick="javascript:handleTeam('/leagues/teams/{{value2.match.hometeam.id}}')"
+                            onclick="javascript:handleTeam('{% url "teams" value2.match.hometeam.id %}')"
                             class="clickable
                             {% if value2.match.home_goals > value2.match.away_goals %}
                                 winner
@@ -53,7 +53,7 @@
                             {% for stat in value2.stats %}
                                 {% if value2.match.awayteam == stat.team %}
                                     <tr>
-                                        <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{stat.player_id}}')">{{stat.player}}</td>
+                                        <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
                                         <td>{{stat.goals}}</td>
                                         <td>{{stat.assists}}</td>
                                     </tr>
@@ -68,7 +68,7 @@
                             </tr>
                             {% for stat in value2.away_goalie_stats %}
                                 <tr>
-                                    <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{stat.player_id}}')">{{stat.player}}</td>
+                                    <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
                                     <td>{{stat.goals_against}}</td>
                                     <td>{{stat.empty_net}}</td>
                                 </tr>
@@ -86,7 +86,7 @@
                             {% for stat in value2.stats %}
                                 {% if value2.match.hometeam == stat.team %}
                                     <tr>
-                                        <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{stat.player_id}}')">{{stat.player}}</td>
+                                        <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
                                         <td>{{stat.goals}}</td>
                                         <td>{{stat.assists}}</td>
                                     </tr>

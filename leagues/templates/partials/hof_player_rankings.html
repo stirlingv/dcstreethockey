@@ -12,7 +12,7 @@
         {% for player in player_ranks %}
         <tr>
             <td>{{ player.rank }}</td>
-            <td class="clickable" onclick="javascript:handleTeam('/leagues/player/{{ player.id }}')">{{ player.first_name }} {{ player.last_name }}</td>
+            <td class="clickable" onclick="javascript:handleTeam('{% url "player" player.id %}')">{{ player.first_name }} {{ player.last_name }}</td>
             <td>{{ player.total_points }}</td>
             <td>{{ player.total_goals }}</td>
             <td>{{ player.total_assists }}</td>

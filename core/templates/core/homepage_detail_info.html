@@ -45,7 +45,7 @@
                                             <tr>{{ match.time|date:"g:i A" }}</tr>
                                             <tr>
                                                 <!-- Away Team -->
-                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.awayteam.id }}')">
+                                                <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.awayteam.id %}')">
                                                     {{ match.awayteam.team_name }}
                                                 </td>
                                                 <!-- VS with team colors -->
@@ -61,7 +61,7 @@
                                                          class="team-color-emoji">
                                                 </td>
                                                 <!-- Home Team -->
-                                                <td class="clickable" onclick="javascript:handleTeam('/leagues/teams/{{ match.hometeam.id }}')">
+                                                <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.hometeam.id %}')">
                                                     {{ match.hometeam.team_name }}
                                                 </td>
                                             </tr>
