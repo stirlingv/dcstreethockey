@@ -107,9 +107,8 @@
 	});
 
 })(jQuery);
-
-function handleTeam(dest){
-    window.location = dest;
+function handleTeam(url) {
+    window.location.href = url;
 }
 
 function togglePlayersTable(id) {

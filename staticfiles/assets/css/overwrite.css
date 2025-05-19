@@ -230,7 +230,7 @@ section .game:first-of-type{
     width: 100%;
 }
 .game-overview tr{
-    font-size: 1.4em;
+    /* font-size: 1.4em; */
     line-height: 1.5em;
 }
 .title{
@@ -251,6 +251,28 @@ section .game:first-of-type{
 }
 .game-overview tr td:nth-child(4){
     width: 20%;
+}
+.game-schedule tr td:first-child{
+    width: 40%; /* Increase width for the away team column */
+    text-align: right;
+    vertical-align: middle;
+    font-weight: bold;
+    word-wrap: break-word; /* Allow breaking long words */
+    hyphens: auto; /* Enable hyphenation for long words */
+    overflow-wrap: break-word; /* Ensure long words break properly */
+}
+.game-schedule tr td:nth-child(2){
+    width: 80px;
+    text-align: center;
+}
+.game-schedule tr td:last-child {
+    width: 40%; /* Increase width for the home team column */
+    text-align: left;
+    vertical-align: middle;
+    font-weight: bold;
+    word-wrap: break-word; /* Allow breaking long words */
+    hyphens: auto; /* Enable hyphenation for long words */
+    overflow-wrap: break-word; /* Ensure long words break properly */
 }
 #schedulesection table td:nth-child(2){
       text-align:center;
