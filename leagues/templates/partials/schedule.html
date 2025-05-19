@@ -5,7 +5,7 @@
     {% for division, value2 in value.items %}
         {% if view == "schedule" %}
             <section id="schedulesection">
-                <a href="/leagues/roster/{{date}}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
+                <a href="{% url 'rosters' date=date %}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
                 <h3>{{division}} | {{date}}</h3>
             {% endif %}
             {% for match in value2 %}

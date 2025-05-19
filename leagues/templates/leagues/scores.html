@@ -13,7 +13,7 @@
             </div>
             {% for division in divisions %}
                 <div class="optionsdiv {% if division.division == active_division %}activeoption{% endif %} "
-                        onclick="javascript:handleDivision('/leagues/scores/{{division.division}}')">
+                        onclick="javascript:handleDivision('{% url "scores" division.division %}')">
                     {{division}}
                 </div>
             {% endfor %}

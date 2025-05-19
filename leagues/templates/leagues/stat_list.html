@@ -8,11 +8,11 @@
     <div id="content">
         <div class="container">
             <div class="title">League Leaders</div>
-            <div class="optionsdiv {% if active_season == 0 %}activeoption{% endif %}" onclick="handleSeason('/leagues/player_stats/0')">
+            <div class="optionsdiv {% if active_season == 0 %}activeoption{% endif %}" onclick="handleSeason('{% url "player_stats" 0 %}')">
                 Current
             </div>
             {% for season in seasons %}
-                <div class="optionsdiv {% if season.id == active_season %}activeoption{% endif %}" onclick="handleSeason('/leagues/player_stats/{{ season.id }}')">
+                <div class="optionsdiv {% if season.id == active_season %}activeoption{% endif %}" onclick="handleSeason('{% url "player_stats" season.id %}')">
                     {{ season }}
                 </div>
             {% endfor %}
