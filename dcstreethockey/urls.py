@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 from django.conf import settings
 from django.urls import include, path, re_path
 import debug_toolbar
+from django.views.generic.base import RedirectView
 from core.views import (
     MatchUpDetailView,
     TeamStatDetailView,
@@ -39,4 +40,10 @@ urlpatterns = [
     re_path(r'^cups/(?P<division>[0-9])/$', cups, name='cups'),
     path('player_trends/', player_trends_view, name='player_trends'),
     path('player-autocomplete/', PlayerAutocomplete.as_view(), name='player-autocomplete'),
+
+    # Include leagues app URLs
+    path('', include('leagues.urls')),
+
+    # Redirect old /leagues/... URLs to the new URLs
+    re_path(r'^leagues/(?P<path>.*)$', RedirectView.as_view(url='/%(path)s', permanent=True)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
