@@ -48,7 +48,7 @@ class RosterInlineForm(forms.ModelForm):
         model = Roster
         fields = '__all__'
         widgets = {
-            'player': autocomplete.ModelSelect2(url='leagues:player-autocomplete')
+            'player': autocomplete.ModelSelect2(url='player-autocomplete')
         }
 
 class RosterInline(admin.TabularInline):
