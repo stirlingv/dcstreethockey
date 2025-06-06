@@ -233,7 +233,10 @@ class RefAdmin(admin.ModelAdmin):
 
 @admin.register(HomePage)
 class HomePageAdmin(admin.ModelAdmin):
-    pass
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.wed_champ_photo:
+            print(f"Uploaded file path: {obj.wed_champ_photo.name}")
 
 @admin.register(TeamPhoto)
 class TeamPhotoAdmin(admin.ModelAdmin):
