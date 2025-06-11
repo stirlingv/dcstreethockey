@@ -1,14 +1,23 @@
+print("Loaded aws_settings.py, using S3 storage backend")
 import os
 
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME')
+AWS_S3_REGION_NAME = 'us-east-1'  # or your region
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
 AWS_QUERYSTRING_AUTH = False
-AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY']
-AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
-AWS_STORAGE_BUCKET_NAME = os.environ['S3_BUCKET_NAME']
-MEDIA_URL = 'https://%s.s3.amazonaws.com/' % AWS_STORAGE_BUCKET_NAME
 
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'
 
-# S3DIRECT_ENDPOINT = 's3.amazonaws.com'  # http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
-# S3DIRECT_DIR = 's3direct'  # (optional, default is 's3direct', location within the bucket to upload files)
-# S3DIRECT_UNIQUE_RENAME = False # (optional, default is 'False', gives the uploaded file a unique filename)
+# Optional: Raise a clear error if any variable is missing
+missing = []
+if not AWS_ACCESS_KEY_ID:
+    missing.append('AWS_ACCESS_KEY')
+if not AWS_SECRET_ACCESS_KEY:
+    missing.append('AWS_SECRET_ACCESS_KEY')
+if not AWS_STORAGE_BUCKET_NAME:
+    missing.append('S3_BUCKET_NAME')
+if missing:
+    raise Exception(f"Missing required AWS environment variables: {', '.join(missing)}")

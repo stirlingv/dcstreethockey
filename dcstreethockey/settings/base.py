@@ -238,3 +238,4 @@ LOGGING = {
         },
     },
 }
+from .aws_settings import *

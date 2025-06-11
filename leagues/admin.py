@@ -237,6 +237,7 @@ class HomePageAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         if obj.wed_champ_photo:
             print(f"Uploaded file path: {obj.wed_champ_photo.name}")
+            print(f"Storage backend: {obj.wed_champ_photo.storage}")
 
 @admin.register(TeamPhoto)
 class TeamPhotoAdmin(admin.ModelAdmin):
