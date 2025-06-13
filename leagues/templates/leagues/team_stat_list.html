@@ -154,7 +154,7 @@
                             <tbody>
                                 {% for team in team_list %}
                                     {% if team.division|stringformat:"s" == "Wednesday Draft League" and team.team.conference == 2 %}
-                                        <tr class="clickable" onclick="javascript:handleTeam(''{% url "teams" team.team.id %}')">
+                                        <tr class="clickable" onclick="javascript:handleTeam('{% url "teams" team.team.id %}')">
                                             <td class="team-name">{{team.team.team_name}}</td>
                                             <td class="stat-column">{{team.win}}</td>
                                             <td class="stat-column">{{team.otw}}</td>
