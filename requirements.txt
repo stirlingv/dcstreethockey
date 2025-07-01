@@ -27,7 +27,7 @@ jmespath==0.10.0
 numpy==2.2.0
 oauthlib==3.2.2
 packaging==24.0
-pillow==11.2.1
+pillow==11.3.0
 pip-chill==1.0.3
 psycopg==3.1.19
 pycparser==2.21
