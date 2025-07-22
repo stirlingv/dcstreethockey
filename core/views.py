@@ -593,12 +593,12 @@ def teams(request, team=0):
     scorematchups = add_goals_for_matchups(scorematchups)
     context['matchups'] = get_detailed_matchups(scorematchups)
     context['roster'] = []
-    players = Player.objects.filter(roster__team__id=team)
+    players = Player.objects.filter(roster__team__id=team, roster__is_substitute=False)
     season = players.values_list('roster__team__season__id', flat=True).distinct()
     context['past_team_stats'] = get_stats_for_past_team(team)
     context['player_list'] = get_player_stats(players, int(season[0])).order_by(
             '-total_points', '-sum_goals', '-sum_assists', 'average_goals_against')
-    for rosteritem in Roster.objects.select_related('team').select_related('player').filter(team__id=team):
+    for rosteritem in Roster.objects.select_related('team').select_related('player').filter(team__id=team, is_substitute=False):
         context['roster'].append({'player': rosteritem.player.first_name + " " + rosteritem.player.last_name,
             'position':[y for x,y in Roster.POSITION_TYPE if x == rosteritem.position1][0]})
 
@@ -672,7 +672,7 @@ def get_goalie_games_played(player):
     return float(games_played)
 
 def get_seasons_played(player):
-    count = Roster.objects.filter(player__id=player).count()
+    count = Roster.objects.filter(player__id=player, is_substitute=False).count()
     return float(count)
 
 def get_offensive_stats_for_player(player):
@@ -912,7 +912,7 @@ def player_trends_view(request):
             # Check the player's position for each season and filter out seasons with zero goals and zero assists if the player's primary position is not goalie or defense
             filtered_stats = []
             for stat in offensive_stats:
-                roster_entry = Roster.objects.filter(player=player, team_id=stat['team__id']).first()
+                roster_entry = Roster.objects.filter(player=player, is_substitute=False, team_id=stat['team__id']).first()
                 primary_position = roster_entry.position1 if roster_entry else None
                 sum_goals = stat['sum_goals'] if stat['sum_goals'] is not None else 0
                 sum_assists = stat['sum_assists'] if stat['sum_assists'] is not None else 0

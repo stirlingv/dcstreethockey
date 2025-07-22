@@ -77,20 +77,27 @@ class StatInline(admin.TabularInline):
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         match_id = request.resolver_match.kwargs.get('object_id')
+        # print("StatInline: match_id =", match_id)
         if db_field.name in ["player", "team"] and match_id:
             try:
                 match = MatchUp.objects.select_related('hometeam', 'awayteam', 'week__season').get(id=match_id)
+                # print("StatInline: hometeam =", match.hometeam)
+                # print("StatInline: awayteam =", match.awayteam)
+                # print("StatInline: season =", match.week.season)
                 if db_field.name == "player":
-                    kwargs['queryset'] = Player.objects.filter(
-                        (Q(roster__team__in=[match.hometeam, match.awayteam]) &
-                         Q(roster__team__season=match.week.season)) |
-                        Q(roster__position1=4) | Q(roster__position2=4)
+                    team_seasons = [match.hometeam.season, match.awayteam.season]
+                    qs = Player.objects.filter(
+                        roster__team__in=[match.hometeam, match.awayteam],
+                        roster__team__season__in=team_seasons
                     ).distinct()
+                    # print("StatInline: player queryset count =", qs.count())
+                    kwargs['queryset'] = qs
                 elif db_field.name == "team":
-                    kwargs['queryset'] = Team.objects.filter(
-                        id__in=[match.hometeam.id, match.awayteam.id],
-                        season=match.week.season
+                    qs = Team.objects.filter(
+                        id__in=[match.hometeam.id, match.awayteam.id]
                     )
+                    # print("StatInline: team queryset count =", qs.count())
+                    kwargs['queryset'] = qs
             except MatchUp.DoesNotExist:
                 print("Could not find the matchup to filter players or teams.")
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)

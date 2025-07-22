@@ -152,6 +152,7 @@ class Roster(models.Model):
     position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
     position2 = models.PositiveIntegerField(choices=POSITION_TYPE, null=True, blank=True)
     is_captain = models.BooleanField(default=False)
+    is_substitute = models.BooleanField(default=False)
     player_number = models.PositiveSmallIntegerField(blank=True, null=True, default="")
 
     class Meta:
