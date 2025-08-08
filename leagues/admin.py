@@ -77,30 +77,36 @@ class StatInline(admin.TabularInline):
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         match_id = request.resolver_match.kwargs.get('object_id')
-        # print("StatInline: match_id =", match_id)
-        if db_field.name in ["player", "team"] and match_id:
+        # For player, allow selection of any player
+        if db_field.name == "player":
+            kwargs['queryset'] = Player.objects.all()
+        # For team, allow selection of either team in the matchup
+        elif db_field.name == "team" and match_id:
             try:
-                match = MatchUp.objects.select_related('hometeam', 'awayteam', 'week__season').get(id=match_id)
-                # print("StatInline: hometeam =", match.hometeam)
-                # print("StatInline: awayteam =", match.awayteam)
-                # print("StatInline: season =", match.week.season)
-                if db_field.name == "player":
-                    team_seasons = [match.hometeam.season, match.awayteam.season]
-                    qs = Player.objects.filter(
-                        roster__team__in=[match.hometeam, match.awayteam],
-                        roster__team__season__in=team_seasons
-                    ).distinct()
-                    # print("StatInline: player queryset count =", qs.count())
-                    kwargs['queryset'] = qs
-                elif db_field.name == "team":
-                    qs = Team.objects.filter(
-                        id__in=[match.hometeam.id, match.awayteam.id]
-                    )
-                    # print("StatInline: team queryset count =", qs.count())
-                    kwargs['queryset'] = qs
+                match = MatchUp.objects.select_related('hometeam', 'awayteam').get(id=match_id)
+                kwargs['queryset'] = Team.objects.filter(id__in=[match.hometeam.id, match.awayteam.id])
             except MatchUp.DoesNotExist:
-                print("Could not find the matchup to filter players or teams.")
+                kwargs['queryset'] = Team.objects.none()
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
+
+    # This method is called when saving each inline form
+    def save_new(self, form, commit=True):
+        stat = super().save_new(form, commit=False)
+        player = stat.player
+        team = stat.team
+        season = team.season
+        # Check if player is already on the roster for this team/season
+        if not Roster.objects.filter(player=player, team=team, team__season=season).exists():
+            # You may want to let the admin choose position, but here we default to Goalie (4)
+            Roster.objects.create(
+                player=player,
+                team=team,
+                position1=4,  # Default to Goalie; adjust as needed
+                is_substitute=True
+            )
+        if commit:
+            stat.save()
+        return stat
 
 class MatchUpAdmin(admin.ModelAdmin):
     form = MatchUpForm
@@ -139,7 +145,6 @@ class MatchUpAdmin(admin.ModelAdmin):
             qs = qs.filter(week__season_id=season_id)
 
         return qs
-
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         if db_field.name in ["hometeam", "awayteam"]:
