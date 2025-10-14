@@ -77,10 +77,21 @@ class StatInline(admin.TabularInline):
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         match_id = request.resolver_match.kwargs.get('object_id')
-        # For player, allow selection of any player
-        if db_field.name == "player":
-            kwargs['queryset'] = Player.objects.all()
-        # For team, allow selection of either team in the matchup
+        if db_field.name == "player" and match_id:
+            try:
+                match = MatchUp.objects.select_related('hometeam', 'awayteam').get(id=match_id)
+                # Players on either roster for the two teams
+                rostered_players = Player.objects.filter(
+                    roster__team__in=[match.hometeam, match.awayteam]
+                )
+                # All players who are a goalie in any roster
+                goalie_players = Player.objects.filter(
+                    Q(roster__position1=4) | Q(roster__position2=4)
+                )
+                # Union of both querysets
+                kwargs['queryset'] = (rostered_players | goalie_players).distinct()
+            except MatchUp.DoesNotExist:
+                kwargs['queryset'] = Player.objects.none()
         elif db_field.name == "team" and match_id:
             try:
                 match = MatchUp.objects.select_related('hometeam', 'awayteam').get(id=match_id)
