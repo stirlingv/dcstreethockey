@@ -1,6 +1,7 @@
 # leagues/admin.py
 from django import forms
 from django.contrib import admin
+from django.contrib.admin import SimpleListFilter
 from django.db import models
 from django.db.models import Q, Max
 from django.utils.http import urlencode
@@ -60,9 +61,26 @@ class TeamStatInline(admin.TabularInline):
     model = Team_Stat
     extra = 1
 
+class GoalieListFilter(SimpleListFilter):
+    title = 'Goalie'
+    parameter_name = 'is_goalie'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'Goalies'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(
+                Q(roster__position1=4) | Q(roster__position2=4)
+            ).distinct()
+        return queryset
+
 class PlayerAdmin(admin.ModelAdmin):
     search_fields = ['last_name', 'first_name']
     list_select_related = ('player_photo',)
+    list_filter = [GoalieListFilter]
 
 class StatInline(admin.TabularInline):
     model = Stat
