@@ -9,9 +9,7 @@ from django.test.client import Client
 from django.test.utils import override_settings
 
 
-
 class ViewTest(TestCase):
-
     def setUp(self):
         self.client = Client()
         self.media_folder = mkdtemp()

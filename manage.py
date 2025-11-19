@@ -2,6 +2,7 @@
 import os
 import sys
 import dotenv
+
 dotenv.load_dotenv()
 
 if __name__ == "__main__":

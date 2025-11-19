@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0064_auto_20210714_1753'),
+        ("leagues", "0064_auto_20210714_1753"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='team',
-            name='conference',
-            field=models.PositiveIntegerField(blank=True, choices=[(1, 'East'), (2, 'West'), (3, 'A League'), (4, 'B League')], null=True),
+            model_name="team",
+            name="conference",
+            field=models.PositiveIntegerField(
+                blank=True,
+                choices=[(1, "East"), (2, "West"), (3, "A League"), (4, "B League")],
+                null=True,
+            ),
         ),
     ]

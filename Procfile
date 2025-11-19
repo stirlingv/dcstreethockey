@@ -1,1 +1,1 @@
-web: gunicorn dcstreethockey.wsgi 
+web: gunicorn dcstreethockey.wsgi

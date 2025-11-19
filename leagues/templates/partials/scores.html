@@ -4,7 +4,7 @@
             <h3>{{division_name}} | {{day}}</h3>
         {% endif %}
         {% for mid, value2 in value.items %}
-        <div class="game"> 
+        <div class="game">
                 {% if division_name %}
                     <h3>{{value2.match.time}}</h3>
                 {% else %}
@@ -25,7 +25,7 @@
                                 class="winner"
                             {% endif %}
                             >{{value2.match.away_goals}}</td>
-                        <td 
+                        <td
                             onclick="javascript:handleTeam('{% url "teams" value2.match.hometeam.id %}')"
                             class="clickable
                             {% if value2.match.home_goals > value2.match.away_goals %}

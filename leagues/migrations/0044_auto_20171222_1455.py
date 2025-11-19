@@ -7,26 +7,37 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0043_auto_20171222_1445'),
+        ("leagues", "0043_auto_20171222_1445"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='PhotoMod',
+            name="PhotoMod",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('photo', models.ImageField(blank=True, upload_to='teams')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("photo", models.ImageField(blank=True, upload_to="teams")),
             ],
         ),
         migrations.RemoveField(
-            model_name='team',
-            name='photo',
+            model_name="team",
+            name="photo",
         ),
         migrations.AddField(
-            model_name='team',
-            name='photoref',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.PhotoMod'),
+            model_name="team",
+            name="photoref",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.PhotoMod",
+            ),
         ),
     ]

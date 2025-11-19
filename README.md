@@ -1,6 +1,81 @@
 # dcstreethockey
 
-## Clone and run using docker
+## Development Setup (Recommended)
+
+**🏒 Quick Start for New Developers:**
+
+1. **Clone and setup:**
+   ```bash
+   git clone https://github.com/[your-username]/dcstreethockey.git
+   cd dcstreethockey
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+2. **Automated setup (does everything for you):**
+   ```bash
+   ./setup-dev.sh
+   ```
+
+   This script will:
+   - Install all Python dependencies
+   - Install pre-commit hooks
+   - Run Django system checks
+   - Check for migrations
+   - Run all tests to verify setup
+   - Format existing code
+
+3. **Start developing! 🚀**
+   ```bash
+   python manage.py runserver
+   ```
+
+### 🛡️ Pre-commit Quality Assurance
+
+**Automatic checks before every commit:**
+- ✅ **Django system checks** - No configuration errors
+- ✅ **Full test suite** - All tests must pass (including standings logic)
+- ✅ **Migration checks** - No uncommitted database changes
+- ✅ **Code formatting** - Auto-formatted with Black (88 chars)
+- ✅ **Code linting** - Flake8 quality checks
+- ✅ **File cleanup** - No trailing whitespace, proper line endings
+
+**Manual commands:**
+```bash
+# Run pre-commit on all files
+pre-commit run --all-files
+
+# Run specific test suites
+python manage.py test core.tests.test_standings -v 2  # Standings logic
+python manage.py test leagues.tests                   # League functionality
+
+# Test just the setup
+./test-precommit.sh
+```
+
+### 🧪 Test Coverage
+
+The standings logic includes comprehensive tests for:
+- **2-team tiebreakers:** regulation wins, goal differential, head-to-head
+- **3-team tiebreakers:** complex scenarios with mixed metrics
+- **4-team tiebreakers:** all teams tied with different regulation wins
+- **Edge cases:** identical metrics, integration tests
+
+### 📋 Development Workflow
+
+1. **Make changes** to code
+2. **Add/commit** - pre-commit automatically runs all checks
+3. **If checks fail** - fix issues and commit again
+4. **Push** - GitHub Actions runs same checks
+5. **Create PR** - All quality gates must pass
+
+---
+
+## Alternative Setup Methods
+
+### Docker Setup (Alternative)
+
+**Note:** The development setup above is recommended for active development. Use Docker for quick testing or if you prefer containerization.
 
 1. [install_docker](https://docs.docker.com/engine/installation/)
 1. [install_docker-compose](https://docs.docker.com/compose/install/)
@@ -11,19 +86,28 @@
 1. docker-compose run --rm web python manage.py loaddata working-herokudump.json
 1. docker-compose up
 
-## Clone and Run in localhost
+### Manual Localhost Setup (Alternative)
 
-1. [download postgres](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads#linux)
-   - [generic instructions here](https://www.postgresql.org/download/linux/)
-   - if using homebrew: 
-      - ```brew instal postgresql```
-1. [fork](https://help.github.com/articles/fork-a-repo/) and [clone](https://help.github.com/articles/cloning-a-repository/) repo
-1. activate virtual environment 
-   - ```venv``` is part of python3 base image.
-   - cd to dcstreethockey folder
-   - ```python3 -m venv [path to virtual environment folder]``` (first time only)
-   - ```source [path to virtual environment]/bin/activate```
-1. pip install -r requirements.txt
+**Note:** Use the **Development Setup** above instead for the best experience with pre-commit hooks and quality assurance.
+
+1. **Install PostgreSQL:**
+   ```bash
+   # Using Homebrew (macOS)
+   brew install postgresql
+
+   # Or download from: https://www.postgresql.org/download/
+   ```
+
+2. **Clone and setup environment:**
+   ```bash
+   git clone [repo-url]
+   cd dcstreethockey
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+3. **Setup database:**
 1. Make sure postgres is running and Database exists
    - ```brew services start postgresql```
    - ```psql -l```
@@ -44,10 +128,10 @@
 
 ## Create backup of render database and restore in local postgres instance
 
-1. Run pg_dump to generate an export of the database on render: 
+1. Run pg_dump to generate an export of the database on render:
 
     ```bash
-    pg_dump -d <<external render DB connection>> > ~/Downloads/<<file_name>>.sql 
+    pg_dump -d <<external render DB connection>> > ~/Downloads/<<file_name>>.sql
     ```
 
 1. Delete local postgres db
@@ -94,3 +178,70 @@
     ```bash
     psql postgres://<username>:<password>@<host>:<port>/<database> -f path/to/your/script.sql
     ```
+
+---
+
+## 🛠️ Development Reference
+
+### Configuration Files Created
+
+The development setup creates these important files:
+
+- **`.pre-commit-config.yaml`** - Pre-commit hook configuration
+- **`.flake8`** - Python linting rules (compatible with Black)
+- **`pyproject.toml`** - Black formatter and isort configuration
+- **`setup-dev.sh`** - Automated development environment setup
+- **`test-precommit.sh`** - Test script to verify pre-commit setup
+- **`.github/workflows/ci.yml`** - GitHub Actions for CI/CD
+- **`PRE-COMMIT-SETUP.md`** - Detailed pre-commit documentation
+
+### Key Testing Files
+
+- **`core/tests/test_standings.py`** - Comprehensive standings logic tests
+- **`core/tests/__init__.py`** - Makes tests directory a Python package
+
+### Troubleshooting
+
+**Pre-commit issues:**
+```bash
+# Reinstall hooks
+pre-commit uninstall
+pre-commit install
+
+# Update hooks to latest versions
+pre-commit autoupdate
+
+# Skip hooks temporarily (not recommended)
+git commit -m "message" --no-verify
+```
+
+**Test issues:**
+```bash
+# Run specific test with verbose output
+python manage.py test core.tests.test_standings -v 2
+
+# Run with keepdb to speed up repeated runs
+python manage.py test --keepdb
+
+# Debug test discovery issues
+python manage.py test --debug-mode
+```
+
+**Environment issues:**
+```bash
+# Recreate virtual environment
+deactivate
+rm -rf venv
+python3 -m venv venv
+source venv/bin/activate
+./setup-dev.sh
+```
+
+### Contributing
+
+1. **Make sure pre-commit is working:** `pre-commit run --all-files`
+2. **Run tests:** `python manage.py test core.tests.test_standings`
+3. **Make changes and commit** - hooks will run automatically
+4. **Push and create PR** - GitHub Actions will validate
+
+All commits must pass the pre-commit quality gates! 🏒

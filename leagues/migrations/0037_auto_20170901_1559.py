@@ -6,15 +6,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0036_team_photo'),
+        ("leagues", "0036_team_photo"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='team',
-            name='photo',
-            field=models.ImageField(default='/static/images/D1Champs.jpg', null=True, upload_to='teams'),
+            model_name="team",
+            name="photo",
+            field=models.ImageField(
+                default="/static/images/D1Champs.jpg", null=True, upload_to="teams"
+            ),
         ),
     ]

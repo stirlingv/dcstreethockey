@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0062_auto_20210318_2235'),
+        ("leagues", "0062_auto_20210318_2235"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='season',
-            name='is_current_season',
+            model_name="season",
+            name="is_current_season",
             field=models.BooleanField(null=True),
         ),
     ]

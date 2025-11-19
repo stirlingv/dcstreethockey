@@ -4,15 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0076_stat_leagues_sta_player__daf39a_idx'),
+        ("leagues", "0076_stat_leagues_sta_player__daf39a_idx"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='player',
-            name='gender',
-            field=models.CharField(blank=True, choices=[('F', 'Female'), ('M', 'Male'), ('NB', 'Non-Binary'), ('NA', 'Prefer not to say')], default='M', max_length=2, null=True),
+            model_name="player",
+            name="gender",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("F", "Female"),
+                    ("M", "Male"),
+                    ("NB", "Non-Binary"),
+                    ("NA", "Prefer not to say"),
+                ],
+                default="M",
+                max_length=2,
+                null=True,
+            ),
         ),
     ]

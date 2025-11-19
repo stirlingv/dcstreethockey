@@ -6,15 +6,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0054_auto_20200212_1402'),
+        ("leagues", "0054_auto_20200212_1402"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='team_stat',
-            name='otl',
+            model_name="team_stat",
+            name="otl",
             field=models.PositiveSmallIntegerField(default=0),
         ),
     ]

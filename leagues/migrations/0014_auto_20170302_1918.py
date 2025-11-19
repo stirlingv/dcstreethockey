@@ -6,15 +6,22 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0013_auto_20170301_2129'),
+        ("leagues", "0013_auto_20170301_2129"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='division',
-            name='division',
-            field=models.IntegerField(choices=[(1, 'Sunday D1'), (2, 'Sunday D2'), (3, 'Wednesday Draft League')], null=True, unique=True),
+            model_name="division",
+            name="division",
+            field=models.IntegerField(
+                choices=[
+                    (1, "Sunday D1"),
+                    (2, "Sunday D2"),
+                    (3, "Wednesday Draft League"),
+                ],
+                null=True,
+                unique=True,
+            ),
         ),
     ]

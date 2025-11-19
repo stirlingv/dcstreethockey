@@ -6,19 +6,18 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0044_auto_20171222_1455'),
+        ("leagues", "0044_auto_20171222_1455"),
     ]
 
     operations = [
         migrations.RenameModel(
-            old_name='PhotoMod',
-            new_name='TeamPhoto',
+            old_name="PhotoMod",
+            new_name="TeamPhoto",
         ),
         migrations.RenameField(
-            model_name='team',
-            old_name='photoref',
-            new_name='team_photo',
+            model_name="team",
+            old_name="photoref",
+            new_name="team_photo",
         ),
     ]

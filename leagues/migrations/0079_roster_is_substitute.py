@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0078_alter_season_year'),
+        ("leagues", "0078_alter_season_year"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='roster',
-            name='is_substitute',
+            model_name="roster",
+            name="is_substitute",
             field=models.BooleanField(default=False),
         ),
     ]

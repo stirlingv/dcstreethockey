@@ -6,45 +6,44 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0050_auto_20180702_1151'),
+        ("leagues", "0050_auto_20180702_1151"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='homepage',
-            name='alt_announcement3',
+            model_name="homepage",
+            name="alt_announcement3",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='alt_announcement4',
+            model_name="homepage",
+            name="alt_announcement4",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='alt_photo3',
-            field=models.ImageField(blank=True, null=True, upload_to='homepage'),
+            model_name="homepage",
+            name="alt_photo3",
+            field=models.ImageField(blank=True, null=True, upload_to="homepage"),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='alt_photo4',
-            field=models.ImageField(blank=True, null=True, upload_to='homepage'),
+            model_name="homepage",
+            name="alt_photo4",
+            field=models.ImageField(blank=True, null=True, upload_to="homepage"),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='alt_title3',
+            model_name="homepage",
+            name="alt_title3",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='alt_title4',
+            model_name="homepage",
+            name="alt_title4",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='winter_title',
+            model_name="homepage",
+            name="winter_title",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
     ]

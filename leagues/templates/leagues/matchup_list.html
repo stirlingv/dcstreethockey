@@ -32,7 +32,7 @@
 						    		<th>GA</th>
 						    		<th>EN</th>
 						    	</tr>
-							{% for x in match.awayteamroster %}  
+							{% for x in match.awayteamroster %}
 							    	<tr>
 										<td>{{x.player_number|default_if_none:""}}</td>
 							    		<td text-align:left>{{x.player.first_name}} {{x.player.last_name}}</td>
@@ -59,9 +59,9 @@
 						    		<th>GA</th>
 						    		<th>EN</th>
 						    	</tr>
-							{% for x in match.hometeamroster %}  
+							{% for x in match.hometeamroster %}
 							    	<tr>
-										<td>{{x.player_number|default_if_none:""}}</td>	
+										<td>{{x.player_number|default_if_none:""}}</td>
 							    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
                                         <td>{{y.goals}}</td>
                                         <td>{{y.assists}}</td>
@@ -84,4 +84,3 @@
     window.print();
 </script>
 {% endblock %}
-

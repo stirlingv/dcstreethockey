@@ -1,0 +1,22 @@
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+# A regex preceded by ^/ will apply only to files and directories
+# in the root of the project.
+(
+  ^/migrations/         # exclude migrations
+  | ^/staticfiles/      # exclude static files
+  | ^/venv/            # exclude virtual environment
+  | ^/env/             # exclude virtual environment
+)
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_django = "django"
+sections = ["FUTURE","STDLIB","THIRDPARTY","DJANGO","FIRSTPARTY","LOCALFOLDER"]
+skip_glob = ["*/migrations/*", "venv/*", "env/*"]

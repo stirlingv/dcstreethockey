@@ -4,14 +4,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0075_auto_20240510_1543'),
+        ("leagues", "0075_auto_20240510_1543"),
     ]
 
     operations = [
         migrations.AddIndex(
-            model_name='stat',
-            index=models.Index(fields=['player', 'team', 'matchup'], name='leagues_sta_player__daf39a_idx'),
+            model_name="stat",
+            index=models.Index(
+                fields=["player", "team", "matchup"],
+                name="leagues_sta_player__daf39a_idx",
+            ),
         ),
     ]

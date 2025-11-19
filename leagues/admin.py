@@ -12,7 +12,21 @@ from dal import autocomplete
 from .forms import MatchUpForm
 from .fields import TwelveHourTimeField
 from .widgets import Time12HourWidget
-from leagues.models import Division, Player, Team, Roster, Team_Stat, Week, MatchUp, Stat, Ref, Season, HomePage, TeamPhoto, PlayerPhoto
+from leagues.models import (
+    Division,
+    Player,
+    Team,
+    Roster,
+    Team_Stat,
+    Week,
+    MatchUp,
+    Stat,
+    Ref,
+    Season,
+    HomePage,
+    TeamPhoto,
+    PlayerPhoto,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,62 +39,63 @@ def get_current_season():
     except Season.DoesNotExist:
         return None
 
+
 def get_current_season_for_division(division_id):
     try:
-        max_year = Season.objects.filter(
-            team__division_id=division_id
-        ).aggregate(max_year=Max('year'))['max_year']
+        max_year = Season.objects.filter(team__division_id=division_id).aggregate(
+            max_year=Max("year")
+        )["max_year"]
 
         max_season_type = Season.objects.filter(
-            team__division_id=division_id,
-            year=max_year
-        ).aggregate(max_season_type=Max('season_type'))['max_season_type']
+            team__division_id=division_id, year=max_year
+        ).aggregate(max_season_type=Max("season_type"))["max_season_type"]
 
         current_season_instance = Season.objects.get(
-            year=max_year,
-            season_type=max_season_type
+            year=max_year, season_type=max_season_type
         )
         return current_season_instance
     except Season.DoesNotExist:
         return None
 
+
 class RosterInlineForm(forms.ModelForm):
     class Meta:
         model = Roster
-        fields = '__all__'
-        widgets = {
-            'player': autocomplete.ModelSelect2(url='player-autocomplete')
-        }
+        fields = "__all__"
+        widgets = {"player": autocomplete.ModelSelect2(url="player-autocomplete")}
+
 
 class RosterInline(admin.TabularInline):
     model = Roster
     form = RosterInlineForm
     extra = 1
 
+
 class TeamStatInline(admin.TabularInline):
     model = Team_Stat
     extra = 1
 
+
 class GoalieListFilter(SimpleListFilter):
-    title = 'Goalie'
-    parameter_name = 'is_goalie'
+    title = "Goalie"
+    parameter_name = "is_goalie"
 
     def lookups(self, request, model_admin):
-        return (
-            ('yes', 'Goalies'),
-        )
+        return (("yes", "Goalies"),)
 
     def queryset(self, request, queryset):
-        if self.value() == 'yes':
+        if self.value() == "yes":
             return queryset.filter(
                 Q(roster__position1=4) | Q(roster__position2=4)
             ).distinct()
         return queryset
 
+
 class PlayerAdmin(admin.ModelAdmin):
-    search_fields = ['last_name', 'first_name']
-    list_select_related = ('player_photo',)
+    search_fields = ["last_name", "first_name"]
+    list_select_related = ("player_photo",)
     list_filter = [GoalieListFilter]
+
 
 class StatInline(admin.TabularInline):
     model = Stat
@@ -88,16 +103,18 @@ class StatInline(admin.TabularInline):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        match_id = request.resolver_match.kwargs.get('object_id')
+        match_id = request.resolver_match.kwargs.get("object_id")
         if match_id:
             qs = qs.filter(matchup_id=match_id)
         return qs
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
-        match_id = request.resolver_match.kwargs.get('object_id')
+        match_id = request.resolver_match.kwargs.get("object_id")
         if db_field.name == "player" and match_id:
             try:
-                match = MatchUp.objects.select_related('hometeam', 'awayteam').get(id=match_id)
+                match = MatchUp.objects.select_related("hometeam", "awayteam").get(
+                    id=match_id
+                )
                 # Players on either roster for the two teams
                 rostered_players = Player.objects.filter(
                     roster__team__in=[match.hometeam, match.awayteam]
@@ -107,15 +124,19 @@ class StatInline(admin.TabularInline):
                     Q(roster__position1=4) | Q(roster__position2=4)
                 )
                 # Union of both querysets
-                kwargs['queryset'] = (rostered_players | goalie_players).distinct()
+                kwargs["queryset"] = (rostered_players | goalie_players).distinct()
             except MatchUp.DoesNotExist:
-                kwargs['queryset'] = Player.objects.none()
+                kwargs["queryset"] = Player.objects.none()
         elif db_field.name == "team" and match_id:
             try:
-                match = MatchUp.objects.select_related('hometeam', 'awayteam').get(id=match_id)
-                kwargs['queryset'] = Team.objects.filter(id__in=[match.hometeam.id, match.awayteam.id])
+                match = MatchUp.objects.select_related("hometeam", "awayteam").get(
+                    id=match_id
+                )
+                kwargs["queryset"] = Team.objects.filter(
+                    id__in=[match.hometeam.id, match.awayteam.id]
+                )
             except MatchUp.DoesNotExist:
-                kwargs['queryset'] = Team.objects.none()
+                kwargs["queryset"] = Team.objects.none()
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
     # This method is called when saving each inline form
@@ -125,44 +146,56 @@ class StatInline(admin.TabularInline):
         team = stat.team
         season = team.season
         # Check if player is already on the roster for this team/season
-        if not Roster.objects.filter(player=player, team=team, team__season=season).exists():
+        if not Roster.objects.filter(
+            player=player, team=team, team__season=season
+        ).exists():
             # You may want to let the admin choose position, but here we default to Goalie (4)
             Roster.objects.create(
                 player=player,
                 team=team,
                 position1=4,  # Default to Goalie; adjust as needed
-                is_substitute=True
+                is_substitute=True,
             )
         if commit:
             stat.save()
         return stat
 
+
 class MatchUpAdmin(admin.ModelAdmin):
     form = MatchUpForm
-    list_select_related = ('hometeam', 'awayteam', 'week',)
-    inlines = [StatInline,]
-    list_filter = ('week__division', 'week__season')
-    raw_id_fields = ['hometeam', 'awayteam']
-    list_display = ['week', 'formatted_time', 'awayteam', 'hometeam']
+    list_select_related = (
+        "hometeam",
+        "awayteam",
+        "week",
+    )
+    inlines = [
+        StatInline,
+    ]
+    list_filter = ("week__division", "week__season")
+    raw_id_fields = ["hometeam", "awayteam"]
+    list_display = ["week", "formatted_time", "awayteam", "hometeam"]
 
     formfield_overrides = {
-        models.TimeField: {'form_class': TwelveHourTimeField, 'widget': Time12HourWidget},
+        models.TimeField: {
+            "form_class": TwelveHourTimeField,
+            "widget": Time12HourWidget,
+        },
     }
 
     def formatted_time(self, obj):
         if obj.time:
             try:
-                return obj.time.strftime('%I:%M %p')
+                return obj.time.strftime("%I:%M %p")
             except ValueError:
                 return obj.time
         return None
 
-    formatted_time.short_description = 'Time'
+    formatted_time.short_description = "Time"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        division_id = request.GET.get('week__division__exact')
-        season_id = request.GET.get('week__season__exact')
+        division_id = request.GET.get("week__division__exact")
+        season_id = request.GET.get("week__season__exact")
 
         if division_id:
             qs = qs.filter(week__division_id=division_id)
@@ -177,41 +210,48 @@ class MatchUpAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
         if db_field.name in ["hometeam", "awayteam"]:
-            kwargs['queryset'] = Team.objects.filter(is_active=True).select_related('division')
+            kwargs["queryset"] = Team.objects.filter(is_active=True).select_related(
+                "division"
+            )
         elif db_field.name == "week":
-            matchup_id = request.resolver_match.kwargs.get('object_id')
+            matchup_id = request.resolver_match.kwargs.get("object_id")
             if matchup_id:
                 try:
-                    matchup = MatchUp.objects.select_related('week__season').get(id=matchup_id)
-                    kwargs['queryset'] = Week.objects.filter(
-                        division=matchup.hometeam.division,
-                        season=matchup.week.season
+                    matchup = MatchUp.objects.select_related("week__season").get(
+                        id=matchup_id
+                    )
+                    kwargs["queryset"] = Week.objects.filter(
+                        division=matchup.hometeam.division, season=matchup.week.season
                     )
                 except MatchUp.DoesNotExist:
                     print("Could not find the matchup to filter weeks.")
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
     def render_change_list(self, request, *args, **kwargs):
-        extra_context = kwargs.get('extra_context', {})
-        recent_seasons = Season.objects.order_by('-year', '-season_type')[:5]
-        extra_context['recent_seasons'] = recent_seasons
-        kwargs['extra_context'] = extra_context
+        extra_context = kwargs.get("extra_context", {})
+        recent_seasons = Season.objects.order_by("-year", "-season_type")[:5]
+        extra_context["recent_seasons"] = recent_seasons
+        kwargs["extra_context"] = extra_context
         return super().render_change_list(request, *args, **kwargs)
+
 
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
     form = MatchUpForm
     extra = 4
-    raw_id_fields = ['awayteam', 'hometeam']
+    raw_id_fields = ["awayteam", "hometeam"]
 
     formfield_overrides = {
-        models.TimeField: {'form_class': TwelveHourTimeField, 'widget': Time12HourWidget},
+        models.TimeField: {
+            "form_class": TwelveHourTimeField,
+            "widget": Time12HourWidget,
+        },
     }
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         # Get the week_id from the URL parameters
-        week_id = request.resolver_match.kwargs.get('object_id')
+        week_id = request.resolver_match.kwargs.get("object_id")
         if week_id:
             qs = qs.filter(week_id=week_id)
         else:
@@ -221,56 +261,67 @@ class MatchUpInline(admin.TabularInline):
         logger.debug(f"MatchUpInline queryset: {qs.query}")
         return qs
 
-class WeekAdmin(admin.ModelAdmin):
-    list_select_related = ('division', 'season',)
-    inlines = [MatchUpInline,]
-    list_filter = ['division','season']
 
-    actions = ['show_all_seasons']
+class WeekAdmin(admin.ModelAdmin):
+    list_select_related = (
+        "division",
+        "season",
+    )
+    inlines = [
+        MatchUpInline,
+    ]
+    list_filter = ["division", "season"]
+
+    actions = ["show_all_seasons"]
 
     def show_all_seasons(self, request, queryset):
         return queryset
+
     show_all_seasons.short_description = "Show All Seasons"
 
     def changelist_view(self, request, extra_context=None):
-        if not request.GET.get('season__id__exact'):
+        if not request.GET.get("season__id__exact"):
             current_season = get_current_season()
             if current_season:
-                query_string = urlencode({'season__id__exact': current_season.id})
+                query_string = urlencode({"season__id__exact": current_season.id})
                 url = f"{request.path}?{query_string}"
                 return redirect(url)
         return super().changelist_view(request, extra_context=extra_context)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        season_id = request.GET.get('season__id__exact')
+        season_id = request.GET.get("season__id__exact")
         if season_id:
             qs = qs.filter(season_id=season_id)
         return qs
 
     def render_change_list(self, request, *args, **kwargs):
-        extra_context = kwargs.get('extra_context', {})
-        recent_seasons = Season.objects.order_by('-year', '-season_type')[:5]
-        extra_context['recent_seasons'] = recent_seasons
-        kwargs['extra_context'] = extra_context
+        extra_context = kwargs.get("extra_context", {})
+        recent_seasons = Season.objects.order_by("-year", "-season_type")[:5]
+        extra_context["recent_seasons"] = recent_seasons
+        kwargs["extra_context"] = extra_context
         return super().render_change_list(request, *args, **kwargs)
-    
+
+
 class TeamAdmin(admin.ModelAdmin):
     inlines = [TeamStatInline, RosterInline]
-    list_filter = ['is_active', 'division', 'season']
+    list_filter = ["is_active", "division", "season"]
     save_as = True
-    raw_id_fields = ['division', 'season']
+    raw_id_fields = ["division", "season"]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.select_related('division', 'season')
+        return qs.select_related("division", "season")
+
 
 class SeasonAdmin(admin.ModelAdmin):
-    list_filter = ('year',)
+    list_filter = ("year",)
+
 
 @admin.register(Ref)
 class RefAdmin(admin.ModelAdmin):
     pass
+
 
 @admin.register(HomePage)
 class HomePageAdmin(admin.ModelAdmin):
@@ -280,13 +331,16 @@ class HomePageAdmin(admin.ModelAdmin):
             print(f"Uploaded file path: {obj.wed_champ_photo.name}")
             print(f"Storage backend: {obj.wed_champ_photo.storage}")
 
+
 @admin.register(TeamPhoto)
 class TeamPhotoAdmin(admin.ModelAdmin):
     pass
 
+
 @admin.register(PlayerPhoto)
 class PlayerPhotoAdmin(admin.ModelAdmin):
     pass
+
 
 admin.site.register(Player, PlayerAdmin)
 admin.site.register(Team, TeamAdmin)

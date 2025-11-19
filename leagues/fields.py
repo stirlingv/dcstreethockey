@@ -2,9 +2,10 @@
 from django import forms
 import datetime
 
+
 class TwelveHourTimeField(forms.TimeField):
     def __init__(self, *args, **kwargs):
-        kwargs['input_formats'] = ['%I:%M %p', '%H:%M:%S']
+        kwargs["input_formats"] = ["%I:%M %p", "%H:%M:%S"]
         super().__init__(*args, **kwargs)
 
     def clean(self, value):

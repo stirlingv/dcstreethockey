@@ -13,97 +13,95 @@ https://docs.djangoproject.com/en/1.9/ref/settings/
 import os, sys
 import socket
 
-if socket.gethostname()=="test.local":
+if socket.gethostname() == "test.local":
     from .local import *
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.9/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'k6%7zjqzgk0!&6gzf3uyxlg$odxw9m@6w1$)6y@t*w!a1(o3&g'
+SECRET_KEY = "k6%7zjqzgk0!&6gzf3uyxlg$odxw9m@6w1$)6y@t*w!a1(o3&g"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 if not DEBUG:
     # Tell Django to copy static assets into a path called `staticfiles` (this is specific to Render)
-    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
     # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
     # and renames the files with unique names for each version to support long-term caching
-    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'
+    STATICFILES_STORAGE = (
+        "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"
+    )
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["*"]
 
 # Application definition
 
 INSTALLED_APPS = [
-    'dal',
-    'dal_select2',
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.templatetags.static',
-    'django.contrib.staticfiles',
-    'debug_toolbar',
-    'django_extensions',
-    'channels',
-    'core',
-    'suit',
-    'storages',
-    'datetimewidget',
-    'localflavor',
-    'widget_tweaks',
-    'leagues'
+    "dal",
+    "dal_select2",
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.templatetags.static",
+    "django.contrib.staticfiles",
+    "debug_toolbar",
+    "django_extensions",
+    "channels",
+    "core",
+    "suit",
+    "storages",
+    "datetimewidget",
+    "localflavor",
+    "widget_tweaks",
+    "leagues",
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'debug_toolbar.middleware.DebugToolbarMiddleware'
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
-INTERNAL_IPS = [
-    '127.0.0.1'
-]
+INTERNAL_IPS = ["127.0.0.1"]
 
-ROOT_URLCONF = 'dcstreethockey.urls'
+ROOT_URLCONF = "dcstreethockey.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [
-            BASE_DIR + '/templates/'
-        ],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.media',
-                'dcstreethockey.context_processors.homepage_logo',
-                'core.context_processors.jersey_path',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR + "/templates/"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+                "django.template.context_processors.media",
+                "dcstreethockey.context_processors.homepage_logo",
+                "core.context_processors.jersey_path",
             ],
         },
     },
 ]
 
 # WSGI_APPLICATION = 'dcstreethockey.wsgi.application'
-ASGI_APPLICATION = 'dcstreethockey.asgi.application'
+ASGI_APPLICATION = "dcstreethockey.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/1.9/ref/settings/#databases
@@ -115,43 +113,42 @@ ASGI_APPLICATION = 'dcstreethockey.asgi.application'
 #     }
 # }
 
-if 'test' in sys.argv or 'testserver' in sys.argv:
+if "test" in sys.argv or "testserver" in sys.argv:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
             # path to collab sqlite3 database file
-            'NAME': '',
-            'USER': '',      # leave empty
-            'PASSWORD': '',  # leave empty
-            'HOST': '',      # leave empty
-            'PORT': '',      # leave empty
+            "NAME": "",
+            "USER": "",  # leave empty
+            "PASSWORD": "",  # leave empty
+            "HOST": "",  # leave empty
+            "PORT": "",  # leave empty
         },
     }
-elif os.environ.get('RUN_DOCKER', False):
+elif os.environ.get("RUN_DOCKER", False):
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'dcstreethockey',
-            'USER': 'dcstreethockey',
-            'PASSWORD': 'dcstreethockey',
-            'HOST': 'db',  # Set to empty string for localhost.
-            'PORT': '',  # Set to empty string for default.
-            'CONN_MAX_AGE': 600,  # number of seconds database connections should persist for
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "dcstreethockey",
+            "USER": "dcstreethockey",
+            "PASSWORD": "dcstreethockey",
+            "HOST": "db",  # Set to empty string for localhost.
+            "PORT": "",  # Set to empty string for default.
+            "CONN_MAX_AGE": 600,  # number of seconds database connections should persist for
         }
     }
 else:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'dcstreethockey',
-            'USER': 'dcstreethockey',
-            'PASSWORD': 'dcstreethockey',
-            'HOST': '',  # Set to empty string for localhost.
-            'PORT': '',  # Set to empty string for default.
-            'CONN_MAX_AGE': 600,  # number of seconds database connections should persist for
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "dcstreethockey",
+            "USER": "dcstreethockey",
+            "PASSWORD": "dcstreethockey",
+            "HOST": "",  # Set to empty string for localhost.
+            "PORT": "",  # Set to empty string for default.
+            "CONN_MAX_AGE": 600,  # number of seconds database connections should persist for
         }
     }
-
 
 
 # Password validation
@@ -159,16 +156,16 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -176,11 +173,11 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/1.9/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'America/New_York'
+TIME_ZONE = "America/New_York"
 
-TIME_INPUT_FORMATS = ('%I:%M %p',)
+TIME_INPUT_FORMATS = ("%I:%M %p",)
 
 USE_I18N = True
 
@@ -191,50 +188,46 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.9/howto/static-files/
 
-STATIC_ROOT = os.path.join(BASE_DIR,'staticfiles')
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-STATIC_URL = '/static/'
+STATIC_URL = "/static/"
 
 LEAGUES_ROOT = os.path.join(BASE_DIR, "leagues")
 
-LEAGUES_URL = '/leagues/'
+LEAGUES_URL = "/leagues/"
 
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-MEDIA_URL = '/media/'
+MEDIA_URL = "/media/"
 
-STATICFILES_DIRS = (
-    os.path.join(BASE_DIR, "static"),
-)
+STATICFILES_DIRS = (os.path.join(BASE_DIR, "static"),)
 
-LEAGUESFILES_DIRS = (
-    os.path.join(BASE_DIR, "leagues"),
-)
+LEAGUESFILES_DIRS = (os.path.join(BASE_DIR, "leagues"),)
 
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'ERROR',
-            'class': 'logging.FileHandler',
-            'filename': 'django_error.log',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "file": {
+            "level": "ERROR",
+            "class": "logging.FileHandler",
+            "filename": "django_error.log",
         },
-        'console': {
-            'level': 'ERROR',
-            'class': 'logging.StreamHandler',
+        "console": {
+            "level": "ERROR",
+            "class": "logging.StreamHandler",
         },
     },
-    'loggers': {
-        'django': {
-            'handlers': ['file', 'console'],
-            'level': 'ERROR',
-            'propagate': True,
+    "loggers": {
+        "django": {
+            "handlers": ["file", "console"],
+            "level": "ERROR",
+            "propagate": True,
         },
-        'leagues': {
-            'handlers': ['file', 'console'],
-            'level': 'ERROR',
-            'propagate': True,
+        "leagues": {
+            "handlers": ["file", "console"],
+            "level": "ERROR",
+            "propagate": True,
         },
     },
 }

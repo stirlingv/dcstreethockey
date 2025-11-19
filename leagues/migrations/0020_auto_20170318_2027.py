@@ -6,14 +6,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0019_auto_20170318_2020'),
+        ("leagues", "0019_auto_20170318_2020"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='matchup',
-            options={'ordering': ('week', 'time')},
+            name="matchup",
+            options={"ordering": ("week", "time")},
         ),
     ]

@@ -25,7 +25,7 @@
             <div id="draftoptiondiv" class="optionsdiv" onclick="javascript:handleOption('draft')">Draft</div>
             <div id="monaoptiondiv" class="optionsdiv" onclick="javascript:handleOption('mona')">Mon-A</div>
             <div id="monboptiondiv" class="optionsdiv" onclick="javascript:handleOption('monb')">Mon-B</div>
-    
+
             <section id="combinedsection" class="stats show">
                 {% include 'partials/hof_player_rankings.html' with player_ranks=all_ranks section_name="combined" %}
             </section>
@@ -55,7 +55,7 @@
         stats.style.display = showstats ? "none" : "block";
         document.getElementById("ex-" + id).style.display = showstats ? "block" : "none";
     }
-    
+
     function handleOption(name) {
         var sections = ["combined", "d1", "d2", "draft", "mona", "monb"];
         sections.forEach(function(section) {
@@ -65,11 +65,11 @@
         document.getElementById(name + "section").className = "stats show";
         document.getElementById(name + "optiondiv").className = "optionsdiv activeoption";
     }
-    
+
     function handleDivision(dest) {
         window.location = dest;
     }
-    
+
     function sortTable(tableId, n) {
         var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
         table = document.getElementById(tableId);

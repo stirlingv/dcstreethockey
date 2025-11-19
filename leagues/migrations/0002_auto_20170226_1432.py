@@ -6,35 +6,34 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0001_initial'),
+        ("leagues", "0001_initial"),
     ]
 
     operations = [
         migrations.RenameModel(
-            old_name='Games',
-            new_name='Game',
+            old_name="Games",
+            new_name="Game",
         ),
         migrations.RenameModel(
-            old_name='Refs',
-            new_name='Ref',
+            old_name="Refs",
+            new_name="Ref",
         ),
         migrations.RenameModel(
-            old_name='Stats',
-            new_name='Stat',
+            old_name="Stats",
+            new_name="Stat",
         ),
         migrations.RemoveField(
-            model_name='player',
-            name='password',
+            model_name="player",
+            name="password",
         ),
         migrations.RemoveField(
-            model_name='player',
-            name='user_name',
+            model_name="player",
+            name="user_name",
         ),
         migrations.AlterField(
-            model_name='player',
-            name='photo',
-            field=models.ImageField(null=True, upload_to=b''),
+            model_name="player",
+            name="photo",
+            field=models.ImageField(null=True, upload_to=b""),
         ),
     ]

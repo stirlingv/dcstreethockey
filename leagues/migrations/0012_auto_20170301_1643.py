@@ -7,96 +7,160 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0011_auto_20170301_1009'),
+        ("leagues", "0011_auto_20170301_1009"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Division',
+            name="Division",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('division', models.IntegerField(choices=[(1, 'Sunday D1'), (2, 'Sunday D2'), (3, 'Wednesday Draft League')], null=True)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "division",
+                    models.IntegerField(
+                        choices=[
+                            (1, "Sunday D1"),
+                            (2, "Sunday D2"),
+                            (3, "Wednesday Draft League"),
+                        ],
+                        null=True,
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='Team_Stat',
+            name="Team_Stat",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('win', models.PositiveSmallIntegerField(default=0)),
-                ('loss', models.PositiveSmallIntegerField(default=0)),
-                ('tie', models.PositiveSmallIntegerField(default=0)),
-                ('goals_for', models.PositiveSmallIntegerField(default=0)),
-                ('goals_against', models.PositiveSmallIntegerField(default=0)),
-                ('division', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Division')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("win", models.PositiveSmallIntegerField(default=0)),
+                ("loss", models.PositiveSmallIntegerField(default=0)),
+                ("tie", models.PositiveSmallIntegerField(default=0)),
+                ("goals_for", models.PositiveSmallIntegerField(default=0)),
+                ("goals_against", models.PositiveSmallIntegerField(default=0)),
+                (
+                    "division",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="leagues.Division",
+                    ),
+                ),
             ],
         ),
         migrations.RemoveField(
-            model_name='league',
-            name='season',
+            model_name="league",
+            name="season",
         ),
         migrations.RemoveField(
-            model_name='league',
-            name='team',
+            model_name="league",
+            name="team",
         ),
         migrations.RemoveField(
-            model_name='game',
-            name='league',
+            model_name="game",
+            name="league",
         ),
         migrations.RemoveField(
-            model_name='season',
-            name='is_champion',
+            model_name="season",
+            name="is_champion",
         ),
         migrations.RemoveField(
-            model_name='season',
-            name='team',
+            model_name="season",
+            name="team",
         ),
         migrations.RemoveField(
-            model_name='stat',
-            name='league',
+            model_name="stat",
+            name="league",
         ),
         migrations.AddField(
-            model_name='stat',
-            name='team',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Team'),
+            model_name="stat",
+            name="team",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.Team",
+            ),
         ),
         migrations.AlterField(
-            model_name='roster',
-            name='position2',
-            field=models.PositiveIntegerField(blank=True, choices=[(1, 'Center'), (2, 'Wing'), (3, 'Defense'), (4, 'Goalie')], null=True),
+            model_name="roster",
+            name="position2",
+            field=models.PositiveIntegerField(
+                blank=True,
+                choices=[(1, "Center"), (2, "Wing"), (3, "Defense"), (4, "Goalie")],
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='roster',
-            name='team',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Team'),
+            model_name="roster",
+            name="team",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.Team",
+            ),
         ),
         migrations.DeleteModel(
-            name='League',
+            name="League",
         ),
         migrations.AddField(
-            model_name='team_stat',
-            name='season',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Season'),
+            model_name="team_stat",
+            name="season",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.Season",
+            ),
         ),
         migrations.AddField(
-            model_name='team_stat',
-            name='team',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Team'),
+            model_name="team_stat",
+            name="team",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.Team",
+            ),
         ),
         migrations.AddField(
-            model_name='game',
-            name='division',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Division'),
+            model_name="game",
+            name="division",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.Division",
+            ),
         ),
         migrations.AddField(
-            model_name='stat',
-            name='division',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Division'),
+            model_name="stat",
+            name="division",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.Division",
+            ),
         ),
         migrations.AddField(
-            model_name='team',
-            name='division',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='leagues.Division'),
+            model_name="team",
+            name="division",
+            field=models.ForeignKey(
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="leagues.Division",
+            ),
         ),
     ]

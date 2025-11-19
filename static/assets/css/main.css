@@ -1401,11 +1401,11 @@
 						color: #fff;
 						text-decoration: none;
 					}
-				
+
 				#header img {
 						position: relative;
 	  					height: 1em;
-					}		
+					}
 
 				#header nav {
 					position: absolute;
@@ -1969,18 +1969,18 @@
 	#playerTrendsSnapshot {
 		height: 200px; /* Set a specific height for the canvas */
 	}
-	
+
 	#playerTrendsChart {
 		height: 400px; /* Set a specific height for the canvas */
 	}
-	
+
 	.chart-label {
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		max-width: 100px; /* Adjust as needed */
 	}
-	
+
 	.custom-dropdown {
 		width: auto;
 		min-width: 100px;
@@ -2081,5 +2081,3 @@
     vertical-align: middle; /* Align images with the text */
     margin: 0 5px; /* Add spacing around the images */
 }
-
-

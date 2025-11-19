@@ -6,19 +6,26 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0039_auto_20170901_1614'),
+        ("leagues", "0039_auto_20170901_1614"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='HomePage',
+            name="HomePage",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('logo', models.ImageField(null=True, upload_to='homepage')),
-                ('d1_champ_photo', models.ImageField(null=True, upload_to='homepage')),
-                ('d2_champ_photo', models.ImageField(null=True, upload_to='homepage')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("logo", models.ImageField(null=True, upload_to="homepage")),
+                ("d1_champ_photo", models.ImageField(null=True, upload_to="homepage")),
+                ("d2_champ_photo", models.ImageField(null=True, upload_to="homepage")),
             ],
         ),
     ]

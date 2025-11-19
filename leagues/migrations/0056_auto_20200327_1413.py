@@ -6,20 +6,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0055_team_stat_otl'),
+        ("leagues", "0055_team_stat_otl"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='roster',
-            name='is_captain',
+            model_name="roster",
+            name="is_captain",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='team',
-            name='is_champ',
+            model_name="team",
+            name="is_champ",
             field=models.BooleanField(default=False),
         ),
     ]

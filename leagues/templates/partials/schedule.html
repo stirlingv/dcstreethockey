@@ -18,9 +18,9 @@
                     <table class="game-overview">
                         <tr>
                             <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.awayteam.id %}')">
-                                <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png" 
-                                     alt="{{ match.awayteam.team_color }} jersey" 
-                                     title="{{ match.awayteam.team_color }}" 
+                                <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png"
+                                     alt="{{ match.awayteam.team_color }} jersey"
+                                     title="{{ match.awayteam.team_color }}"
                                      class="team-color-emoji">
                                 {% if match.awayteam.season.year < 2022 %}
                                     {{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})
@@ -30,9 +30,9 @@
                             </td>
                             <td>@</td>
                             <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.hometeam.id %}')">
-                                <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png" 
-                                     alt="{{ match.hometeam.team_color }} jersey" 
-                                     title="{{ match.hometeam.team_color }}" 
+                                <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png"
+                                     alt="{{ match.hometeam.team_color }} jersey"
+                                     title="{{ match.hometeam.team_color }}"
                                      class="team-color-emoji">
                                 {% if match.hometeam.season.year < 2022 %}
                                     {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})

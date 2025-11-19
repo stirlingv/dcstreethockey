@@ -6,25 +6,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0040_homepage'),
+        ("leagues", "0040_homepage"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='homepage',
-            name='announcement1',
+            model_name="homepage",
+            name="announcement1",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='announcement2',
+            model_name="homepage",
+            name="announcement2",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
         migrations.AddField(
-            model_name='homepage',
-            name='announcement3',
+            model_name="homepage",
+            name="announcement3",
             field=models.CharField(blank=True, max_length=1000, null=True),
         ),
     ]

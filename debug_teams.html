@@ -1,0 +1,16 @@
+<!-- Debug template for team links issue -->
+<!-- Add this temporarily to the team_stat_list.html template to debug -->
+
+<!-- Debug info for the first few teams -->
+{% for team in team_list|slice:":3" %}
+    {% if team.division|stringformat:"s" == "Sunday D1" %}
+        <div style="background: yellow; margin: 10px; padding: 10px;">
+            <strong>Debug Team {{ forloop.counter }}:</strong><br>
+            Team Name: {{ team.team.team_name }}<br>
+            Team ID: {{ team.team.id }}<br>
+            Team Object: {{ team.team }}<br>
+            URL Test: {% url "teams" team.team.id %}<br>
+            Generated onclick: javascript:handleTeam('{% url "teams" team.team.id %}')
+        </div>
+    {% endif %}
+{% endfor %}

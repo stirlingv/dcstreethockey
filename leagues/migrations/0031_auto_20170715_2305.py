@@ -6,19 +6,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0030_stat_roster'),
+        ("leagues", "0030_stat_roster"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='team',
-            name='team_name',
+            model_name="team",
+            name="team_name",
             field=models.CharField(max_length=30),
         ),
         migrations.AlterUniqueTogether(
-            name='team',
-            unique_together=set([('team_name', 'season')]),
+            name="team",
+            unique_together=set([("team_name", "season")]),
         ),
     ]

@@ -6,14 +6,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0021_auto_20170322_2337'),
+        ("leagues", "0021_auto_20170322_2337"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='roster',
-            options={'ordering': ('team',)},
+            name="roster",
+            options={"ordering": ("team",)},
         ),
     ]

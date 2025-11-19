@@ -3,7 +3,7 @@
 env/
 venv3/
 static/assets/.sass-cache/*
-.DS_Store 
+.DS_Store
 db.sqlite3
 polls/
 media/teams/

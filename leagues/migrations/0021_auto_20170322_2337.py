@@ -6,34 +6,33 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0020_auto_20170318_2027'),
+        ("leagues", "0020_auto_20170318_2027"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='matchup',
-            options={'ordering': ('time',)},
+            name="matchup",
+            options={"ordering": ("time",)},
         ),
         migrations.AlterField(
-            model_name='stat',
-            name='assists',
+            model_name="stat",
+            name="assists",
             field=models.PositiveSmallIntegerField(blank=True, default=0, null=True),
         ),
         migrations.AlterField(
-            model_name='stat',
-            name='empty_net',
+            model_name="stat",
+            name="empty_net",
             field=models.PositiveSmallIntegerField(blank=True, default=0, null=True),
         ),
         migrations.AlterField(
-            model_name='stat',
-            name='goals',
+            model_name="stat",
+            name="goals",
             field=models.PositiveSmallIntegerField(blank=True, default=0, null=True),
         ),
         migrations.AlterField(
-            model_name='stat',
-            name='goals_against',
+            model_name="stat",
+            name="goals_against",
             field=models.PositiveSmallIntegerField(blank=True, default=0, null=True),
         ),
     ]

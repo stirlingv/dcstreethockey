@@ -4,15 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0063_auto_20210318_2239'),
+        ("leagues", "0063_auto_20210318_2239"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='division',
-            name='division',
-            field=models.IntegerField(choices=[(1, 'Sunday D1'), (2, 'Sunday D2'), (3, 'Wednesday Draft League'), (4, 'Monday Coed')], null=True, unique=True),
+            model_name="division",
+            name="division",
+            field=models.IntegerField(
+                choices=[
+                    (1, "Sunday D1"),
+                    (2, "Sunday D2"),
+                    (3, "Wednesday Draft League"),
+                    (4, "Monday Coed"),
+                ],
+                null=True,
+                unique=True,
+            ),
         ),
     ]

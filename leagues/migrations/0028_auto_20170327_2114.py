@@ -6,19 +6,18 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('leagues', '0027_auto_20170323_1039'),
+        ("leagues", "0027_auto_20170323_1039"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='team_stat',
-            options={'ordering': ('team__team_name',)},
+            name="team_stat",
+            options={"ordering": ("team__team_name",)},
         ),
         migrations.RenameField(
-            model_name='week',
-            old_name='weeknumber',
-            new_name='game_number',
+            model_name="week",
+            old_name="weeknumber",
+            new_name="game_number",
         ),
     ]
