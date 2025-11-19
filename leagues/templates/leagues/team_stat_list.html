@@ -4,7 +4,23 @@
 <div id="content-wrapper">
     <div id="content">
         <div class="container">
-            <div class="title">Standings</div>
+            <div class="title">
+                Standings
+                <span class="standings-info-icon" style="position: relative; display: inline-block; margin-left: 8px;">
+                    <i style="font-size: 16px; color: #007bff; cursor: help; border: 1px solid #007bff; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-weight: bold;">?</i>
+                    <div class="standings-tooltip" style="visibility: hidden; opacity: 0; position: absolute; z-index: 1000; top: 125%; left: 50%; margin-left: -200px; width: 400px; background-color: #333; color: white; text-align: left; border-radius: 6px; padding: 15px; font-size: 13px; line-height: 1.4; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: opacity 0.3s, visibility 0.3s;">
+                        <div style="position: absolute; bottom: 100%; left: 50%; margin-left: -5px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 5px solid #333;"></div>
+                        <strong style="display: block; margin-bottom: 8px; color: #fff;">How Standings Are Calculated</strong>
+                        <div style="margin-bottom: 8px;"><strong>Points:</strong> Win = 3pts, OT/SO Win = 2pts, OT/SO Loss = 1pt, Loss = 0pts</div>
+                        <div style="margin-bottom: 8px;"><strong>Tiebreakers (in order):</strong></div>
+                        <div style="padding-left: 12px; margin-bottom: 4px;">1. Total Points</div>
+                        <div style="padding-left: 12px; margin-bottom: 4px;">2. Head-to-Head Record (if teams played)</div>
+                        <div style="padding-left: 12px; margin-bottom: 4px;">3. Regulation Wins (excludes OT/SO wins)</div>
+                        <div style="padding-left: 12px; margin-bottom: 8px;">4. Goal Differential (GF - GA)</div>
+                        <div style="font-size: 11px; color: #ccc; font-style: italic;">Teams ranked within division/conference</div>
+                    </div>
+                </span>
+            </div>
             <div class="description">
                 Click on a team to see more details... or view
                 <a href="https://www.thenbhl.com/standings#season=13344&amp;division=16497&amp;team=all&amp;sportcenter=all&division=16504&team=all&sportcenter=all" class="nbhl-link">
@@ -259,4 +275,55 @@
         </div>
     </div>
 </div>
+
+<style>
+.standings-info-icon:hover .standings-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+    .standings-tooltip {
+        width: 280px !important;
+        margin-left: -140px !important;
+        font-size: 12px !important;
+    }
+}
+</style>
+
+<script>
+// Also show tooltip on click for mobile devices
+document.addEventListener('DOMContentLoaded', function() {
+    const infoIcon = document.querySelector('.standings-info-icon');
+    const tooltip = document.querySelector('.standings-tooltip');
+    let isTooltipVisible = false;
+
+    if (infoIcon && tooltip) {
+        infoIcon.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (isTooltipVisible) {
+                tooltip.style.visibility = 'hidden';
+                tooltip.style.opacity = '0';
+                isTooltipVisible = false;
+            } else {
+                tooltip.style.visibility = 'visible';
+                tooltip.style.opacity = '1';
+                isTooltipVisible = true;
+            }
+        });
+
+        // Hide tooltip when clicking elsewhere
+        document.addEventListener('click', function(e) {
+            if (!infoIcon.contains(e.target) && isTooltipVisible) {
+                tooltip.style.visibility = 'hidden';
+                tooltip.style.opacity = '0';
+                isTooltipVisible = false;
+            }
+        });
+    }
+});
+</script>
+
 {% endblock %}
