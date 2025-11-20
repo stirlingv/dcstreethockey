@@ -1,7 +1,7 @@
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
 from core.views import PlayerStatDetailView
-from leagues.models import Season, Division, Player, Team, Stat
+from leagues.models import Season, Division, Player, Team, Stat, Roster
 
 
 class PlayerStatDetailViewTest(TestCase):
@@ -18,6 +18,13 @@ class PlayerStatDetailViewTest(TestCase):
             is_active=True,
         )
         self.player = Player.objects.create(first_name="John", last_name="Doe")
+        self.roster = Roster.objects.create(
+            player=self.player,
+            team=self.team,
+            position1=1,
+            is_captain=False,
+            player_number=None,
+        )
         self.stat = Stat.objects.create(
             player=self.player, team=self.team, goals=5, assists=3
         )
@@ -35,6 +42,7 @@ class PlayerStatDetailViewTest(TestCase):
         request = self.factory.get(reverse("player_stats"))
         view = PlayerStatDetailView()
         view.request = request
+        view.kwargs = {}  # Initialize kwargs as empty dict (default season)
 
         response = view.get(request)
         context = response.context_data

@@ -688,8 +688,8 @@ def get_player_stats(players, season):
         .annotate(
             rounded_average_goals_against=Func(
                 F("average_goals_against"),
+                Value(2),
                 function="ROUND",
-                template="%(function)s(%(expressions)s::numeric, 2)",
                 output_field=DecimalField(max_digits=10, decimal_places=2),
             )
         )
