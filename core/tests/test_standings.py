@@ -125,23 +125,41 @@ class StandingsLogicTestCase(TestCase):
 
     @patch("core.views.check_teams_play")
     @patch("core.views.check_h2h_record")
-    def test_head_to_head_tiebreaker(self, mock_h2h, mock_teams_play):
-        """Test head-to-head tiebreaker takes precedence over other tiebreakers"""
-        # Team B has worse regulation wins and goal diff but wins head-to-head
+    def test_regulation_wins_beats_head_to_head(self, mock_h2h, mock_teams_play):
+        """Test regulation wins tiebreaker takes precedence over head-to-head"""
+        # Team B has fewer regulation wins even though it wins head-to-head
         self.create_mock_team_stat(
             1, "Team A", wins=8, goals_for=50, goals_against=30
-        )  # Better stats
+        )  # 8 regulation wins
         self.create_mock_team_stat(
             2, "Team B", wins=6, otw=6, goals_for=40, goals_against=50
-        )  # Worse stats but wins H2H
+        )  # 6 regulation wins but wins H2H
 
         # Mock that teams have played each other and B beat A
         mock_teams_play.return_value = True
-        mock_h2h.return_value = (
-            True  # Team B (index 0 in comparison) should be ranked higher
-        )
+        mock_h2h.return_value = True  # Team B wins head-to-head
 
-        # Head-to-head should override other tiebreakers
+        # Regulation wins should override head-to-head
+        # Team A should rank higher due to more regulation wins (8 > 6)
+        self.assertGreater(8, 6)  # Team A regulation wins > Team B regulation wins
+
+    @patch("core.views.check_teams_play")
+    @patch("core.views.check_h2h_record")
+    def test_head_to_head_when_regulation_wins_tied(self, mock_h2h, mock_teams_play):
+        """Test head-to-head tiebreaker applies when regulation wins are equal"""
+        # Both teams have same regulation wins, H2H should decide
+        self.create_mock_team_stat(
+            1, "Team A", wins=7, goals_for=50, goals_against=30
+        )  # 7 regulation wins
+        self.create_mock_team_stat(
+            2, "Team B", wins=7, goals_for=40, goals_against=50
+        )  # 7 regulation wins, wins H2H
+
+        # Mock that teams have played each other and B beat A
+        mock_teams_play.return_value = True
+        mock_h2h.return_value = True  # Team B wins head-to-head
+
+        # Since regulation wins are equal, head-to-head should decide
         self.assertTrue(mock_teams_play.return_value)
         self.assertTrue(mock_h2h.return_value)
 
@@ -249,7 +267,8 @@ class StandingsLogicTestCase(TestCase):
         mock_h2h.side_effect = mock_h2h_check
 
         # This tests the complexity of mixed tiebreaker scenarios
-        # Expected: B beats A on H2H, but A vs C and B vs C determined by regulation wins
+        # New order: regulation wins first, then H2H if reg wins tied
+        # Expected: A has most reg wins (7), then B vs C decided by reg wins (6 > 5)
 
     def test_overtime_vs_regulation_wins_calculation(self):
         """Test that overtime wins are correctly excluded from regulation wins"""

@@ -309,30 +309,33 @@ class TeamStatDetailView(ListView):
                 and team_stat_list[i].total_points == team_stat_list[i - 1].total_points
             ):
                 # print('points equal for index: {0}'.format(i))
-                teams_played = check_teams_play(
-                    team_stat_list[i], team_stat_list[i - 1]
-                )
                 need_swap = False
-                if teams_played:
-                    need_swap = check_h2h_record(
+
+                # First tiebreaker: Regulation wins
+                if (
+                    team_stat_list[i].regulation_wins
+                    != team_stat_list[i - 1].regulation_wins
+                ):
+                    # Team with more regulation wins should be higher
+                    need_swap = (
+                        team_stat_list[i].regulation_wins
+                        > team_stat_list[i - 1].regulation_wins
+                    )
+                else:
+                    # Second tiebreaker: Head-to-head (if teams have played)
+                    teams_played = check_teams_play(
                         team_stat_list[i], team_stat_list[i - 1]
                     )
-                # If teams haven't played or have same h2h record, check regulation wins
-                elif not teams_played or not need_swap:
-                    if (
-                        team_stat_list[i].regulation_wins
-                        == team_stat_list[i - 1].regulation_wins
-                    ):
-                        # If regulation wins are tied, check goal differential
-                        need_swap = check_goal_diff(
+                    if teams_played:
+                        need_swap = check_h2h_record(
                             team_stat_list[i], team_stat_list[i - 1]
                         )
                     else:
-                        # Team with more regulation wins should be higher
-                        need_swap = (
-                            team_stat_list[i].regulation_wins
-                            > team_stat_list[i - 1].regulation_wins
+                        # Third tiebreaker: Goal differential (if no H2H or tied reg wins)
+                        need_swap = check_goal_diff(
+                            team_stat_list[i], team_stat_list[i - 1]
                         )
+
                 if need_swap:
                     # print('swapping {0} and {1} at index {2}'.format(
                     #     team_stat_list[i], team_stat_list[i-1], i))
