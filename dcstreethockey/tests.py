@@ -8,19 +8,22 @@ class PlayerStatDetailViewTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.season = Season.objects.create(
-            year=2023, season_type="Regular", is_current_season=True
+            year=2023, season_type=1, is_current_season=True
         )
-        self.division = Division.objects.create(name="Test Division")
+        self.division = Division.objects.create(division=1)
         self.team = Team.objects.create(
-            team_name="Test Team", division=self.division, season=self.season
+            team_name="Test Team",
+            division=self.division,
+            season=self.season,
+            is_active=True,
         )
         self.player = Player.objects.create(first_name="John", last_name="Doe")
         self.stat = Stat.objects.create(
-            player=self.player, team=self.team, goals=5, assists=3, games_played=2
+            player=self.player, team=self.team, goals=5, assists=3
         )
 
     def test_get_queryset(self):
-        request = self.factory.get(reverse("your-view-name"))
+        request = self.factory.get(reverse("player_stats"))
         view = PlayerStatDetailView()
         view.request = request
 
@@ -29,7 +32,7 @@ class PlayerStatDetailViewTest(TestCase):
         self.assertEqual(queryset.first(), self.stat)
 
     def test_get_context_data(self):
-        request = self.factory.get(reverse("your-view-name"))
+        request = self.factory.get(reverse("player_stats"))
         view = PlayerStatDetailView()
         view.request = request
 
