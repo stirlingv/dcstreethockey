@@ -48,6 +48,7 @@ jobs:
         echo "DEBUG=True" >> $GITHUB_ENV
         echo "DATABASE_URL=postgres://postgres:postgres@localhost/test_db" >> $GITHUB_ENV
         echo "SECRET_KEY=test-secret-key-for-github-actions" >> $GITHUB_ENV
+        echo "DJANGO_SETTINGS_MODULE=dcstreethockey.settings.local" >> $GITHUB_ENV
 
     - name: Run Django system checks
       run: |

@@ -13,10 +13,11 @@ https://docs.djangoproject.com/en/1.9/ref/settings/
 import os, sys
 import socket
 
-if socket.gethostname() == "test.local":
-    from .local import *
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+
+if socket.gethostname() == "test.local":
+    from .local import *
 
 
 # Quick-start development settings - unsuitable for production
@@ -231,4 +232,12 @@ LOGGING = {
         },
     },
 }
-from .aws_settings import *
+# Import AWS settings only if AWS environment variables are available
+import os
+
+if (
+    os.environ.get("AWS_ACCESS_KEY")
+    and os.environ.get("AWS_SECRET_ACCESS_KEY")
+    and os.environ.get("S3_BUCKET_NAME")
+):
+    from .aws_settings import *
