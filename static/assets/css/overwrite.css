@@ -535,3 +535,56 @@ div div#content .matchupheader{
 .nbhl-link:hover {
     text-decoration: underline; /* Add underline on hover */
 }
+
+/* Footer styling - bright readable text on dark background */
+#footer-wrapper {
+    text-shadow: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#footer {
+    color: #c5d0d6 !important;
+    text-shadow: none !important;
+}
+
+#footer h2 {
+    color: #ffffff !important;
+    text-shadow: none !important;
+}
+
+#footer p, #footer li {
+    color: #b0bec5 !important;
+    text-shadow: none !important;
+}
+
+#footer a {
+    color: #90caf9 !important;
+    text-shadow: none !important;
+}
+
+#footer a:hover {
+    color: #ffffff !important;
+    text-decoration: underline;
+}
+
+#footer strong {
+    color: #ffffff !important;
+}
+
+/* Copyright section - bright readable text */
+#copyright {
+    color: #b0bec5 !important;
+    text-shadow: none !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#copyright a {
+    color: #90caf9 !important;
+    text-shadow: none !important;
+}
+
+#copyright a:hover {
+    color: #ffffff !important;
+}
