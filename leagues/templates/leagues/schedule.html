@@ -1,5 +1,29 @@
 <head>
 	<style type="text/css" media="screen">
+		.division-filters {
+			margin-bottom: 20px;
+			text-align: center;
+		}
+		.division-filters .filter-btn {
+			display: inline-block;
+			padding: 8px 16px;
+			margin: 5px;
+			background-color: #333;
+			color: #fff;
+			border: 2px solid #555;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 14px;
+			transition: all 0.2s ease;
+		}
+		.division-filters .filter-btn:hover {
+			background-color: #555;
+			border-color: #777;
+		}
+		.division-filters .filter-btn.active {
+			background-color: #007bff;
+			border-color: #007bff;
+		}
 	</style>
 </head>
 {% extends 'core/base.html' %}
@@ -12,6 +36,14 @@
             <div class="title">
                 Schedule
             </div>
+			<div class="division-filters">
+				<button class="filter-btn active" data-division="all" onclick="filterSchedule('all')">All</button>
+				<button class="filter-btn" data-division="Monday A League" onclick="filterSchedule('Monday A League')">Monday A</button>
+				<button class="filter-btn" data-division="Monday B League" onclick="filterSchedule('Monday B League')">Monday B</button>
+				<button class="filter-btn" data-division="Sunday D1" onclick="filterSchedule('Sunday D1')">Sunday D1</button>
+				<button class="filter-btn" data-division="Sunday D2" onclick="filterSchedule('Sunday D2')">Sunday D2</button>
+				<button class="filter-btn" data-division="Wednesday Draft League" onclick="filterSchedule('Wednesday')">Wednesday</button>
+			</div>
             {% include 'partials/schedule.html' %}
 		</div>
 	</div>
@@ -27,5 +59,30 @@
 		function handleSelect(elm){
 	  	window.location = elm.value;
 	  }
+	function filterSchedule(division) {
+		// Update active button state
+		var buttons = document.querySelectorAll('.division-filters .filter-btn');
+		buttons.forEach(function(btn) {
+			btn.classList.remove('active');
+			if (btn.getAttribute('data-division') === division ||
+			    (division === 'Wednesday' && btn.getAttribute('data-division') === 'Wednesday Draft League')) {
+				btn.classList.add('active');
+			}
+		});
+
+		// Filter schedule sections
+		var sections = document.querySelectorAll('.schedule-section');
+		sections.forEach(function(section) {
+			var sectionDivision = section.getAttribute('data-division');
+			if (division === 'all') {
+				section.style.display = 'block';
+			} else if (division === 'Wednesday') {
+				// Match any division containing "Wednesday"
+				section.style.display = sectionDivision.includes('Wednesday') ? 'block' : 'none';
+			} else {
+				section.style.display = sectionDivision === division ? 'block' : 'none';
+			}
+		});
+	}
 </script>
 {% endblock %}

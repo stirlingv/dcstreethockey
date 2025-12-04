@@ -4,7 +4,7 @@
 {% for date, value in schedule.items %}
     {% for division, value2 in value.items %}
         {% if view == "schedule" %}
-            <section id="schedulesection">
+            <section id="schedulesection" class="schedule-section" data-division="{{division}}">
                 <a href="{% url 'rosters' date=date %}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
                 <h3>{{division}} | {{date}}</h3>
             {% endif %}
