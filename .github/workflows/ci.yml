@@ -62,9 +62,9 @@ jobs:
       run: |
         python manage.py test
 
-    - name: Run specific standings tests
+    - name: Run comprehensive test suite
       run: |
-        python manage.py test core.tests.test_standings -v 2
+        python manage.py test core.tests.test_standings core.tests.test_player_stats -v 2
 
     - name: Run pre-commit hooks
       run: |

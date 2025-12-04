@@ -36,7 +36,7 @@ repos:
 
       - id: django-test
         name: Django Tests
-        entry: python manage.py test core.tests.test_standings leagues.tests
+        entry: python manage.py test core.tests.test_standings core.tests.test_player_stats leagues.tests
         language: system
         types: [python]
         pass_filenames: false
