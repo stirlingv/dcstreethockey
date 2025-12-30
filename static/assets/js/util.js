@@ -17,6 +17,9 @@
 				href = $this.attr('href'),
 				target = $this.attr('target');
 
+			if ($this.parents('ul.dropdown').length > 0)
+				indent = Math.max(indent, 1);
+
 			b.push(
 				'<a ' +
 					'class="link depth-' + indent + '"' +

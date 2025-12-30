@@ -1,4 +1,3 @@
-
 .navbar-default {
   background-color: #45374b;
   border-color: #54bfac;
@@ -587,4 +586,83 @@ div div#content .matchupheader{
 
 #copyright a:hover {
     color: #ffffff !important;
+}
+
+/* Custom dropdown styles for header nav */
+#nav .nav-dropdown {
+    position: relative;
+    display: inline-block;
+}
+#nav .nav-dropdown > a {
+    position: relative;
+    z-index: 2;
+}
+#nav .nav-dropdown .dropdown {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    transform: none;
+    background: rgba(59, 67, 70, 0.96);
+    border: 1px solid #2a2f32;
+    min-width: 0;
+    width: auto;
+    padding: 4px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border-radius: 0 0 8px 8px;
+    z-index: 10;
+    margin: 0;
+    list-style: none;
+}
+#nav .nav-dropdown:hover .dropdown,
+#nav .nav-dropdown:focus-within .dropdown {
+    display: inline-block;
+}
+#nav .nav-dropdown .dropdown li a {
+    color: #fff;
+    padding: 10px 14px;
+    display: block;
+    text-decoration: none;
+    border-bottom: 1px solid #333;
+    line-height: 1.2em;
+    text-align: left;
+    white-space: nowrap;
+}
+#nav .nav-dropdown .dropdown li:last-child a {
+    border-bottom: none;
+}
+#nav .nav-dropdown .dropdown li a:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+/* Mobile: show dropdown as normal links in hamburger menu */
+@media (max-width: 900px) {
+    #nav .nav-dropdown .dropdown {
+        position: static;
+        background: none;
+        border: none;
+        transform: none;
+        box-shadow: none;
+        border-radius: 0;
+        min-width: 0;
+        display: block;
+    }
+    #nav .nav-dropdown .dropdown li a {
+        padding: 10px 0 10px 30px;
+        color: #fff;
+        background: none;
+        border: none;
+    }
+    #nav .nav-dropdown:hover .dropdown,
+    #nav .nav-dropdown:focus-within .dropdown {
+        display: block;
+    }
+}
+
+/* Mobile nav panel: make submenu items look nested */
+#navPanel .link.depth-1 {
+    padding-left: 2.5em;
+    font-size: 1.05em;
+    opacity: 0.9;
 }
