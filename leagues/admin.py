@@ -5,6 +5,7 @@ from django.contrib.admin import SimpleListFilter
 from django.db import models
 from django.db.models import Q, Max
 from django.utils.http import urlencode
+from django.utils.html import format_html
 from django.urls import reverse
 from django.shortcuts import redirect
 
@@ -167,13 +168,80 @@ class MatchUpAdmin(admin.ModelAdmin):
         "hometeam",
         "awayteam",
         "week",
+        "away_goalie",
+        "home_goalie",
     )
     inlines = [
         StatInline,
     ]
-    list_filter = ("week__division", "week__season")
-    raw_id_fields = ["hometeam", "awayteam"]
-    list_display = ["week", "formatted_time", "awayteam", "hometeam"]
+    list_filter = (
+        "week__division",
+        "week__season",
+        "away_goalie_status",
+        "home_goalie_status",
+    )
+    raw_id_fields = ["hometeam", "awayteam", "away_goalie", "home_goalie"]
+    list_display = [
+        "week",
+        "formatted_time",
+        "awayteam",
+        "away_goalie_status_display",
+        "hometeam",
+        "home_goalie_status_display",
+    ]
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "week",
+                    "time",
+                    "awayteam",
+                    "hometeam",
+                    "ref1",
+                    "ref2",
+                    "notes",
+                    "is_postseason",
+                    "is_championship",
+                )
+            },
+        ),
+        (
+            "Away Team Goalie",
+            {
+                "fields": ("away_goalie", "away_goalie_status"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Home Team Goalie",
+            {
+                "fields": ("home_goalie", "home_goalie_status"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def away_goalie_status_display(self, obj):
+        status_colors = {1: "green", 2: "red", 3: "orange"}
+        status = obj.away_goalie_status
+        color = status_colors.get(status, "gray")
+        label = obj.get_away_goalie_status_display()
+        return format_html('<span style="color: {};">{}</span>', color, label)
+
+    away_goalie_status_display.short_description = "Away Goalie"
+    away_goalie_status_display.admin_order_field = "away_goalie_status"
+
+    def home_goalie_status_display(self, obj):
+        status_colors = {1: "green", 2: "red", 3: "orange"}
+        status = obj.home_goalie_status
+        color = status_colors.get(status, "gray")
+        label = obj.get_home_goalie_status_display()
+        return format_html('<span style="color: {};">{}</span>', color, label)
+
+    home_goalie_status_display.short_description = "Home Goalie"
+    home_goalie_status_display.admin_order_field = "home_goalie_status"
 
     formfield_overrides = {
         models.TimeField: {

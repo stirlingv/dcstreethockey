@@ -5,6 +5,7 @@
 **🏒 Quick Start for New Developers:**
 
 1. **Clone and setup:**
+
    ```bash
    git clone https://github.com/[your-username]/dcstreethockey.git
    cd dcstreethockey
@@ -13,6 +14,7 @@
    ```
 
 2. **Automated setup (does everything for you):**
+
    ```bash
    ./setup-dev.sh
    ```
@@ -26,6 +28,7 @@
    - Format existing code
 
 3. **Start developing! 🚀**
+
    ```bash
    python manage.py runserver
    ```
@@ -33,6 +36,7 @@
 ### 🛡️ Pre-commit Quality Assurance
 
 **Automatic checks before every commit:**
+
 - ✅ **Django system checks** - No configuration errors
 - ✅ **Full test suite** - All tests must pass (including standings logic)
 - ✅ **Migration checks** - No uncommitted database changes
@@ -41,6 +45,7 @@
 - ✅ **File cleanup** - No trailing whitespace, proper line endings
 
 **Manual commands:**
+
 ```bash
 # Run pre-commit on all files
 pre-commit run --all-files
@@ -56,6 +61,7 @@ python manage.py test leagues.tests                   # League functionality
 ### 🧪 Test Coverage
 
 The standings logic includes comprehensive tests for:
+
 - **2-team tiebreakers:** regulation wins, goal differential, head-to-head
 - **3-team tiebreakers:** complex scenarios with mixed metrics
 - **4-team tiebreakers:** all teams tied with different regulation wins
@@ -91,6 +97,7 @@ The standings logic includes comprehensive tests for:
 **Note:** Use the **Development Setup** above instead for the best experience with pre-commit hooks and quality assurance.
 
 1. **Install PostgreSQL:**
+
    ```bash
    # Using Homebrew (macOS)
    brew install postgresql
@@ -98,7 +105,8 @@ The standings logic includes comprehensive tests for:
    # Or download from: https://www.postgresql.org/download/
    ```
 
-2. **Clone and setup environment:**
+1. **Clone and setup environment:**
+
    ```bash
    git clone [repo-url]
    cd dcstreethockey
@@ -107,7 +115,8 @@ The standings logic includes comprehensive tests for:
    pip install -r requirements.txt
    ```
 
-3. **Setup database:**
+1. **Setup database:**
+
 1. Make sure postgres is running and Database exists
    - ```brew services start postgresql```
    - ```psql -l```
@@ -163,6 +172,32 @@ The standings logic includes comprehensive tests for:
     GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO dcstreethockey;
     ```
 
+1. Possible additional ownership changes needed:
+
+   ```sql
+   -- Change owner of all tables to dcstreethockey
+   DO $$
+   DECLARE
+      r RECORD;
+   BEGIN
+      FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+      LOOP
+         EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO dcstreethockey';
+      END LOOP;
+   END $$;
+
+   -- Also change owner of sequences
+   DO $$
+   DECLARE
+      r RECORD;
+   BEGIN
+      FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'
+      LOOP
+         EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequencename) || ' OWNER TO dcstreethockey';
+      END LOOP;
+   END $$;
+   ```
+
 ## Run local database to render
 
 1. Get Connection Details:
@@ -203,6 +238,7 @@ The development setup creates these important files:
 ### Troubleshooting
 
 **Pre-commit issues:**
+
 ```bash
 # Reinstall hooks
 pre-commit uninstall
@@ -216,6 +252,7 @@ git commit -m "message" --no-verify
 ```
 
 **Test issues:**
+
 ```bash
 # Run specific test with verbose output
 python manage.py test core.tests.test_standings -v 2
@@ -228,6 +265,7 @@ python manage.py test --debug-mode
 ```
 
 **Environment issues:**
+
 ```bash
 # Recreate virtual environment
 deactivate
