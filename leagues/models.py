@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from django.db import models
 import datetime
+import uuid
 
 from django.db.models import indexes
 
@@ -127,6 +128,9 @@ class Team(models.Model):
     )
     team_photo = models.ForeignKey(TeamPhoto, null=True, on_delete=models.SET_NULL)
     is_active = models.BooleanField()
+    captain_access_code = models.UUIDField(
+        default=uuid.uuid4, editable=False, unique=True
+    )
 
     class Meta:
         unique_together = (
@@ -214,6 +218,11 @@ class Week(models.Model):
 
 
 class MatchUp(models.Model):
+    GOALIE_STATUS_CHOICES = (
+        (1, "Confirmed"),
+        (2, "Sub Needed"),
+        (3, "Unconfirmed"),
+    )
     week = models.ForeignKey(Week, null=True, on_delete=models.CASCADE, db_index=True)
     time = models.TimeField(db_index=True)
     awayteam = models.ForeignKey(
@@ -241,6 +250,29 @@ class MatchUp(models.Model):
     notes = models.CharField(max_length=500, null=True, blank=True, default=None)
     is_postseason = models.BooleanField(default=False)
     is_championship = models.BooleanField(default=False)
+    # Goalie status fields
+    away_goalie = models.ForeignKey(
+        "Player",
+        related_name="away_goalie_matchups",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Leave blank to use team's roster goalie",
+    )
+    away_goalie_status = models.PositiveIntegerField(
+        choices=GOALIE_STATUS_CHOICES, default=3
+    )
+    home_goalie = models.ForeignKey(
+        "Player",
+        related_name="home_goalie_matchups",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Leave blank to use team's roster goalie",
+    )
+    home_goalie_status = models.PositiveIntegerField(
+        choices=GOALIE_STATUS_CHOICES, default=3
+    )
 
     class Meta:
         ordering = (

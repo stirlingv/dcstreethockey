@@ -1,0 +1,422 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}{{ team.team_name }} - Goalie Status Update{% endblock %}
+
+{% block extra_head %}
+<style type="text/css">
+    .captain-panel {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .team-header {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 8px;
+        padding: 25px;
+        margin-bottom: 30px;
+        text-align: center;
+        color: #fff;
+    }
+
+    .team-header h2 {
+        margin: 0 0 10px 0;
+        font-size: 2.2em;
+        color: #fff !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        letter-spacing: 1px;
+    }
+
+    .team-header p {
+        margin: 0;
+        opacity: 0.8;
+    }
+
+    .roster-goalie-info {
+        background: rgba(255,255,255,0.1);
+        padding: 10px 20px;
+        border-radius: 20px;
+        display: inline-block;
+        margin-top: 15px;
+    }
+
+    .matchup-card {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+
+    .matchup-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .matchup-date {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .matchup-opponent {
+        color: #666;
+    }
+
+    .matchup-opponent strong {
+        color: #333;
+    }
+
+    .matchup-body {
+        padding: 20px;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 20px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .form-group {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .form-group select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        font-size: 1em;
+        background: #fff;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+
+    .form-group select:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+
+    .form-group select:hover {
+        border-color: #999;
+    }
+
+    .btn-update {
+        background: #007bff;
+        color: #fff;
+        border: none;
+        padding: 10px 25px;
+        border-radius: 6px;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background 0.2s;
+        min-width: 120px;
+    }
+
+    .btn-update:hover {
+        background: #0056b3;
+    }
+
+    .btn-update:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+
+    .btn-update.saving {
+        background: #6c757d;
+    }
+
+    .btn-update.saved {
+        background: #28a745;
+    }
+
+    .current-status {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .current-status-label {
+        color: #666;
+    }
+
+    .status-badge {
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.85em;
+        font-weight: 500;
+    }
+
+    .status-badge.confirmed {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .status-badge.sub-needed {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .status-badge.unconfirmed {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .no-matchups {
+        text-align: center;
+        padding: 40px;
+        background: #fff;
+        border-radius: 8px;
+        color: #666;
+    }
+
+    .help-text {
+        background: #e7f3ff;
+        border-left: 4px solid #007bff;
+        padding: 15px 20px;
+        margin-bottom: 30px;
+        border-radius: 0 8px 8px 0;
+    }
+
+    .help-text h4 {
+        margin: 0 0 10px 0;
+        color: #0056b3;
+    }
+
+    .help-text ul {
+        margin: 0;
+        padding-left: 20px;
+    }
+
+    .help-text li {
+        margin-bottom: 5px;
+    }
+
+    .update-feedback {
+        display: none;
+        margin-left: 10px;
+        font-size: 0.9em;
+    }
+
+    .update-feedback.success {
+        color: #28a745;
+    }
+
+    .update-feedback.error {
+        color: #dc3545;
+    }
+
+    @media (max-width: 600px) {
+        .form-row {
+            flex-direction: column;
+        }
+
+        .form-group {
+            width: 100%;
+        }
+
+        .btn-update {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-wrapper">
+    <div id="content">
+        <div class="container captain-panel">
+            <div class="team-header">
+                <h2>{{ team.team_name }}</h2>
+                <p>Captain's Goalie Status Panel</p>
+                {% if roster_goalie %}
+                <div class="roster-goalie-info">
+                    🥅 Roster Goalie: <strong>{{ roster_goalie.first_name }} {{ roster_goalie.last_name }}</strong>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="help-text">
+                <h4>How to use this page:</h4>
+                <ul>
+                    <li><strong>Confirmed:</strong> Your goalie is available and will play</li>
+                    <li><strong>Sub Needed:</strong> Your regular goalie is unavailable - we need to find a sub</li>
+                    <li><strong>Unconfirmed:</strong> You haven't checked with your goalie yet</li>
+                </ul>
+                <p style="margin-top: 10px;">Select a different goalie from the dropdown if you've arranged your own sub.</p>
+            </div>
+
+            {% if matchups_data %}
+                {% for match_data in matchups_data %}
+                <div class="matchup-card" data-matchup-id="{{ match_data.matchup.id }}">
+                    <div class="matchup-header">
+                        <div class="matchup-date">
+                            {{ match_data.matchup.week.date|date:"l, F j" }} @ {{ match_data.matchup.time|time:"g:i A" }}
+                        </div>
+                        <div class="matchup-opponent">
+                            {% if match_data.is_home %}
+                                vs <strong>{{ match_data.opponent.team_name }}</strong> (Home)
+                            {% else %}
+                                @ <strong>{{ match_data.opponent.team_name }}</strong> (Away)
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="matchup-body">
+                        <form class="goalie-update-form" data-matchup-id="{{ match_data.matchup.id }}">
+                            {% csrf_token %}
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="goalie-{{ match_data.matchup.id }}">Goalie</label>
+                                    <select name="goalie_id" id="goalie-{{ match_data.matchup.id }}">
+                                        <option value="roster" {% if not match_data.current_goalie or match_data.current_goalie.id == roster_goalie.id %}selected{% endif %}>
+                                            {{ roster_goalie.first_name }} {{ roster_goalie.last_name }} (Roster)
+                                        </option>
+                                        <optgroup label="All Goalies">
+                                            {% for goalie in all_goalies %}
+                                                {% if goalie.id != roster_goalie.id %}
+                                                <option value="{{ goalie.id }}" {% if match_data.current_goalie and match_data.current_goalie.id == goalie.id %}selected{% endif %}>
+                                                    {{ goalie.last_name }}, {{ goalie.first_name }}
+                                                </option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </optgroup>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="status-{{ match_data.matchup.id }}">Status</label>
+                                    <select name="status" id="status-{{ match_data.matchup.id }}">
+                                        {% for value, label in status_choices %}
+                                        <option value="{{ value }}" {% if match_data.current_status == value %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn-update">Update</button>
+                                <span class="update-feedback"></span>
+                            </div>
+                        </form>
+                        <div class="current-status">
+                            <span class="current-status-label">Current:</span>
+                            <span class="status-badge {% if match_data.current_status == 1 %}confirmed{% elif match_data.current_status == 2 %}sub-needed{% else %}unconfirmed{% endif %}" id="status-display-{{ match_data.matchup.id }}">
+                                {% for value, label in status_choices %}
+                                    {% if match_data.current_status == value %}{{ label }}{% endif %}
+                                {% endfor %}
+                            </span>
+                            <span id="goalie-display-{{ match_data.matchup.id }}">
+                                {% if match_data.current_goalie %}
+                                    - {{ match_data.current_goalie.first_name }} {{ match_data.current_goalie.last_name }}
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="no-matchups">
+                <p>No upcoming games scheduled for your team.</p>
+            </div>
+            {% endif %}
+
+            <p style="text-align: center; margin-top: 30px;">
+                <a href="{% url 'goalie_status_board' %}">← Back to Public Goalie Status Board</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const forms = document.querySelectorAll('.goalie-update-form');
+
+    forms.forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const matchupId = form.dataset.matchupId;
+            const formData = new FormData(form);
+            const button = form.querySelector('.btn-update');
+            const feedback = form.querySelector('.update-feedback');
+
+            // Disable button and show saving state
+            button.disabled = true;
+            button.textContent = 'Saving...';
+            button.classList.add('saving');
+            feedback.style.display = 'none';
+
+            fetch('{% url "update_goalie_status" access_code=team.captain_access_code matchup_id=0 %}'.replace('/0/', '/' + matchupId + '/'), {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update status display
+                    const statusDisplay = document.getElementById('status-display-' + matchupId);
+                    statusDisplay.textContent = data.status_display;
+                    statusDisplay.className = 'status-badge';
+                    if (data.status === 1) {
+                        statusDisplay.classList.add('confirmed');
+                    } else if (data.status === 2) {
+                        statusDisplay.classList.add('sub-needed');
+                    } else {
+                        statusDisplay.classList.add('unconfirmed');
+                    }
+
+                    // Update goalie display
+                    const goalieDisplay = document.getElementById('goalie-display-' + matchupId);
+                    goalieDisplay.textContent = '- ' + data.goalie_name + (data.is_sub ? ' (Sub)' : '');
+
+                    // Show success
+                    button.textContent = 'Saved!';
+                    button.classList.remove('saving');
+                    button.classList.add('saved');
+                    feedback.textContent = '✓ Updated';
+                    feedback.className = 'update-feedback success';
+                    feedback.style.display = 'inline';
+
+                    setTimeout(function() {
+                        button.textContent = 'Update';
+                        button.classList.remove('saved');
+                        button.disabled = false;
+                        feedback.style.display = 'none';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Update failed');
+                }
+            })
+            .catch(error => {
+                button.textContent = 'Update';
+                button.classList.remove('saving');
+                button.disabled = false;
+                feedback.textContent = '✗ ' + error.message;
+                feedback.className = 'update-feedback error';
+                feedback.style.display = 'inline';
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
