@@ -25,3 +25,62 @@
     background-color: #007bff;
     border-color: #007bff;
 }
+
+#content-wrapper.schedule .schedule-section {
+    background: #fff;
+    border: 1px solid #e2e6e8;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+    padding: 16px 18px;
+    margin: 20px 0;
+}
+
+#content-wrapper.schedule .schedule-section > h3 {
+    margin: 0 0 10px 0;
+}
+
+#content-wrapper.schedule .game {
+    padding-top: 12px;
+    border-bottom: 1px solid #e2e6e8;
+}
+
+#content-wrapper.schedule .game:first-of-type {
+    padding-top: 0;
+}
+
+#content-wrapper.schedule .game-overview {
+    margin: 6px 0;
+}
+
+#content-wrapper.schedule .game-overview tr {
+    line-height: 1.4em;
+}
+
+#content-wrapper.schedule .game-overview td:first-child .team-color-emoji,
+#content-wrapper.schedule .game-overview td:nth-child(3) .team-color-emoji {
+    margin-right: 6px;
+}
+
+
+@media (max-width: 768px) {
+    #content-wrapper.schedule .schedule-section {
+        padding: 12px 14px;
+        margin: 14px 0;
+    }
+
+    #content-wrapper.schedule .team-color-emoji {
+        width: 28px;
+        height: auto;
+    }
+
+    #content-wrapper.schedule .game-overview td {
+        font-size: 0.95em;
+    }
+
+    #content-wrapper.schedule .game-overview td:nth-child(2) {
+        width: 40px;
+        text-align: center;
+        font-weight: 600;
+        color: #d80000;
+    }
+}
