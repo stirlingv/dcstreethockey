@@ -29,6 +29,18 @@ def get_goalie_display_info(matchup, team, goalie_field, status_field):
     status = getattr(matchup, status_field)
     roster_goalie = get_roster_goalie(team)
 
+    # If status is 2 (Sub Needed), goalie name should be blank
+    if status == 2:
+        return {
+            "goalie": None,
+            "goalie_name": "",
+            "status": status,
+            "status_display": matchup.get_away_goalie_status_display()
+            if "away" in goalie_field
+            else matchup.get_home_goalie_status_display(),
+            "is_sub": False,
+            "is_roster_goalie": False,
+        }
     if goalie:
         # Explicit goalie set (could be a sub)
         is_sub = roster_goalie and goalie.id != roster_goalie.id
@@ -228,6 +240,10 @@ def update_goalie_status(request, access_code, matchup_id):
         except (Player.DoesNotExist, ValueError):
             return JsonResponse({"error": "Invalid goalie"}, status=400)
 
+    # If status is 2 (Sub Needed), goalie should be None
+    if status == 2:
+        goalie = None
+
     # Update the appropriate fields based on home/away
     if is_home:
         matchup.home_goalie = goalie
@@ -242,18 +258,25 @@ def update_goalie_status(request, access_code, matchup_id):
     roster_goalie = get_roster_goalie(team)
     display_goalie = goalie or roster_goalie
 
+    # If status is 2, goalie_name should be blank
+    goalie_name = ""
+    is_sub = False
+    if status != 2:
+        goalie_name = (
+            f"{display_goalie.first_name} {display_goalie.last_name}"
+            if display_goalie
+            else "No goalie"
+        )
+        is_sub = goalie is not None and roster_goalie and goalie.id != roster_goalie.id
+
     return JsonResponse(
         {
             "success": True,
-            "goalie_name": f"{display_goalie.first_name} {display_goalie.last_name}"
-            if display_goalie
-            else "No goalie",
+            "goalie_name": goalie_name,
             "status": status,
             "status_display": dict(MatchUp.GOALIE_STATUS_CHOICES).get(
                 status, "Unknown"
             ),
-            "is_sub": goalie is not None
-            and roster_goalie
-            and goalie.id != roster_goalie.id,
+            "is_sub": is_sub,
         }
     )
