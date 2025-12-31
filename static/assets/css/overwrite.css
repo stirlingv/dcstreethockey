@@ -278,7 +278,8 @@ section .game:first-of-type{
       color: #d80000;
 }
 .winner{
-    font-weight: 400;
+    font-weight: 700;
+    background-color: rgba(0, 0, 0, 0.06);
 }
 .game:hover{
     cursor: pointer;
