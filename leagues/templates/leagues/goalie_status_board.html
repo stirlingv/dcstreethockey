@@ -244,10 +244,12 @@
                             <td class="team-cell">{{ match_data.matchup.awayteam.team_name }}</td>
                             <td>
                                 <div class="goalie-cell">
+                                    {% if match_data.away_goalie_info.goalie_name %}
                                     <span class="goalie-name {% if match_data.away_goalie_info.is_sub %}is-sub{% endif %}">
                                         {{ match_data.away_goalie_info.goalie_name }}
                                         {% if match_data.away_goalie_info.is_sub %}<span class="sub-badge">Sub</span>{% endif %}
                                     </span>
+                                    {% endif %}
                                     <span class="status-badge {% if match_data.away_goalie_info.status == 1 %}confirmed{% elif match_data.away_goalie_info.status == 2 %}sub-needed{% else %}unconfirmed{% endif %}">
                                         {{ match_data.away_goalie_info.status_display }}
                                     </span>
@@ -256,10 +258,12 @@
                             <td class="team-cell">{{ match_data.matchup.hometeam.team_name }}</td>
                             <td>
                                 <div class="goalie-cell">
+                                    {% if match_data.home_goalie_info.goalie_name %}
                                     <span class="goalie-name {% if match_data.home_goalie_info.is_sub %}is-sub{% endif %}">
                                         {{ match_data.home_goalie_info.goalie_name }}
                                         {% if match_data.home_goalie_info.is_sub %}<span class="sub-badge">Sub</span>{% endif %}
                                     </span>
+                                    {% endif %}
                                     <span class="status-badge {% if match_data.home_goalie_info.status == 1 %}confirmed{% elif match_data.home_goalie_info.status == 2 %}sub-needed{% else %}unconfirmed{% endif %}">
                                         {{ match_data.home_goalie_info.status_display }}
                                     </span>

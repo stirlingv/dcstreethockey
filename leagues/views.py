@@ -29,6 +29,18 @@ def get_goalie_display_info(matchup, team, goalie_field, status_field):
     status = getattr(matchup, status_field)
     roster_goalie = get_roster_goalie(team)
 
+    # If status is 2 (Sub Needed), goalie name should be blank
+    if status == 2:
+        return {
+            "goalie": None,
+            "goalie_name": "",
+            "status": status,
+            "status_display": matchup.get_away_goalie_status_display()
+            if "away" in goalie_field
+            else matchup.get_home_goalie_status_display(),
+            "is_sub": False,
+            "is_roster_goalie": False,
+        }
     if goalie:
         # Explicit goalie set (could be a sub)
         is_sub = roster_goalie and goalie.id != roster_goalie.id
