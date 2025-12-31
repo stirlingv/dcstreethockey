@@ -1,5 +1,10 @@
 {% extends 'core/base.html' %}
 {% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'assets/css/team_stat_list.css' %}">
+{% endblock %}
+
 {% block content %}
 <div id="content-wrapper">
     <div id="content">
@@ -275,21 +280,6 @@
         </div>
     </div>
 </div>
-
-<style>
-.standings-info-icon:hover .standings-tooltip {
-    visibility: visible;
-    opacity: 1;
-}
-
-@media (max-width: 768px) {
-    .standings-tooltip {
-        width: 280px !important;
-        margin-left: -140px !important;
-        font-size: 12px !important;
-    }
-}
-</style>
 
 <script>
 // Also show tooltip on click for mobile devices

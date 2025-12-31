@@ -1,33 +1,9 @@
-<head>
-	<style type="text/css" media="screen">
-		.division-filters {
-			margin-bottom: 20px;
-			text-align: center;
-		}
-		.division-filters .filter-btn {
-			display: inline-block;
-			padding: 8px 16px;
-			margin: 5px;
-			background-color: #333;
-			color: #fff;
-			border: 2px solid #555;
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 14px;
-			transition: all 0.2s ease;
-		}
-		.division-filters .filter-btn:hover {
-			background-color: #555;
-			border-color: #777;
-		}
-		.division-filters .filter-btn.active {
-			background-color: #007bff;
-			border-color: #007bff;
-		}
-	</style>
-</head>
 {% extends 'core/base.html' %}
 {% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'assets/css/schedule.css' %}">
+{% endblock %}
 
 {% block content %}
 <div id="content-wrapper" class="schedule">
