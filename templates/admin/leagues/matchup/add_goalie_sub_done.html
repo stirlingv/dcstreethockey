@@ -1,0 +1,34 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% trans "Goalie Sub Added" %}</title>
+</head>
+<body>
+<script type="text/javascript">
+    // Close popup and refresh the opener's goalie dropdowns
+    (function() {
+        var playerData = {
+            id: {{ player.pk }},
+            name: "{{ player.first_name }} {{ player.last_name }}"
+        };
+
+        // Notify opener that a new goalie was added
+        if (window.opener && !window.opener.closed) {
+            // Trigger a custom event to refresh goalie dropdowns
+            try {
+                // Modern approach: dispatch custom event
+                var event = new CustomEvent('goalieSubAdded', { detail: playerData });
+                window.opener.document.dispatchEvent(event);
+            } catch (e) {
+                // Fallback: just reload the page
+                window.opener.location.reload();
+            }
+        }
+        window.close();
+    })();
+</script>
+<p>{% trans "Goalie sub added successfully. This window should close automatically." %}</p>
+<p><a href="#" onclick="window.close(); return false;">{% trans "Close this window" %}</a></p>
+</body>
+</html>

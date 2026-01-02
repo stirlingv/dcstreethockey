@@ -52,7 +52,7 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="goalie-{{ match_data.matchup.id }}">Goalie</label>
-                                    <select name="goalie_id" id="goalie-{{ match_data.matchup.id }}">
+                                    <select name="goalie_id" id="goalie-{{ match_data.matchup.id }}" data-roster-option="roster">
                                         <option value="roster" {% if not match_data.current_goalie or match_data.current_goalie.id == roster_goalie.id %}selected{% endif %}>
                                             {{ roster_goalie.first_name }} {{ roster_goalie.last_name }} (Roster)
                                         </option>
@@ -125,7 +125,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (statusSelect.value === '2') { // 2 = Sub Needed
                 lastGoalieValue = goalieSelect.value;
                 goalieSelect.selectedIndex = -1;
-            } else if (!goalieSelect.value && lastGoalieValue) {
+                return;
+            }
+
+            if (statusSelect.value === '3' && !goalieSelect.value) {
+                const rosterOption = goalieSelect.dataset.rosterOption || 'roster';
+                goalieSelect.value = rosterOption;
+                return;
+            }
+
+            if (!goalieSelect.value && lastGoalieValue) {
                 goalieSelect.value = lastGoalieValue;
             }
         });
@@ -170,7 +179,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Update goalie display
                     const goalieDisplay = document.getElementById('goalie-display-' + matchupId);
-                    goalieDisplay.textContent = '- ' + data.goalie_name + (data.is_sub ? ' (Sub)' : '');
+                    if (data.goalie_name) {
+                        goalieDisplay.textContent = '- ' + data.goalie_name + (data.is_sub ? ' (Sub)' : '');
+                    } else {
+                        goalieDisplay.textContent = '- ---';
+                    }
 
                     // Show success
                     button.textContent = 'Saved!';

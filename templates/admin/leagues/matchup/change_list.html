@@ -1,0 +1,23 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+{{ block.super }}
+<li>
+    <a href="{{ add_goalie_sub_url }}" class="addlink" id="add-goalie-sub-btn">
+        {% trans "Add Goalie Sub" %}
+    </a>
+</li>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    #add-goalie-sub-btn {
+        background: #79aec8;
+    }
+    #add-goalie-sub-btn:hover {
+        background: #609ab6;
+    }
+</style>
+{% endblock %}

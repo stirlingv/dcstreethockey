@@ -9,11 +9,32 @@ from .models import MatchUp, Team, Player, Roster, Week, Season
 
 
 def get_roster_goalie(team):
-    """Get the primary (non-substitute) goalie from a team's roster."""
-    roster_entry = (
+    """
+    Get the primary goalie from a team's roster.
+    Priority: 1) Primary goalie (is_primary_goalie=True)
+              2) First non-substitute goalie (fallback)
+    Checks both position1 and position2 for goalie position (4).
+    """
+    from django.db.models import Q
+
+    # First try to find the designated primary goalie
+    primary_entry = (
         Roster.objects.filter(
-            team=team, position1=4, is_substitute=False  # Goalie position
+            team=team,
+            is_substitute=False,
+            is_primary_goalie=True,
         )
+        .filter(Q(position1=4) | Q(position2=4))
+        .select_related("player")
+        .first()
+    )
+    if primary_entry:
+        return primary_entry.player
+
+    # Fallback: first non-substitute goalie (original behavior)
+    roster_entry = (
+        Roster.objects.filter(team=team, is_substitute=False)
+        .filter(Q(position1=4) | Q(position2=4))
         .select_related("player")
         .first()
     )
@@ -161,8 +182,12 @@ def captain_goalie_update(request, access_code):
     )
 
     # Get all goalies for the dropdown (position1=4 means Goalie)
+    # Only include active players
     all_goalies = (
-        Player.objects.filter(Q(roster__position1=4) | Q(roster__position2=4))
+        Player.objects.filter(
+            Q(roster__position1=4) | Q(roster__position2=4),
+            is_active=True,
+        )
         .distinct()
         .order_by("last_name", "first_name")
     )
