@@ -1,0 +1,11 @@
+{% load i18n %}
+<div class="filter-wrapper">
+  <label for="filter-{{ spec.parameter_name }}">{{ spec.title }}:</label>
+  <select id="filter-{{ spec.parameter_name }}" onchange="location = this.value;">
+    {% for choice in choices %}
+      <option value="{{ choice.query_string }}"{% if choice.selected %} selected{% endif %}>
+        {{ choice.display }}
+      </option>
+    {% endfor %}
+  </select>
+</div>

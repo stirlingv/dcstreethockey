@@ -50,6 +50,14 @@ class Player(models.Model):
     gender = models.CharField(
         max_length=2, choices=GENDER_CHOICES, default="M", null=True, blank=True
     )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive players won't appear in goalie dropdowns",
+    )
+    exclude_from_auto_deactivation = models.BooleanField(
+        default=False,
+        help_text="If checked, this player won't be auto-deactivated by the cleanup command (e.g., available subs not on a roster)",
+    )
 
     class Meta:
         ordering = ("last_name",)
@@ -184,10 +192,34 @@ class Roster(models.Model):
     )
     is_captain = models.BooleanField(default=False)
     is_substitute = models.BooleanField(default=False)
-    player_number = models.PositiveSmallIntegerField(blank=True, null=True, default="")
+    is_primary_goalie = models.BooleanField(
+        default=False,
+        help_text="If checked, this goalie will be the default for goalie status pages. Only one goalie per team should be marked as primary.",
+    )
+    player_number = models.PositiveSmallIntegerField(blank=True, null=True)
 
     class Meta:
         ordering = ("team", "player__last_name")
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Validate: only one primary goalie per team
+        if self.is_primary_goalie and self.team_id:
+            existing_primary = Roster.objects.filter(
+                team_id=self.team_id,
+                is_primary_goalie=True,
+            ).exclude(pk=self.pk)
+            if existing_primary.exists():
+                raise ValidationError(
+                    {
+                        "is_primary_goalie": f"This team already has a primary goalie: {existing_primary.first().player}. Uncheck their primary status first."
+                    }
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __unicode__(self):
         return "%s: %s" % (self.team, str(self.player))
@@ -280,6 +312,18 @@ class MatchUp(models.Model):
             "week",
             "time",
         )
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.away_goalie_status == 2 and self.away_goalie_id:
+            errors["away_goalie"] = "Clear the away goalie when status is 'Sub Needed'."
+        if self.home_goalie_status == 2 and self.home_goalie_id:
+            errors["home_goalie"] = "Clear the home goalie when status is 'Sub Needed'."
+
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return f"{self.awayteam} vs {self.hometeam} on {self.week.date}"

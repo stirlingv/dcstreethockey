@@ -10,3 +10,6 @@ python manage.py collectstatic --no-input
 
 # Apply any outstanding database migrations
 python manage.py migrate
+
+# Deactivate players inactive for 3+ years (goalies only by default)
+python manage.py deactivate_inactive_players

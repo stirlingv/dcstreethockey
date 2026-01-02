@@ -1,0 +1,38 @@
+{% load i18n %}
+{% for choice in choices %}
+  <div class="filter-wrapper">
+    <label for="season-filter-{{ spec.parameter_name }}">{{ spec.title }}:</label>
+    <select id="season-filter-{{ spec.parameter_name }}" multiple data-base-query="{{ choice.base_query_string }}">
+      {% for option in choice.options %}
+        <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>
+          {{ option.display }}
+        </option>
+      {% endfor %}
+    </select>
+    <div>
+      <button type="button" id="season-filter-apply-{{ spec.parameter_name }}">Apply</button>
+      <a href="{{ choice.base_query_string }}">Clear</a>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var select = document.getElementById('season-filter-{{ spec.parameter_name }}');
+      var button = document.getElementById('season-filter-apply-{{ spec.parameter_name }}');
+      if (!select || !button) {
+        return;
+      }
+      button.addEventListener('click', function() {
+        var base = select.getAttribute('data-base-query') || '';
+        var values = Array.prototype.map.call(select.selectedOptions, function(option) {
+          return option.value;
+        });
+        if (values.length === 0) {
+          window.location = base || window.location.pathname;
+          return;
+        }
+        var separator = base.indexOf('?') === -1 ? '?' : '&';
+        window.location = base + separator + '{{ spec.parameter_name }}=' + values.join(',');
+      });
+    })();
+  </script>
+{% endfor %}
