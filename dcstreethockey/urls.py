@@ -18,6 +18,7 @@ from core.views import (
     player_view,
     player_trends_view,
 )
+from leagues.autocomplete import GoalieAutocomplete
 
 urlpatterns = (
     [
@@ -51,6 +52,11 @@ urlpatterns = (
             "player-autocomplete/",
             PlayerAutocomplete.as_view(),
             name="player-autocomplete",
+        ),
+        path(
+            "goalie-autocomplete/",
+            GoalieAutocomplete.as_view(),
+            name="goalie-autocomplete",
         ),
         # Include leagues app URLs
         path("", include("leagues.urls")),

@@ -186,20 +186,25 @@ class Roster(models.Model):
     POSITION_TYPE = ((1, "Center"), (2, "Wing"), (3, "Defense"), (4, "Goalie"))
     player = models.ForeignKey(Player, null=True, on_delete=models.SET_NULL)
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
-    position1 = models.PositiveIntegerField(choices=POSITION_TYPE)
+    position1 = models.PositiveIntegerField(choices=POSITION_TYPE, db_index=True)
     position2 = models.PositiveIntegerField(
         choices=POSITION_TYPE, null=True, blank=True
     )
     is_captain = models.BooleanField(default=False)
-    is_substitute = models.BooleanField(default=False)
+    is_substitute = models.BooleanField(default=False, db_index=True)
     is_primary_goalie = models.BooleanField(
         default=False,
+        db_index=True,
         help_text="If checked, this goalie will be the default for goalie status pages. Only one goalie per team should be marked as primary.",
     )
     player_number = models.PositiveSmallIntegerField(blank=True, null=True)
 
     class Meta:
         ordering = ("team", "player__last_name")
+        indexes = [
+            models.Index(fields=["team", "position1"]),
+            models.Index(fields=["team", "is_primary_goalie"]),
+        ]
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -327,6 +332,18 @@ class MatchUp(models.Model):
 
     def __str__(self):
         return f"{self.awayteam} vs {self.hometeam} on {self.week.date}"
+
+
+class MatchUpGoalieStatus(MatchUp):
+    """
+    Proxy model for managing goalie status separately from general matchup administration.
+    This allows for a dedicated admin interface focused on goalie assignments.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = "Goalie Status"
+        verbose_name_plural = "Goalie Statuses"
 
 
 class Stat(models.Model):

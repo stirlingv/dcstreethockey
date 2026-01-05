@@ -1,0 +1,148 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .add-goalie-form {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .add-goalie-form .form-row {
+        margin-bottom: 15px;
+    }
+    .add-goalie-form label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    .add-goalie-form input[type="text"],
+    .add-goalie-form input[type="email"],
+    .add-goalie-form select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    .add-goalie-form input:focus,
+    .add-goalie-form select:focus {
+        outline: none;
+        border-color: #417690;
+        box-shadow: 0 0 0 2px rgba(65, 118, 144, 0.2);
+    }
+    .add-goalie-form .help-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+    }
+    .add-goalie-form .required label::after {
+        content: " *";
+        color: #c00;
+    }
+    .add-goalie-form .submit-row {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+    }
+    .add-goalie-form .submit-row input[type="submit"] {
+        background: #417690;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-right: 10px;
+    }
+    .add-goalie-form .submit-row input[type="submit"]:hover {
+        background: #205067;
+    }
+    .add-goalie-form .submit-row .cancel-link {
+        color: #666;
+        text-decoration: none;
+    }
+    .add-goalie-form .submit-row .cancel-link:hover {
+        color: #417690;
+    }
+    .errorlist {
+        color: #c00;
+        list-style: none;
+        padding: 0;
+        margin: 5px 0 0 0;
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_label|capfirst }}</a>
+    &rsaquo; <a href="{% url 'admin:leagues_matchupgoaliestatus_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; {% trans "Add Goalie Sub" %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="add-goalie-form">
+    <h1>{% trans "Add New Goalie Sub" %}</h1>
+    <p>This will create a new player and add them as a substitute goalie to the selected team's roster.</p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="form-row required">
+            <label for="id_first_name">First Name</label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}
+                <ul class="errorlist">
+                    {% for error in form.first_name.errors %}<li>{{ error }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <div class="form-row required">
+            <label for="id_last_name">Last Name</label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}
+                <ul class="errorlist">
+                    {% for error in form.last_name.errors %}<li>{{ error }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <div class="form-row required">
+            <label for="id_team">Team</label>
+            {{ form.team }}
+            {% if form.team.help_text %}
+                <p class="help-text">{{ form.team.help_text }}</p>
+            {% endif %}
+            {% if form.team.errors %}
+                <ul class="errorlist">
+                    {% for error in form.team.errors %}<li>{{ error }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <div class="form-row">
+            <label for="id_email">Email (optional)</label>
+            {{ form.email }}
+            {% if form.email.errors %}
+                <ul class="errorlist">
+                    {% for error in form.email.errors %}<li>{{ error }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <div class="submit-row">
+            <input type="submit" value="{% trans 'Add Goalie Sub' %}">
+            <a href="{% url 'admin:leagues_matchupgoaliestatus_changelist' %}" class="cancel-link">{% trans "Cancel" %}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

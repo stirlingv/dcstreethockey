@@ -23,6 +23,7 @@ from leagues.models import (
     Team_Stat,
     Week,
     MatchUp,
+    MatchUpGoalieStatus,
     Stat,
     Ref,
     Season,
@@ -169,16 +170,34 @@ class MatchupTimeframeFilter(SimpleListFilter):
         return queryset
 
 
-def _get_team_roster_goalie(team):
+def _get_team_roster_goalie(team, prefetched_roster=None):
     """
     Get the primary goalie for a team.
     Priority: is_primary_goalie=True > first non-substitute goalie
+
+    If prefetched_roster is provided, use it to avoid extra queries.
     """
     if not team:
         return None
 
     from django.db.models import Q
 
+    # Use prefetched roster if available
+    if prefetched_roster is not None:
+        # Filter the prefetched list in Python (no DB query)
+        goalies = [
+            r
+            for r in prefetched_roster
+            if (r.position1 == 4 or r.position2 == 4) and not r.is_substitute
+        ]
+        # First look for primary goalie
+        for roster in goalies:
+            if roster.is_primary_goalie:
+                return roster.player
+        # Fallback to first goalie
+        return goalies[0].player if goalies else None
+
+    # Fallback to DB query if no prefetch (for non-list views)
     # First, try to find a primary goalie
     primary_roster = (
         Roster.objects.filter(
@@ -312,17 +331,144 @@ class StatInline(admin.TabularInline):
 
 
 class MatchUpAdmin(admin.ModelAdmin):
+    """Admin for managing game logistics: times, dates, teams, refs, and stats."""
+
     form = MatchUpForm
     list_select_related = (
         "hometeam",
+        "hometeam__season",
         "awayteam",
+        "awayteam__season",
         "week",
-        "away_goalie",
-        "home_goalie",
+        "week__season",
+        "ref1",
+        "ref2",
     )
     inlines = [
         StatInline,
     ]
+    list_filter = (
+        MatchupTimeframeFilter,
+        "week__division",
+        SeasonMultiFilter,
+    )
+    search_fields = [
+        "awayteam__team_name",
+        "hometeam__team_name",
+    ]
+    list_display = [
+        "week",
+        "formatted_time",
+        "awayteam",
+        "hometeam",
+        "ref1",
+        "ref2",
+        "is_postseason",
+    ]
+    list_display_links = ["week", "formatted_time"]
+    ordering = ["week__date", "time"]
+    list_per_page = 50
+
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "week",
+                    "time",
+                    "awayteam",
+                    "hometeam",
+                    "ref1",
+                    "ref2",
+                    "notes",
+                    "is_postseason",
+                    "is_championship",
+                )
+            },
+        ),
+    )
+
+    formfield_overrides = {
+        models.TimeField: {
+            "form_class": TwelveHourTimeField,
+            "widget": Time12HourWidget,
+        },
+    }
+
+    def formatted_time(self, obj):
+        if obj.time:
+            try:
+                return obj.time.strftime("%I:%M %p")
+            except ValueError:
+                return obj.time
+        return None
+
+    formatted_time.short_description = "Time"
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        division_id = request.GET.get("week__division__exact")
+
+        if division_id and not request.GET.get("season_ids"):
+            current_season_instance = get_current_season_for_division(division_id)
+            if current_season_instance:
+                qs = qs.filter(week__season=current_season_instance)
+        return qs
+
+    def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
+        if db_field.name in ["hometeam", "awayteam"]:
+            kwargs["queryset"] = Team.objects.filter(is_active=True).select_related(
+                "division", "season"
+            )
+        elif db_field.name == "week":
+            matchup_id = request.resolver_match.kwargs.get("object_id")
+            if matchup_id:
+                try:
+                    matchup = MatchUp.objects.select_related(
+                        "week__season", "hometeam__division"
+                    ).get(id=matchup_id)
+                    kwargs["queryset"] = Week.objects.filter(
+                        division=matchup.hometeam.division, season=matchup.week.season
+                    ).select_related("season", "division")
+                except MatchUp.DoesNotExist:
+                    print("Could not find the matchup to filter weeks.")
+        return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
+
+    def render_change_list(self, request, *args, **kwargs):
+        extra_context = kwargs.get("extra_context", {})
+        recent_seasons = Season.objects.order_by("-year", "-season_type")[:5]
+        extra_context["recent_seasons"] = recent_seasons
+        kwargs["extra_context"] = extra_context
+        return super().render_change_list(request, *args, **kwargs)
+
+    def changelist_view(self, request, extra_context=None):
+        redirect_url = _apply_default_matchup_filters(request)
+        if redirect_url:
+            return redirect(redirect_url)
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def lookup_allowed(self, lookup, value):
+        if lookup in {"season_ids", "timeframe"}:
+            return True
+        return super().lookup_allowed(lookup, value)
+
+
+class MatchUpGoalieStatusAdmin(admin.ModelAdmin):
+    """
+    Dedicated admin for managing goalie statuses.
+    Optimized for quick goalie assignment and status updates.
+    """
+
+    list_select_related = (
+        "hometeam",
+        "hometeam__season",
+        "awayteam",
+        "awayteam__season",
+        "week",
+        "week__season",
+        "away_goalie",
+        "home_goalie",
+    )
     list_filter = (
         MatchupTimeframeFilter,
         "week__division",
@@ -360,36 +506,37 @@ class MatchUpAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (
-            None,
+            "Match Info (Read Only)",
             {
-                "fields": (
-                    "week",
-                    "time",
-                    "awayteam",
-                    "hometeam",
-                    "ref1",
-                    "ref2",
-                    "notes",
-                    "is_postseason",
-                    "is_championship",
-                )
+                "fields": ("week", "time", "awayteam", "hometeam"),
+                "classes": ("collapse",),
             },
         ),
         (
             "Away Team Goalie",
             {
                 "fields": ("away_goalie", "away_goalie_status"),
-                "classes": ("collapse",),
             },
         ),
         (
             "Home Team Goalie",
             {
                 "fields": ("home_goalie", "home_goalie_status"),
-                "classes": ("collapse",),
             },
         ),
     )
+
+    def get_readonly_fields(self, request, obj=None):
+        # Make match info read-only since this admin is just for goalie status
+        return ["week", "time", "awayteam", "hometeam"]
+
+    def has_add_permission(self, request):
+        # Don't allow adding matchups from this admin - use main MatchUp admin
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Don't allow deleting matchups from this admin
+        return False
 
     def away_goalie_status_display(self, obj):
         status_colors = {1: "green", 2: "red", 3: "orange"}
@@ -410,13 +557,6 @@ class MatchUpAdmin(admin.ModelAdmin):
 
     home_goalie_status_display.short_description = "Home Goalie"
     home_goalie_status_display.admin_order_field = "home_goalie_status"
-
-    formfield_overrides = {
-        models.TimeField: {
-            "form_class": TwelveHourTimeField,
-            "widget": Time12HourWidget,
-        },
-    }
 
     def formatted_time(self, obj):
         if obj.time:
@@ -449,58 +589,71 @@ class MatchUpAdmin(admin.ModelAdmin):
         )
         return qs
 
-    def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
-        if db_field.name in ["hometeam", "awayteam"]:
-            kwargs["queryset"] = Team.objects.filter(is_active=True).select_related(
-                "division"
-            )
-        elif db_field.name in ["away_goalie", "home_goalie"]:
-            # Include all active goalies, plus any goalie who played in the last 2 years
-            # (even if inactive) so admins can assign returning subs
-            from datetime import date
+    def _get_goalie_queryset(self):
+        """Get the filtered queryset of goalies for dropdown fields."""
+        from datetime import date
 
-            current_year = date.today().year
-            recent_years = [current_year, current_year - 1, current_year - 2]
+        current_year = date.today().year
+        recent_years = [current_year, current_year - 1, current_year - 2]
 
-            # Active goalies OR recently played goalies (even if inactive)
-            kwargs["queryset"] = (
-                Player.objects.filter(
-                    Q(roster__position1=4) | Q(roster__position2=4),
-                )
-                .filter(
-                    Q(is_active=True) | Q(roster__team__season__year__in=recent_years)
-                )
-                .distinct()
-                .order_by("last_name", "first_name")
-            )
-        elif db_field.name == "week":
-            matchup_id = request.resolver_match.kwargs.get("object_id")
-            if matchup_id:
-                try:
-                    matchup = MatchUp.objects.select_related("week__season").get(
-                        id=matchup_id
-                    )
-                    kwargs["queryset"] = Week.objects.filter(
-                        division=matchup.hometeam.division, season=matchup.week.season
-                    )
-                except MatchUp.DoesNotExist:
-                    print("Could not find the matchup to filter weeks.")
-        return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
+        # Use a subquery approach for better performance
+        goalie_player_ids = Roster.objects.filter(
+            Q(position1=4) | Q(position2=4)
+        ).values_list("player_id", flat=True)
 
-    def render_change_list(self, request, *args, **kwargs):
-        extra_context = kwargs.get("extra_context", {})
-        recent_seasons = Season.objects.order_by("-year", "-season_type")[:5]
-        extra_context["recent_seasons"] = recent_seasons
-        kwargs["extra_context"] = extra_context
-        return super().render_change_list(request, *args, **kwargs)
+        return (
+            Player.objects.filter(id__in=goalie_player_ids)
+            .filter(Q(is_active=True) | Q(roster__team__season__year__in=recent_years))
+            .distinct()
+            .order_by("last_name", "first_name")
+        )
 
     def get_changelist_form(self, request, **kwargs):
+        # Cache goalie choices on the request to avoid re-querying
+        if not hasattr(request, "_goalie_choices_cache"):
+            goalie_qs = self._get_goalie_queryset()
+            # Evaluate queryset once and cache as list of tuples
+            request._goalie_choices_cache = [("", "---------")] + [
+                (p.pk, str(p)) for p in goalie_qs
+            ]
+
+        goalie_choices = request._goalie_choices_cache
+        list_editable_fields = list(self.list_editable)
+
         class MatchUpGoalieForm(forms.ModelForm):
+            away_goalie = forms.ChoiceField(
+                choices=goalie_choices,
+                required=False,
+                label="Away Goalie",
+            )
+            home_goalie = forms.ChoiceField(
+                choices=goalie_choices,
+                required=False,
+                label="Home Goalie",
+            )
+
             class Meta:
-                model = MatchUp
-                fields = list(self.list_editable)
+                model = MatchUpGoalieStatus
+                fields = list_editable_fields
+
+            def clean_away_goalie(self):
+                value = self.cleaned_data.get("away_goalie")
+                if value == "" or value is None:
+                    return None
+                return Player.objects.get(pk=value)
+
+            def clean_home_goalie(self):
+                value = self.cleaned_data.get("home_goalie")
+                if value == "" or value is None:
+                    return None
+                return Player.objects.get(pk=value)
 
         return MatchUpGoalieForm
+
+    def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
+        if db_field.name in ["away_goalie", "home_goalie"]:
+            kwargs["queryset"] = self._get_goalie_queryset()
+        return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
     def get_changelist_formset(self, request, **kwargs):
         from django.forms.models import BaseModelFormSet
@@ -513,34 +666,53 @@ class MatchUpAdmin(admin.ModelAdmin):
                     return form
                 away_roster_goalie = None
                 home_roster_goalie = None
+                # Use prefetched roster data to avoid N+1 queries
                 if instance.awayteam_id:
-                    away_roster_goalie = _get_team_roster_goalie(instance.awayteam)
+                    prefetched_away = getattr(
+                        instance.awayteam, "_prefetched_objects_cache", {}
+                    ).get("roster_set")
+                    if prefetched_away is not None:
+                        away_roster_goalie = _get_team_roster_goalie(
+                            instance.awayteam, prefetched_roster=list(prefetched_away)
+                        )
+                    else:
+                        away_roster_goalie = _get_team_roster_goalie(instance.awayteam)
                     form.fields["away_goalie"].widget.attrs["data-roster-goalie-id"] = (
                         str(away_roster_goalie.pk) if away_roster_goalie else ""
                     )
                 if instance.hometeam_id:
-                    home_roster_goalie = _get_team_roster_goalie(instance.hometeam)
+                    prefetched_home = getattr(
+                        instance.hometeam, "_prefetched_objects_cache", {}
+                    ).get("roster_set")
+                    if prefetched_home is not None:
+                        home_roster_goalie = _get_team_roster_goalie(
+                            instance.hometeam, prefetched_roster=list(prefetched_home)
+                        )
+                    else:
+                        home_roster_goalie = _get_team_roster_goalie(instance.hometeam)
                     form.fields["home_goalie"].widget.attrs["data-roster-goalie-id"] = (
                         str(home_roster_goalie.pk) if home_roster_goalie else ""
                     )
-                if (
-                    instance.away_goalie_id is None
-                    and instance.away_goalie_status == 3
+
+                # Set initial values for ChoiceField (needs to be pk, not object)
+                if instance.away_goalie_id:
+                    form.initial["away_goalie"] = instance.away_goalie_id
+                elif (
+                    instance.away_goalie_status == 3
                     and instance.awayteam_id
-                    and not form.initial.get("away_goalie")
+                    and away_roster_goalie
                 ):
-                    if away_roster_goalie:
-                        form.initial["away_goalie"] = away_roster_goalie.pk
-                        form.fields["away_goalie"].initial = away_roster_goalie.pk
-                if (
-                    instance.home_goalie_id is None
-                    and instance.home_goalie_status == 3
+                    form.initial["away_goalie"] = away_roster_goalie.pk
+
+                if instance.home_goalie_id:
+                    form.initial["home_goalie"] = instance.home_goalie_id
+                elif (
+                    instance.home_goalie_status == 3
                     and instance.hometeam_id
-                    and not form.initial.get("home_goalie")
+                    and home_roster_goalie
                 ):
-                    if home_roster_goalie:
-                        form.initial["home_goalie"] = home_roster_goalie.pk
-                        form.fields["home_goalie"].initial = home_roster_goalie.pk
+                    form.initial["home_goalie"] = home_roster_goalie.pk
+
                 return form
 
         kwargs["formset"] = MatchUpGoalieFormSet
@@ -555,14 +727,14 @@ class MatchUpAdmin(admin.ModelAdmin):
             path(
                 "add-goalie-sub/",
                 self.admin_site.admin_view(self.add_goalie_sub_view),
-                name="leagues_matchup_add_goalie_sub",
+                name="leagues_matchupgoaliestatus_add_goalie_sub",
             ),
         ]
         return custom_urls + urls
 
     def add_goalie_sub_view(self, request):
         """Custom view to add a new goalie sub (Player + Roster entry)."""
-        from .models import Season, Team
+        from .models import Team
 
         class AddGoalieSubForm(forms.Form):
             first_name = forms.CharField(max_length=100)
@@ -575,7 +747,6 @@ class MatchUpAdmin(admin.ModelAdmin):
                 help_text="Team to add the goalie sub to",
             )
             email = forms.EmailField(required=False)
-            phone = forms.CharField(max_length=20, required=False)
 
         if request.method == "POST":
             form = AddGoalieSubForm(request.POST)
@@ -585,7 +756,6 @@ class MatchUpAdmin(admin.ModelAdmin):
                     first_name=form.cleaned_data["first_name"],
                     last_name=form.cleaned_data["last_name"],
                     email=form.cleaned_data["email"] or None,
-                    phone=form.cleaned_data["phone"] or None,
                     is_active=True,
                 )
                 # Create roster entry as substitute goalie
@@ -600,12 +770,12 @@ class MatchUpAdmin(admin.ModelAdmin):
                     request,
                     f"Successfully added {player.first_name} {player.last_name} as a goalie sub for {team}.",
                 )
-                # Redirect back to matchup list with preserved filters
-                redirect_url = reverse("admin:leagues_matchup_changelist")
+                # Redirect back to goalie status list with preserved filters
+                redirect_url = reverse("admin:leagues_matchupgoaliestatus_changelist")
                 if request.GET.get("_popup"):
                     return render(
                         request,
-                        "admin/leagues/matchup/add_goalie_sub_done.html",
+                        "admin/leagues/matchupgoaliestatus/add_goalie_sub_done.html",
                         {"player": player},
                     )
                 return HttpResponseRedirect(redirect_url)
@@ -619,17 +789,26 @@ class MatchUpAdmin(admin.ModelAdmin):
             "opts": self.model._meta,
             "is_popup": request.GET.get("_popup"),
         }
-        return render(request, "admin/leagues/matchup/add_goalie_sub.html", context)
+        return render(
+            request, "admin/leagues/matchupgoaliestatus/add_goalie_sub.html", context
+        )
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context["add_goalie_sub_url"] = reverse(
-            "admin:leagues_matchup_add_goalie_sub"
+            "admin:leagues_matchupgoaliestatus_add_goalie_sub"
         )
         redirect_url = _apply_default_matchup_filters(request)
         if redirect_url:
             return redirect(redirect_url)
         return super().changelist_view(request, extra_context=extra_context)
+
+    def render_change_list(self, request, *args, **kwargs):
+        extra_context = kwargs.get("extra_context", {})
+        recent_seasons = Season.objects.order_by("-year", "-season_type")[:5]
+        extra_context["recent_seasons"] = recent_seasons
+        kwargs["extra_context"] = extra_context
+        return super().render_change_list(request, *args, **kwargs)
 
     def lookup_allowed(self, lookup, value):
         if lookup in {"season_ids", "timeframe"}:
@@ -752,4 +931,5 @@ admin.site.register(Division)
 admin.site.register(Roster)
 admin.site.register(Team_Stat)
 admin.site.register(MatchUp, MatchUpAdmin)
+admin.site.register(MatchUpGoalieStatus, MatchUpGoalieStatusAdmin)
 admin.site.register(Stat)

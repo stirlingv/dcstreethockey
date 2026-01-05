@@ -63,25 +63,44 @@ class Command(BaseCommand):
         )
 
     def _get_permissions(self):
-        matchup_ct = ContentType.objects.get_for_model(
-            apps.get_model("leagues", "MatchUp")
+        # Get content types for the models we need
+        # For proxy models, use for_concrete_model=False to get the proxy's own content type
+        goalie_status_ct = ContentType.objects.get_for_model(
+            apps.get_model("leagues", "MatchUpGoalieStatus"), for_concrete_model=False
         )
         team_ct = ContentType.objects.get_for_model(apps.get_model("leagues", "Team"))
         player_ct = ContentType.objects.get_for_model(
             apps.get_model("leagues", "Player")
         )
+        roster_ct = ContentType.objects.get_for_model(
+            apps.get_model("leagues", "Roster")
+        )
 
         codenames = [
-            (matchup_ct, "view_matchup"),
-            (matchup_ct, "change_matchup"),
+            # Goalie Status permissions (the dedicated goalie admin)
+            (goalie_status_ct, "view_matchupgoaliestatus"),
+            (goalie_status_ct, "change_matchupgoaliestatus"),
+            # View permissions for related models (needed for dropdowns/display)
             (team_ct, "view_team"),
             (player_ct, "view_player"),
+            (player_ct, "add_player"),  # Needed for "Add Goalie Sub" feature
+            (roster_ct, "view_roster"),
+            (roster_ct, "add_roster"),  # Needed for "Add Goalie Sub" feature
         ]
 
         permissions = []
         for content_type, codename in codenames:
-            perm = Permission.objects.get(content_type=content_type, codename=codename)
-            permissions.append(perm)
+            try:
+                perm = Permission.objects.get(
+                    content_type=content_type, codename=codename
+                )
+                permissions.append(perm)
+            except Permission.DoesNotExist:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Permission not found: {codename} - run migrate first"
+                    )
+                )
         return permissions
 
     def _create_or_update_user(self, username, email, password, group):
