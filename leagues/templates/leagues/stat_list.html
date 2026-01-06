@@ -5,11 +5,25 @@
     <div id="content">
         <div class="container">
             <div class="title">League Leaders</div>
-            <div class="optionsdiv {% if active_season == 0 %}activeoption{% endif %}" onclick="handleSeason('{% url "player_stats" 0 %}')">
+            <div class="stat-scope-header">
+                <div class="stat-scope-note">Stats scope: {{ stat_scope_label }}</div>
+                <div class="stat-scope-toggle fancy">
+                    <div class="optionsdiv stat-scope-option {% if stat_scope == "regular" %}activeoption{% endif %}" onclick="handleScope('{% url "player_stats" active_season %}?scope=regular')">
+                        Regular
+                    </div>
+                    <div class="optionsdiv stat-scope-option {% if stat_scope == "postseason" %}activeoption{% endif %}" onclick="handleScope('{% url "player_stats" active_season %}?scope=postseason')">
+                        Post Season
+                    </div>
+                    <div class="optionsdiv stat-scope-option {% if stat_scope == "combined" %}activeoption{% endif %}" onclick="handleScope('{% url "player_stats" active_season %}?scope=combined')">
+                        Combined
+                    </div>
+                </div>
+            </div>
+            <div class="optionsdiv {% if active_season == 0 %}activeoption{% endif %}" onclick="handleSeason('{% url "player_stats" 0 %}?scope={{ stat_scope }}')">
                 Current
             </div>
             {% for season in seasons %}
-                <div class="optionsdiv {% if season.id == active_season %}activeoption{% endif %}" onclick="handleSeason('{% url "player_stats" season.id %}')">
+                <div class="optionsdiv {% if season.id == active_season %}activeoption{% endif %}" onclick="handleSeason('{% url "player_stats" season.id %}?scope={{ stat_scope }}')">
                     {{ season }}
                 </div>
             {% endfor %}
@@ -31,6 +45,9 @@
 </div>
 <script type="text/javascript">
     function handleSeason(dest) {
+        window.location = dest;
+    }
+    function handleScope(dest) {
         window.location = dest;
     }
 

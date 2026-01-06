@@ -424,8 +424,17 @@ class PlayerStatDetailView(ListView):
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)
         season = self.kwargs.get("season", "0")
+        stat_scope = normalize_stat_scope(
+            self.request.GET.get("scope", "regular"), default="regular"
+        )
         context["seasons"] = Season.objects.order_by("-year", "-season_type")[:4]
         context["active_season"] = int(season)
+        context["stat_scope"] = stat_scope
+        context["stat_scope_label"] = {
+            "regular": "Regular Season",
+            "postseason": "Post Season",
+            "combined": "Combined",
+        }[stat_scope]
         context["player_stat_list"] = OrderedDict()
 
         divisions = Division.objects.all()
@@ -434,7 +443,7 @@ class PlayerStatDetailView(ListView):
                 "roster__team"
             )
             player_stats = (
-                get_player_stats(players, context["active_season"])
+                get_player_stats(players, context["active_season"], scope=stat_scope)
                 .filter(sum_games_played__gte=1)
                 .order_by(
                     "rounded_average_goals_against",
@@ -591,12 +600,35 @@ def get_division_ranks(division, gender_filter):
         return namedtuplefetchall(cursor)
 
 
-def get_player_stats(players, season):
-    stat_filters = (
-        Q(stat__isnull=True) | Q(stat__matchup__is_postseason=False)
-        if season != 0
-        else Q(stat__team__is_active=True)
-    )
+def normalize_stat_scope(scope, default="regular"):
+    scope_value = (scope or default).lower()
+    if scope_value in {"regular", "postseason", "combined"}:
+        return scope_value
+    return default
+
+
+def filter_stats_by_scope(stats, scope):
+    scope_value = normalize_stat_scope(scope, default="combined")
+    if scope_value == "regular":
+        return stats.filter(Q(matchup__isnull=True) | Q(matchup__is_postseason=False))
+    if scope_value == "postseason":
+        return stats.filter(matchup__is_postseason=True)
+    return stats
+
+
+def get_player_stats(players, season, scope="regular"):
+    scope_value = normalize_stat_scope(scope, default="regular")
+    stat_filters = Q()
+    if season == 0:
+        stat_filters &= Q(stat__team__is_active=True)
+    if scope_value == "regular":
+        stat_filters &= (
+            Q(stat__isnull=True)
+            | Q(stat__matchup__isnull=True)
+            | Q(stat__matchup__is_postseason=False)
+        )
+    elif scope_value == "postseason":
+        stat_filters &= Q(stat__matchup__is_postseason=True)
 
     return (
         players.filter(stat_filters)
@@ -860,9 +892,9 @@ def teams(request, team=0):
     players = Player.objects.filter(roster__team__id=team, roster__is_substitute=False)
     season = players.values_list("roster__team__season__id", flat=True).distinct()
     context["past_team_stats"] = get_stats_for_past_team(team)
-    context["player_list"] = get_player_stats(players, int(season[0])).order_by(
-        "-total_points", "-sum_goals", "-sum_assists", "average_goals_against"
-    )
+    context["player_list"] = get_player_stats(
+        players, int(season[0]), scope="combined"
+    ).order_by("-total_points", "-sum_goals", "-sum_assists", "average_goals_against")
     for rosteritem in (
         Roster.objects.select_related("team")
         .select_related("player")
@@ -964,9 +996,9 @@ def get_seasons_played(player):
     return float(count)
 
 
-def get_offensive_stats_for_player(player):
+def get_offensive_stats_for_player(player, scope="combined"):
     return (
-        Stat.objects.filter(player_id=player)
+        filter_stats_by_scope(Stat.objects.filter(player_id=player), scope)
         .exclude((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None)))
         .values(
             "team__id",
@@ -1021,11 +1053,14 @@ def get_offensive_stats_for_player(player):
     )
 
 
-def get_goalie_stats(player):
+def get_goalie_stats(player, scope="combined"):
     return (
-        Stat.objects.filter(
-            Q(player_id=player)
-            & ((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None)))
+        filter_stats_by_scope(
+            Stat.objects.filter(
+                Q(player_id=player)
+                & ((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None)))
+            ),
+            scope,
         )
         .values(
             "team__id",
@@ -1086,6 +1121,24 @@ def get_goalie_stats(player):
     )
 
 
+def get_average_stats_for_player(player_id, scope="combined"):
+    stats = filter_stats_by_scope(Stat.objects.filter(player_id=player_id), scope)
+    totals = stats.aggregate(
+        total_goals=Coalesce(Sum("goals"), 0),
+        total_assists=Coalesce(Sum("assists"), 0),
+    )
+    seasons_played = get_seasons_played(player_id)
+    if seasons_played == 0:
+        return {
+            "average_goals_per_season": 0,
+            "average_assists_per_season": 0,
+        }
+    return {
+        "average_goals_per_season": totals["total_goals"] / seasons_played,
+        "average_assists_per_season": totals["total_assists"] / seasons_played,
+    }
+
+
 def get_stats_for_past_team(team):
     team_name = Team.objects.filter(id=team).values_list("team_name", flat=True)
     return (
@@ -1133,9 +1186,9 @@ class PlayerAutocomplete(autocomplete.Select2QuerySetView):
         return qs
 
 
-def calculate_player_stats(player, season_mapping):
+def calculate_player_stats(player, season_mapping, scope="combined"):
     offensive_stats = (
-        Stat.objects.filter(player=player)
+        filter_stats_by_scope(Stat.objects.filter(player=player), scope)
         .select_related("team__season", "team__division")
         .values(
             "team__season__year",
@@ -1210,14 +1263,54 @@ def calculate_player_stats(player, season_mapping):
 def player_view(request, player_id):
     player = get_object_or_404(Player, id=player_id)
     season_mapping = {1: "Spring", 2: "Summer", 3: "Fall", 4: "Winter"}
-    stats = calculate_player_stats(player, season_mapping)
+    stats = calculate_player_stats(player, season_mapping, scope="combined")
+    career_stats = get_career_stats_for_player(player_id)
+    stat_sections = [
+        {
+            "key": "regular",
+            "label": "Regular Season",
+            "offensive_stats": get_offensive_stats_for_player(
+                player_id, scope="regular"
+            ),
+            "goalie_stats": get_goalie_stats(player_id, scope="regular"),
+        },
+        {
+            "key": "postseason",
+            "label": "Post Season",
+            "offensive_stats": get_offensive_stats_for_player(
+                player_id, scope="postseason"
+            ),
+            "goalie_stats": get_goalie_stats(player_id, scope="postseason"),
+        },
+        {
+            "key": "combined",
+            "label": "Combined",
+            "offensive_stats": get_offensive_stats_for_player(
+                player_id, scope="combined"
+            ),
+            "goalie_stats": get_goalie_stats(player_id, scope="combined"),
+        },
+    ]
 
     context = {
         "view": "player",
         "player": player,
-        "career_stats": get_career_stats_for_player(player_id),
+        "career_stats": career_stats,
         "seasons": get_seasons_played(player_id),
-        "goalie_stats": get_goalie_stats(player_id),
+        "goalie_stats": get_goalie_stats(player_id, scope="combined"),
+        "stat_sections": stat_sections,
+        "average_stats": {
+            "combined": {
+                "average_goals_per_season": career_stats.get(
+                    "average_goals_per_season"
+                ),
+                "average_assists_per_season": career_stats.get(
+                    "average_assists_per_season"
+                ),
+            },
+            "regular": get_average_stats_for_player(player_id, scope="regular"),
+            "postseason": get_average_stats_for_player(player_id, scope="postseason"),
+        },
         **stats,
         # Add other context variables as needed
     }
