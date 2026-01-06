@@ -15,8 +15,22 @@ from django.db.models import (
 )
 from unittest.mock import Mock, patch, MagicMock
 from collections import OrderedDict
-from leagues.models import Player, Roster, Team, Division, Season, Stat
-from core.views import PlayerStatDetailView, get_player_stats
+from leagues.models import (
+    Player,
+    Roster,
+    Team,
+    Division,
+    Season,
+    Stat,
+    MatchUp,
+    Week,
+)
+from core.views import (
+    PlayerStatDetailView,
+    get_player_stats,
+    get_average_stats_for_player,
+    normalize_stat_scope,
+)
 
 
 class PlayerStatsLogicTestCase(TestCase):
@@ -430,6 +444,91 @@ class PlayerStatsIntegrationTestCase(TestCase):
         # Should have 'players' and 'season' parameters
         self.assertIn("players", params)
         self.assertIn("season", params)
+
+
+class StatScopeAveragesTestCase(TestCase):
+    def setUp(self):
+        self.season_regular = Season.objects.create(
+            year=2024, season_type=1, is_current_season=False
+        )
+        self.season_post = Season.objects.create(
+            year=2024, season_type=2, is_current_season=False
+        )
+        self.division = Division.objects.create(division=1)
+        self.team_regular = Team.objects.create(
+            team_name="Regular Team",
+            division=self.division,
+            season=self.season_regular,
+            is_active=True,
+        )
+        self.team_post = Team.objects.create(
+            team_name="Post Team",
+            division=self.division,
+            season=self.season_post,
+            is_active=True,
+        )
+        self.player = Player.objects.create(first_name="Ava", last_name="Skater")
+        Roster.objects.create(
+            player=self.player,
+            team=self.team_regular,
+            position1=1,
+            is_captain=False,
+            is_substitute=False,
+        )
+        Roster.objects.create(
+            player=self.player,
+            team=self.team_post,
+            position1=1,
+            is_captain=False,
+            is_substitute=False,
+        )
+        week = Week.objects.create(date="2024-01-01", season=self.season_regular)
+        self.match_regular = MatchUp.objects.create(
+            week=week,
+            time="18:00",
+            awayteam=self.team_regular,
+            hometeam=self.team_post,
+            is_postseason=False,
+        )
+        self.match_post = MatchUp.objects.create(
+            week=week,
+            time="19:00",
+            awayteam=self.team_regular,
+            hometeam=self.team_post,
+            is_postseason=True,
+        )
+        Stat.objects.create(
+            player=self.player,
+            team=self.team_regular,
+            matchup=self.match_regular,
+            goals=6,
+            assists=4,
+        )
+        Stat.objects.create(
+            player=self.player,
+            team=self.team_post,
+            matchup=self.match_post,
+            goals=2,
+            assists=1,
+        )
+
+    def test_normalize_stat_scope(self):
+        self.assertEqual(normalize_stat_scope("regular"), "regular")
+        self.assertEqual(normalize_stat_scope("postseason"), "postseason")
+        self.assertEqual(normalize_stat_scope("combined"), "combined")
+        self.assertEqual(normalize_stat_scope("bad-input"), "regular")
+
+    def test_average_stats_use_total_seasons_played(self):
+        combined = get_average_stats_for_player(self.player.id, scope="combined")
+        regular = get_average_stats_for_player(self.player.id, scope="regular")
+        postseason = get_average_stats_for_player(self.player.id, scope="postseason")
+
+        self.assertEqual(combined["average_goals_per_season"], 4)
+        self.assertEqual(combined["average_assists_per_season"], 2.5)
+        self.assertEqual(regular["average_goals_per_season"], 3)
+        self.assertEqual(regular["average_assists_per_season"], 2)
+        self.assertEqual(postseason["average_goals_per_season"], 1)
+        self.assertEqual(postseason["average_assists_per_season"], 0.5)
 
 
 if __name__ == "__main__":
