@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import MatchUp, Team, Player, Roster, Week, Season
+from .models import MatchUp, Team, Player, Roster, Week
 
 
 def get_roster_goalie(team):
@@ -181,13 +181,13 @@ def captain_goalie_update(request, access_code):
     team = get_object_or_404(Team, captain_access_code=access_code, is_active=True)
 
     today = timezone.now().date()
-    current_seasons = Season.objects.filter(is_current_season=True)
-    # Get upcoming matchups for this team in all current seasons
+    # Get upcoming matchups for this team based on date only — same approach
+    # as goalie_status_board. Filtering by is_current_season is unreliable
+    # because new seasons start with is_current_season=None.
     upcoming_matchups = (
         MatchUp.objects.filter(
             (Q(awayteam=team) | Q(hometeam=team)),
             week__date__gte=today,
-            week__season__in=current_seasons,
         )
         .select_related("week", "awayteam", "hometeam", "away_goalie", "home_goalie")
         .order_by("week__date", "time")
