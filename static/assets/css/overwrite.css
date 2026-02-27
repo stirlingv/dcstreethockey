@@ -765,3 +765,78 @@ div div#content .matchupheader{
     font-size: 1.05em;
     opacity: 0.9;
 }
+
+/* ===== Games Cancelled Banner ===== */
+.cancellation-banner-wrapper {
+    width: 100%;
+}
+
+.cancellation-banner {
+    background-color: #c0392b;
+    color: #fff;
+    text-align: center;
+    padding: 16px 20px;
+    animation: cancellation-pulse 2.5s ease-in-out infinite;
+}
+
+.cancellation-banner + .cancellation-banner {
+    border-top: 2px solid rgba(255, 255, 255, 0.3);
+    animation-delay: 0.4s;
+}
+
+.cancellation-banner-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 900px;
+    width: 100%;
+    justify-content: center;
+}
+
+.cancellation-icon {
+    font-size: 2em;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.cancellation-details {
+    text-align: left;
+}
+
+.cancellation-headline {
+    font-size: 1.5em;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.cancellation-divisions {
+    font-size: 0.95em;
+    margin-top: 3px;
+    opacity: 0.9;
+    font-weight: 500;
+}
+
+@keyframes cancellation-pulse {
+    0%, 100% { background-color: #c0392b; }
+    50%       { background-color: #a93226; }
+}
+
+@media screen and (max-width: 736px) {
+    .cancellation-banner {
+        padding: 14px 16px;
+    }
+    .cancellation-banner-inner {
+        gap: 10px;
+    }
+    .cancellation-icon {
+        font-size: 1.6em;
+    }
+    .cancellation-headline {
+        font-size: 1.2em;
+    }
+    .cancellation-divisions {
+        font-size: 0.85em;
+    }
+}

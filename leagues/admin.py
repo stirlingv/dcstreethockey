@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.urls import reverse, path
 from django.shortcuts import redirect, render
 from django.http import HttpResponseRedirect
+from django.core.exceptions import PermissionDenied
 
 from dal import autocomplete
 from .forms import MatchUpForm
@@ -32,7 +33,7 @@ from leagues.models import (
     PlayerPhoto,
 )
 import logging
-from datetime import timedelta
+from datetime import timedelta, date
 
 logger = logging.getLogger(__name__)
 
@@ -851,7 +852,10 @@ class WeekAdmin(admin.ModelAdmin):
     inlines = [
         MatchUpInline,
     ]
-    list_filter = ["division", "season"]
+    list_display = ["__str__", "is_cancelled"]
+    list_editable = ["is_cancelled"]
+    list_display_links = ["__str__"]
+    list_filter = ["division", "season", "is_cancelled"]
 
     actions = ["show_all_seasons"]
 
@@ -882,6 +886,58 @@ class WeekAdmin(admin.ModelAdmin):
         extra_context["recent_seasons"] = recent_seasons
         kwargs["extra_context"] = extra_context
         return super().render_change_list(request, *args, **kwargs)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "quick-cancel-week/<int:week_id>/",
+                self.admin_site.admin_view(self.quick_cancel_week_view),
+                name="leagues_week_quick_cancel",
+            ),
+            path(
+                "quick-cancel-date/<str:date_str>/<int:cancelled>/",
+                self.admin_site.admin_view(self.quick_cancel_date_view),
+                name="leagues_week_quick_cancel_date",
+            ),
+        ]
+        return custom_urls + urls
+
+    def has_quick_cancel_permission(self, request):
+        return request.user.has_perm("leagues.can_quick_cancel_games")
+
+    def quick_cancel_week_view(self, request, week_id):
+        """Toggle is_cancelled on a single Week record."""
+        if not self.has_quick_cancel_permission(request):
+            raise PermissionDenied
+        if request.method != "POST":
+            return redirect(reverse("admin:index"))
+        week = Week.objects.select_related("division").get(pk=week_id)
+        week.is_cancelled = not week.is_cancelled
+        week.save()
+        status = "cancelled" if week.is_cancelled else "restored"
+        messages.success(
+            request,
+            f"{week.division} on {week.date:%A, %B %-d} has been {status}.",
+        )
+        return redirect(reverse("admin:index"))
+
+    def quick_cancel_date_view(self, request, date_str, cancelled):
+        """Set is_cancelled for all Week records on a given date (1=cancel, 0=restore)."""
+        if not self.has_quick_cancel_permission(request):
+            raise PermissionDenied
+        if request.method != "POST":
+            return redirect(reverse("admin:index"))
+        target_date = date.fromisoformat(date_str)
+        updated = Week.objects.filter(date=target_date).update(
+            is_cancelled=bool(cancelled)
+        )
+        action = "cancelled" if cancelled else "restored"
+        messages.success(
+            request,
+            f"All {updated} game(s) on {target_date:%A, %B %-d} have been {action}.",
+        )
+        return redirect(reverse("admin:index"))
 
 
 class TeamAdmin(admin.ModelAdmin):

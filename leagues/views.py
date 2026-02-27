@@ -96,15 +96,25 @@ def goalie_status_board(request):
     Public view showing goalie status for all upcoming matchups.
     """
     today = timezone.now().date()
-
-    # Get all current seasons
-    current_seasons = Season.objects.filter(is_current_season=True)
-    # Get upcoming weeks for all current seasons
-    upcoming_weeks = (
-        Week.objects.filter(date__gte=today, season__in=current_seasons)
+    # Show all weeks for the next 4 upcoming dates, regardless of season.
+    # This keeps overlapping season dates (e.g. championship + new season opener)
+    # visible on the same board.
+    upcoming_dates = list(
+        Week.objects.filter(date__gte=today)
         .order_by("date")
-        .select_related("division", "season")[:4]
-    )  # Next 4 weeks
+        .values_list("date", flat=True)
+        .distinct()[:4]
+    )
+    upcoming_weeks = (
+        Week.objects.filter(date__in=upcoming_dates)
+        .select_related("division", "season")
+        .order_by(
+            "date",
+            "division__division",
+            "-season__year",
+            "season__season_type",
+        )
+    )
 
     weeks_data = []
     for week in upcoming_weeks:
@@ -145,12 +155,14 @@ def goalie_status_board(request):
             }
         )
 
-    # Count games needing subs across all current seasons
-    sub_needed_count = (
-        MatchUp.objects.filter(week__date__gte=today, week__season__in=current_seasons)
-        .filter(Q(away_goalie_status=2) | Q(home_goalie_status=2))
-        .count()
-    )
+    # Count games needing subs for the same date window shown on this page.
+    sub_needed_count = 0
+    if upcoming_dates:
+        sub_needed_count = (
+            MatchUp.objects.filter(week__date__in=upcoming_dates)
+            .filter(Q(away_goalie_status=2) | Q(home_goalie_status=2))
+            .count()
+        )
 
     context = {
         "weeks_data": weeks_data,

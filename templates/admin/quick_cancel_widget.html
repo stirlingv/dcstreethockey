@@ -1,0 +1,145 @@
+<style>
+  .qc-module { margin-bottom: 20px; }
+  .qc-date-group { padding: 10px 12px 6px; border-bottom: 1px solid #eee; }
+  .qc-date-group:last-child { border-bottom: none; }
+  .qc-date-heading {
+    font-size: 13px;
+    font-weight: bold;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 8px;
+  }
+  .qc-today-badge {
+    display: inline-block;
+    background: #417690;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-right: 6px;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+  }
+  .qc-week-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    gap: 10px;
+  }
+  .qc-division-name {
+    font-size: 14px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+  }
+  .qc-status-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .qc-status-active { background: #e8f5e9; color: #2e7d32; }
+  .qc-status-cancelled { background: #fce4e4; color: #b71c1c; }
+  .qc-btn {
+    font-size: 13px;
+    padding: 7px 14px;
+    min-width: 110px;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 4px;
+    border: none;
+    font-weight: 600;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .qc-btn-cancel {
+    background: #c0392b;
+    color: #fff;
+  }
+  .qc-btn-cancel:hover { background: #a93226; }
+  .qc-btn-restore {
+    background: #27ae60;
+    color: #fff;
+  }
+  .qc-btn-restore:hover { background: #1e8449; }
+  .qc-bulk-row {
+    display: flex;
+    gap: 8px;
+    padding: 8px 0 4px;
+    flex-wrap: wrap;
+  }
+  .qc-bulk-btn {
+    flex: 1;
+    min-width: 130px;
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+  .qc-no-games {
+    padding: 10px 12px;
+    color: #888;
+    font-style: italic;
+    font-size: 13px;
+  }
+  @media (max-width: 600px) {
+    .qc-week-row { flex-wrap: wrap; }
+    .qc-btn { min-width: 90px; padding: 9px 10px; font-size: 14px; }
+    .qc-bulk-btn { font-size: 14px; padding: 11px 10px; }
+  }
+</style>
+
+<div class="module qc-module">
+  <h2>&#127944; Quick Game Cancellation</h2>
+  {% if grouped_weeks %}
+  {% for date_key, info in grouped_weeks.items %}
+  {% with date_key|date:"Y-m-d" as date_str %}
+  <div class="qc-date-group">
+    <p class="qc-date-heading">
+      {% if date_key == today %}<span class="qc-today-badge">TODAY</span>{% endif %}
+      {{ date_key|date:"l, F j" }}
+    </p>
+
+    {% for week in info.weeks %}
+    <div class="qc-week-row">
+      <span class="qc-division-name">{{ week.division }}</span>
+      <span class="qc-status-badge {% if week.is_cancelled %}qc-status-cancelled{% else %}qc-status-active{% endif %}">
+        {% if week.is_cancelled %}Cancelled{% else %}Active{% endif %}
+      </span>
+      <form method="post" action="{% url 'admin:leagues_week_quick_cancel' week.pk %}" style="margin:0">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        {% if week.is_cancelled %}
+        <button type="submit" class="qc-btn qc-btn-restore">Restore Games</button>
+        {% else %}
+        <button type="submit" class="qc-btn qc-btn-cancel">Cancel Games</button>
+        {% endif %}
+      </form>
+    </div>
+    {% endfor %}
+
+    {% if info.weeks|length > 1 %}
+    <div class="qc-bulk-row">
+      {% if not info.all_cancelled %}
+      <form method="post" action="{% url 'admin:leagues_week_quick_cancel_date' date_str 1 %}" style="margin:0;flex:1">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <button type="submit" class="qc-btn qc-btn-cancel qc-bulk-btn">Cancel All &mdash; {{ date_key|date:"M j" }}</button>
+      </form>
+      {% endif %}
+      {% if info.any_cancelled %}
+      <form method="post" action="{% url 'admin:leagues_week_quick_cancel_date' date_str 0 %}" style="margin:0;flex:1">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <button type="submit" class="qc-btn qc-btn-restore qc-bulk-btn">Restore All &mdash; {{ date_key|date:"M j" }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div>
+  {% endwith %}
+  {% endfor %}
+  {% else %}
+  <div class="qc-no-games">No upcoming games scheduled.</div>
+  {% endif %}
+</div>

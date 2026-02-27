@@ -96,6 +96,7 @@ TEMPLATES = [
                 "django.template.context_processors.media",
                 "dcstreethockey.context_processors.homepage_logo",
                 "core.context_processors.jersey_path",
+                "core.context_processors.cancelled_games",
             ],
         },
     },

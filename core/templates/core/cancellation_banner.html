@@ -1,0 +1,15 @@
+{% if cancelled_games %}
+<div class="cancellation-banner-wrapper">
+    {% for date, divisions in cancelled_games.items %}
+    <div class="cancellation-banner" role="alert">
+        <div class="cancellation-banner-inner">
+            <span class="cancellation-icon" aria-hidden="true">&#9888;</span>
+            <div class="cancellation-details">
+                <div class="cancellation-headline">Games Cancelled &mdash; {{ date|date:"l, F j" }}</div>
+                <div class="cancellation-divisions">{{ divisions|join:" &nbsp;&bull;&nbsp; " }}</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

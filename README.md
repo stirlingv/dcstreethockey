@@ -140,62 +140,56 @@ The standings logic includes comprehensive tests for:
 1. Run pg_dump to generate an export of the database on render:
 
     ```bash
-    pg_dump -d <<external render DB connection>> > ~/Downloads/<<file_name>>.sql
+    pg_dump --no-owner --no-privileges -d <<external render DB connection>> > ~/Downloads/<<file_name>>.sql
     ```
 
-1. Delete local postgres db
+1. Delete local postgres db.
 
     ```bash
     dropdb dcstreethockey
     ```
 
-1. Create local db
+1. Create local db.
 
     ```bash
     createdb dcstreethockey
     ```
 
-1. Run restore:
+1. Run restore using your app DB role so new objects are owned by `dcstreethockey`.
 
     ```bash
-    psql -U user -d dcstreethockey < ~/Downloads/<<file_name>>.sql
+    psql -U dcstreethockey -d dcstreethockey < ~/Downloads/<<file_name>>.sql
     ```
 
-1. Update db permissions to empower the dcstreethockey user:
+1. If you restored with a different role, find the current owner role and reassign ownership to `dcstreethockey` (run as a local superuser role, e.g. `stirling`):
 
-    ```sql
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dcstreethockey;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dcstreethockey;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO dcstreethockey;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dcstreethockey;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dcstreethockey;
-    GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO dcstreethockey;
+    ```bash
+    psql -d dcstreethockey -c "select distinct tableowner from pg_tables where schemaname='public';"
+    psql -d dcstreethockey -c 'REASSIGN OWNED BY "<restore_role>" TO dcstreethockey;'
     ```
 
-1. Possible additional ownership changes needed:
+1. Grant privileges and set default privileges for the app role:
 
    ```sql
-   -- Change owner of all tables to dcstreethockey
-   DO $$
-   DECLARE
-      r RECORD;
-   BEGIN
-      FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-      LOOP
-         EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO dcstreethockey';
-      END LOOP;
-   END $$;
+   GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dcstreethockey;
+   GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dcstreethockey;
+   GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO dcstreethockey;
+   ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON TABLES TO dcstreethockey;
+   ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON SEQUENCES TO dcstreethockey;
+   ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON FUNCTIONS TO dcstreethockey;
+   ```
 
-   -- Also change owner of sequences
-   DO $$
-   DECLARE
-      r RECORD;
-   BEGIN
-      FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'
-      LOOP
-         EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequencename) || ' OWNER TO dcstreethockey';
-      END LOOP;
-   END $$;
+1. Verify ownership (all rows should show `dcstreethockey`):
+
+   ```bash
+   psql -d dcstreethockey -c "select relkind, pg_get_userbyid(relowner) as owner, count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname='public' and relkind in ('r','S') group by relkind, owner order by relkind, owner;"
+   ```
+
+1. Run migrations:
+
+   ```bash
+   ./venv/bin/python manage.py migrate
+   ./venv/bin/python manage.py migrate --plan
    ```
 
 ## Run local database to render

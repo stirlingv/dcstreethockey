@@ -237,11 +237,21 @@ class Week(models.Model):
     division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
     season = models.ForeignKey(Season, on_delete=models.PROTECT)
     date = models.DateField()
+    is_cancelled = models.BooleanField(
+        default=False,
+        help_text="Check to mark all games for this division/date as cancelled. A banner will appear on the home page until the date passes.",
+    )
 
     class Meta:
         ordering = [
             "-season__year",
             "-date",
+        ]
+        permissions = [
+            (
+                "can_quick_cancel_games",
+                "Can quick-cancel games from admin dashboard",
+            )
         ]
         indexes = [
             models.Index(fields=["-date"]),
