@@ -1,5 +1,10 @@
 from django.urls import path
-from .views import goalie_status_board, captain_goalie_update, update_goalie_status
+from .views import (
+    goalie_status_board,
+    captain_goalie_update,
+    update_goalie_status,
+    captain_urls_list,
+)
 
 urlpatterns = [
     # Public goalie status board
@@ -16,4 +21,6 @@ urlpatterns = [
         update_goalie_status,
         name="update_goalie_status",
     ),
+    # Unlisted page listing all captain URLs (obscure URL = only access control)
+    path("captain-urls/", captain_urls_list, name="captain_urls_list"),
 ]

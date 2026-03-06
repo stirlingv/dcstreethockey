@@ -317,3 +317,53 @@ def update_goalie_status(request, access_code, matchup_id):
             "is_sub": is_sub,
         }
     )
+
+
+def captain_urls_list(request):
+    """
+    Unlisted page showing captain goalie-update URLs for all active teams
+    with at least one upcoming scheduled game.  No login required — the
+    obscure URL is the only access control.
+    """
+    import datetime
+
+    today = datetime.date.today()
+    team_ids = {
+        pk
+        for pair in MatchUp.objects.filter(week__date__gte=today).values_list(
+            "awayteam_id", "hometeam_id"
+        )
+        for pk in pair
+    }
+    teams = (
+        Team.objects.filter(pk__in=team_ids, is_active=True)
+        .select_related("season", "division")
+        .order_by("division__division", "team_name")
+    )
+
+    # Group teams by division for the template.
+    from collections import defaultdict
+
+    grouped = defaultdict(list)
+    for team in teams:
+        captain_url = request.build_absolute_uri(
+            f"/goalie-status/captain/{team.captain_access_code}/"
+        )
+        grouped[team.division].append(
+            {
+                "team": team,
+                "captain_url": captain_url,
+            }
+        )
+    # Sort divisions by their integer value.
+    divisions = sorted(grouped.keys(), key=lambda d: d.division)
+    groups = [(div, grouped[div]) for div in divisions]
+
+    return render(
+        request,
+        "leagues/captain_urls_list.html",
+        {
+            "groups": groups,
+            "total": len(team_ids),
+        },
+    )

@@ -9,12 +9,14 @@ polls/
 media/teams/
 *.dump
 *.dump*
+database_dumps/*
 queries.txt
 log.txt
 media/homepage/*
 pg_upgrade_*
 virtualenve
 db_migration_scripts/*
+!db_migration_scripts/sync_render_to_local.sh
 *.vscode
 venv/
 *.log

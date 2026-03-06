@@ -137,60 +137,88 @@ The standings logic includes comprehensive tests for:
 
 ## Create backup of render database and restore in local postgres instance
 
+### Automated sync (recommended)
+
+1. Set your Render external database URL once in your shell profile (recommended):
+
+   ```bash
+   export RENDER_EXTERNAL_DATABASE_URL='postgresql://<username>:<password>@<host>:<port>/<database>'
+   ```
+
+1. Run the sync script from the project root:
+
+   ```bash
+   ./db_migration_scripts/sync_render_to_local.sh
+   ```
+
+1. Optional overrides:
+
+   ```bash
+   ./db_migration_scripts/sync_render_to_local.sh --local-db dcstreethockey
+   ./db_migration_scripts/sync_render_to_local.sh --render-url 'postgresql://...'
+   ./db_migration_scripts/sync_render_to_local.sh --skip-migrate
+   ```
+
+The script automatically:
+- Writes an incremented SQL dump into `database_dumps/` (e.g. `render_dump_0001_YYYYMMDD_HHMMSS.sql`)
+- Recreates your local DB
+- Restores data
+- Reassigns ownership and applies grants to `dcstreethockey` (if that role exists)
+- Runs `manage.py migrate` and `manage.py migrate --plan` (unless `--skip-migrate` is set)
+
+If `RENDER_EXTERNAL_DATABASE_URL` is not set, the script prompts you for it securely at runtime.
+
+### Should the Render URL be env var or prompt?
+
+Recommended approach:
+- Use an environment variable (`RENDER_EXTERNAL_DATABASE_URL`) for normal use.
+- Keep prompt fallback for one-off runs or if the variable is not set.
+
+Render best-practice note:
+- The internal DB URL env var on Render services updates automatically when the default DB user's credentials are rotated.
+- If you use an external URL copied into your local machine, update your local env var whenever DB credentials are rotated or replaced.
+
+### Manual fallback
+
 1. Run pg_dump to generate an export of the database on render:
 
     ```bash
     pg_dump --no-owner --no-privileges -d <<external render DB connection>> > ~/Downloads/<<file_name>>.sql
     ```
 
-1. Delete local postgres db.
+1. Delete local postgres db:
 
     ```bash
     dropdb dcstreethockey
     ```
 
-1. Create local db.
+1. Create local db:
 
     ```bash
     createdb dcstreethockey
     ```
 
-1. Run restore using your app DB role so new objects are owned by `dcstreethockey`.
+1. Restore:
 
     ```bash
     psql -U dcstreethockey -d dcstreethockey < ~/Downloads/<<file_name>>.sql
     ```
 
-1. If you restored with a different role, find the current owner role and reassign ownership to `dcstreethockey` (run as a local superuser role, e.g. `stirling`):
+1. If migration fails with ownership errors, reassign object ownership and grants:
 
     ```bash
     psql -d dcstreethockey -c "select distinct tableowner from pg_tables where schemaname='public';"
     psql -d dcstreethockey -c 'REASSIGN OWNED BY "<restore_role>" TO dcstreethockey;'
     ```
 
-1. Grant privileges and set default privileges for the app role:
-
-   ```sql
-   GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dcstreethockey;
-   GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dcstreethockey;
-   GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO dcstreethockey;
-   ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON TABLES TO dcstreethockey;
-   ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON SEQUENCES TO dcstreethockey;
-   ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON FUNCTIONS TO dcstreethockey;
-   ```
-
-1. Verify ownership (all rows should show `dcstreethockey`):
-
-   ```bash
-   psql -d dcstreethockey -c "select relkind, pg_get_userbyid(relowner) as owner, count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname='public' and relkind in ('r','S') group by relkind, owner order by relkind, owner;"
-   ```
-
-1. Run migrations:
-
-   ```bash
-   ./venv/bin/python manage.py migrate
-   ./venv/bin/python manage.py migrate --plan
-   ```
+    ```sql
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dcstreethockey;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dcstreethockey;
+    GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO dcstreethockey;
+    ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON TABLES TO dcstreethockey;
+    ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON SEQUENCES TO dcstreethockey;
+    ALTER DEFAULT PRIVILEGES FOR ROLE dcstreethockey IN SCHEMA public GRANT ALL ON FUNCTIONS TO dcstreethockey;
+    ```
 
 ## Run local database to render
 

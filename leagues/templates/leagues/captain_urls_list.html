@@ -1,0 +1,46 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Captain URLs - DC Street Hockey{% endblock %}
+
+{% block content %}
+<div id="content-wrapper">
+    <div id="content">
+        <div class="container">
+            <div class="title">Captain Goalie Status URLs</div>
+            <p style="margin-bottom: 20px; color: #666;">
+                Teams with upcoming scheduled games — {{ total }} team{{ total|pluralize }}.
+                Share each link directly with the team captain so they can update their goalie status.
+            </p>
+
+            {% if groups %}
+                {% for division, entries in groups %}
+                <h3 style="margin-top: 30px; margin-bottom: 10px;">{{ division }}</h3>
+                <table class="matchups-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 8px 12px;">Team</th>
+                            <th style="text-align: left; padding: 8px 12px;">Season</th>
+                            <th style="text-align: left; padding: 8px 12px;">Captain URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in entries %}
+                        <tr>
+                            <td style="padding: 8px 12px;">{{ entry.team.team_name }}</td>
+                            <td style="padding: 8px 12px; white-space: nowrap;">{{ entry.team.season }}</td>
+                            <td style="padding: 8px 12px; word-break: break-all;">
+                                <a href="{{ entry.captain_url }}">{{ entry.captain_url }}</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endfor %}
+            {% else %}
+                <p>No active teams with upcoming games found.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
