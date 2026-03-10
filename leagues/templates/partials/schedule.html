@@ -6,7 +6,7 @@
         {% if view == "schedule" %}
             <section id="schedulesection" class="schedule-section" data-division="{{division}}">
                 <a href="{% url 'rosters' date=date %}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
-                <h3>{{division}} | {{date}}</h3>
+                <h3>{{division}} | {{date|date:"l, N j"}}</h3>
             {% endif %}
             {% for match in value2 %}
                 <div class="game">

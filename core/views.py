@@ -843,11 +843,12 @@ def get_schedule_for_matchups(matchups):
         away_otl=Coalesce(Max("awayteam__team_stat__otl"), 0),
         away_ties=Coalesce(Max("awayteam__team_stat__tie"), 0),
     ):
-        if not schedule.get(str(match.week.date), False):
-            schedule[str(match.week.date)] = OrderedDict()
-        if not schedule[str(match.week.date)].get(str(match.awayteam.division), False):
-            schedule[str(match.week.date)][str(match.awayteam.division)] = []
-        schedule[str(match.week.date)][str(match.awayteam.division)].append(match)
+        game_date = match.week.date
+        if not schedule.get(game_date, False):
+            schedule[game_date] = OrderedDict()
+        if not schedule[game_date].get(str(match.awayteam.division), False):
+            schedule[game_date][str(match.awayteam.division)] = []
+        schedule[game_date][str(match.awayteam.division)].append(match)
     return schedule
 
 

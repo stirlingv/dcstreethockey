@@ -10,7 +10,7 @@
                     <section>
                         <header>
                             <!-- Simplify the division name -->
-                            <h2 class="division-name">{{ row.week.division|simplify_division_name }}</h2>
+                            <h2 class="division-name">{{ row.week.date|date:"l" }}</h2>
                             <div class="date-weather-container">
                                 <!-- Display the date -->
                                 <h3 class="game-date">{{ row.week.date }}</h3>
