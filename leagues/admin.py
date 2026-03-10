@@ -157,7 +157,8 @@ class MatchupTimeframeFilter(SimpleListFilter):
         return (
             ("all", "All"),
             ("upcoming", "Upcoming"),
-            ("recent", "Last 30 days"),
+            ("past", "Past 30 days"),
+            ("recent", "Last 30 days (past + upcoming)"),
         )
 
     def queryset(self, request, queryset):
@@ -166,6 +167,11 @@ class MatchupTimeframeFilter(SimpleListFilter):
             return queryset
         if self.value() == "upcoming":
             return queryset.filter(week__date__gte=today)
+        if self.value() == "past":
+            return queryset.filter(
+                week__date__lte=today,
+                week__date__gte=today - timedelta(days=30),
+            )
         if self.value() == "recent":
             return queryset.filter(week__date__gte=today - timedelta(days=30))
         return queryset
@@ -223,17 +229,24 @@ def _get_team_roster_goalie(team, prefetched_roster=None):
     return roster_entry.player if roster_entry else None
 
 
-def _apply_default_matchup_filters(request):
-    if request.GET.get("timeframe") or request.GET.get("season_ids"):
-        return None
-    current_seasons = Season.objects.filter(is_current_season=True)
-    if not current_seasons.exists():
+def _apply_default_matchup_filters(request, default_timeframe="upcoming"):
+    # Only skip the redirect when the user has already chosen a timeframe.
+    # Having season_ids without a timeframe still needs a redirect so the
+    # date filter is applied (otherwise future games surface at the top
+    # when ordering is descending).
+    if request.GET.get("timeframe"):
         return None
     query = request.GET.copy()
-    query["timeframe"] = "upcoming"
-    query["season_ids"] = ",".join(
-        str(season_id) for season_id in current_seasons.values_list("id", flat=True)
-    )
+    query["timeframe"] = default_timeframe
+    # Only inject default season_ids if the user hasn't already selected
+    # seasons; preserves an explicit season choice made in the sidebar.
+    if not query.get("season_ids"):
+        current_seasons = Season.objects.filter(is_current_season=True)
+        if current_seasons.exists():
+            query["season_ids"] = ",".join(
+                str(season_id)
+                for season_id in current_seasons.values_list("id", flat=True)
+            )
     return f"{request.path}?{query.urlencode()}"
 
 
@@ -307,6 +320,13 @@ class StatInline(admin.TabularInline):
                 )
             except MatchUp.DoesNotExist:
                 kwargs["queryset"] = Team.objects.none()
+        elif db_field.name == "matchup":
+            # When editing an existing MatchUp, restrict the inline's matchup
+            # dropdown to just this matchup so it doesn't load every game ever.
+            if match_id:
+                kwargs["queryset"] = MatchUp.objects.filter(id=match_id)
+            else:
+                kwargs["queryset"] = MatchUp.objects.none()
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
     # This method is called when saving each inline form
@@ -367,7 +387,7 @@ class MatchUpAdmin(admin.ModelAdmin):
         "is_postseason",
     ]
     list_display_links = ["week", "formatted_time"]
-    ordering = ["week__date", "time"]
+    ordering = ["-week__date", "-time"]
     list_per_page = 50
 
     fieldsets = (
@@ -443,7 +463,7 @@ class MatchUpAdmin(admin.ModelAdmin):
         return super().render_change_list(request, *args, **kwargs)
 
     def changelist_view(self, request, extra_context=None):
-        redirect_url = _apply_default_matchup_filters(request)
+        redirect_url = _apply_default_matchup_filters(request, default_timeframe="past")
         if redirect_url:
             return redirect(redirect_url)
         return super().changelist_view(request, extra_context=extra_context)

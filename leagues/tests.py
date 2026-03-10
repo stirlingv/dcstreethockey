@@ -1083,3 +1083,205 @@ class CreateQuickCancelGroupCommandTest(TestCase):
         self.assertTrue(existing.check_password("brettrules"))
         self.assertEqual(existing.groups.count(), 1)
         self.assertEqual(existing.groups.first().name, "Quick Cancel Operators")
+
+
+class MatchUpAdminDefaultFilterTest(TestCase):
+    """Tests for _apply_default_matchup_filters and MatchUpAdmin default timeframe."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin_user = User.objects.create_superuser(
+            username="admin", email="admin@test.com", password="adminpass123"
+        )
+        self.client.login(username="admin", password="adminpass123")
+        # Need a current season so _apply_default_matchup_filters returns a redirect.
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+
+    def test_apply_default_filters_default_timeframe_is_upcoming(self):
+        from django.test import RequestFactory
+        from leagues.admin import _apply_default_matchup_filters
+
+        request = RequestFactory().get("/admin/leagues/matchup/")
+        redirect = _apply_default_matchup_filters(request)
+        self.assertIsNotNone(redirect)
+        self.assertIn("timeframe=upcoming", redirect)
+
+    def test_apply_default_filters_respects_custom_timeframe(self):
+        from django.test import RequestFactory
+        from leagues.admin import _apply_default_matchup_filters
+
+        request = RequestFactory().get("/admin/leagues/matchup/")
+        redirect = _apply_default_matchup_filters(request, default_timeframe="recent")
+        self.assertIsNotNone(redirect)
+        self.assertIn("timeframe=recent", redirect)
+
+    def test_apply_default_filters_skips_redirect_when_timeframe_already_set(self):
+        from django.test import RequestFactory
+        from leagues.admin import _apply_default_matchup_filters
+
+        request = RequestFactory().get("/admin/leagues/matchup/?timeframe=all")
+        redirect = _apply_default_matchup_filters(request)
+        self.assertIsNone(redirect)
+
+    def test_apply_default_filters_still_redirects_when_only_season_ids_set(self):
+        """A URL with season_ids but no timeframe must still get the timeframe redirect."""
+        from django.test import RequestFactory
+        from leagues.admin import _apply_default_matchup_filters
+
+        request = RequestFactory().get("/admin/leagues/matchup/?season_ids=1,2,3")
+        redirect = _apply_default_matchup_filters(request)
+        self.assertIsNotNone(redirect)
+        self.assertIn("timeframe=upcoming", redirect)
+        # The existing season selection should be preserved, not overwritten.
+        self.assertIn("season_ids=1%2C2%2C3", redirect)
+
+    def test_apply_default_filters_still_redirects_without_current_season(self):
+        """Timeframe redirect fires even when no season has is_current_season=True."""
+        from django.test import RequestFactory
+        from leagues.admin import _apply_default_matchup_filters
+
+        Season.objects.filter(is_current_season=True).update(is_current_season=None)
+        request = RequestFactory().get("/admin/leagues/matchup/")
+        redirect = _apply_default_matchup_filters(request)
+        self.assertIsNotNone(redirect)
+        self.assertIn("timeframe=upcoming", redirect)
+        self.assertNotIn("season_ids", redirect)
+
+    def test_matchup_admin_changelist_defaults_to_past(self):
+        """MatchUpAdmin changelist should redirect with timeframe=past by default."""
+        response = self.client.get(reverse("admin:leagues_matchup_changelist"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("timeframe=past", response["Location"])
+
+    def test_past_filter_excludes_future_games(self):
+        from leagues.admin import MatchupTimeframeFilter
+        from django.test import RequestFactory
+        from unittest.mock import MagicMock
+
+        today = datetime.date.today()
+        division = Division.objects.create(division=1)
+        week_past = Week.objects.create(
+            division=division,
+            season=self.season,
+            date=today - datetime.timedelta(days=1),
+        )
+        week_future = Week.objects.create(
+            division=division,
+            season=self.season,
+            date=today + datetime.timedelta(days=1),
+        )
+        team1 = Team.objects.create(
+            team_name="T1",
+            team_color="red",
+            season=self.season,
+            division=division,
+            is_active=True,
+        )
+        team2 = Team.objects.create(
+            team_name="T2",
+            team_color="blue",
+            season=self.season,
+            division=division,
+            is_active=True,
+        )
+        past_game = MatchUp.objects.create(
+            week=week_past,
+            time=datetime.time(12, 0),
+            awayteam=team1,
+            hometeam=team2,
+        )
+        future_game = MatchUp.objects.create(
+            week=week_future,
+            time=datetime.time(12, 0),
+            awayteam=team1,
+            hometeam=team2,
+        )
+
+        request = RequestFactory().get("/admin/leagues/matchup/?timeframe=past")
+        f = MatchupTimeframeFilter(request, {"timeframe": "past"}, MatchUp, MagicMock())
+        qs = f.queryset(request, MatchUp.objects.all())
+        self.assertIn(past_game, qs)
+        self.assertNotIn(future_game, qs)
+
+    def test_goalie_status_admin_changelist_defaults_to_upcoming(self):
+        """MatchUpGoalieStatusAdmin changelist should still default to upcoming."""
+        response = self.client.get(
+            reverse("admin:leagues_matchupgoaliestatus_changelist")
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("timeframe=upcoming", response["Location"])
+
+
+class StatInlineMatchupQuerysetTest(TestCase):
+    """Tests for StatInline restricting the matchup FK to the current matchup."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.today = datetime.date.today()
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=self.today
+        )
+        self.team1 = Team.objects.create(
+            team_name="Team One",
+            team_color="red",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.team2 = Team.objects.create(
+            team_name="Team Two",
+            team_color="blue",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(12, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+        )
+        self.other_matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(13, 0),
+            awayteam=self.team2,
+            hometeam=self.team1,
+        )
+
+    def _make_inline(self, object_id=None):
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+        from leagues.admin import StatInline
+        from leagues.models import Stat
+
+        factory = RequestFactory()
+        url = (
+            f"/admin/leagues/matchup/{object_id}/change/"
+            if object_id
+            else "/admin/leagues/matchup/add/"
+        )
+        request = factory.get(url)
+        request.resolver_match = type(
+            "ResolverMatch",
+            (),
+            {"kwargs": {"object_id": str(object_id)} if object_id else {}},
+        )()
+        inline = StatInline(MatchUp, AdminSite())
+        matchup_field = Stat._meta.get_field("matchup")
+        return inline.formfield_for_foreignkey(matchup_field, request=request)
+
+    def test_matchup_queryset_contains_only_current_matchup(self):
+        field = self._make_inline(object_id=self.matchup.pk)
+        qs = field.queryset
+        self.assertIn(self.matchup, qs)
+        self.assertNotIn(self.other_matchup, qs)
+        self.assertEqual(qs.count(), 1)
+
+    def test_matchup_queryset_is_empty_when_no_object_id(self):
+        field = self._make_inline(object_id=None)
+        self.assertEqual(field.queryset.count(), 0)
