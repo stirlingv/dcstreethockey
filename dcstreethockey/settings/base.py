@@ -12,6 +12,11 @@ https://docs.djangoproject.com/en/1.9/ref/settings/
 
 import os, sys
 import socket
+from dotenv import load_dotenv
+
+load_dotenv(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".env")
+)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
@@ -24,7 +29,7 @@ if socket.gethostname() == "test.local":
 # See https://docs.djangoproject.com/en/1.9/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "k6%7zjqzgk0!&6gzf3uyxlg$odxw9m@6w1$)6y@t*w!a1(o3&g"
+SECRET_KEY = os.environ.get("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -131,9 +136,9 @@ elif os.environ.get("RUN_DOCKER", False):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "dcstreethockey",
-            "USER": "dcstreethockey",
-            "PASSWORD": "dcstreethockey",
+            "NAME": os.environ.get("DB_NAME", "dcstreethockey"),
+            "USER": os.environ.get("DB_USER", "dcstreethockey"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", "dcstreethockey"),
             "HOST": "db",  # Set to empty string for localhost.
             "PORT": "",  # Set to empty string for default.
             "CONN_MAX_AGE": 600,  # number of seconds database connections should persist for
@@ -143,9 +148,9 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": "dcstreethockey",
-            "USER": "dcstreethockey",
-            "PASSWORD": "dcstreethockey",
+            "NAME": os.environ.get("DB_NAME", "dcstreethockey"),
+            "USER": os.environ.get("DB_USER", "dcstreethockey"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", "dcstreethockey"),
             "HOST": "",  # Set to empty string for localhost.
             "PORT": "",  # Set to empty string for default.
             "CONN_MAX_AGE": 600,  # number of seconds database connections should persist for
