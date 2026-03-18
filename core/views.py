@@ -32,6 +32,7 @@ import numpy as np
 from dal import autocomplete
 import os
 import requests
+from django.core.cache import cache
 
 # Create your views here.
 
@@ -49,81 +50,78 @@ def home(request):
         .distinct("week__date")
     )
 
-    # Initialize weather data dictionary
-    weather_data = {}
+    # Fetch weather data, cached for 30 minutes to avoid blocking the page on
+    # every request. Cache key is per-day so it refreshes naturally at midnight.
+    cache_key = f"weather_data_{today}"
+    weather_data = cache.get(cache_key)
 
-    # Fetch weather data for each unique game date in `one_row`
-    api_key = os.environ.get("OPENWEATHERMAP_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "The OpenWeatherMap API key is not set in the environment variables."
-        )
+    if weather_data is None:
+        weather_data = {}
+        api_key = os.environ.get("OPENWEATHERMAP_API_KEY")
 
-    forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
-    current_weather_url = "https://api.openweathermap.org/data/2.5/weather"
+        if not api_key:
+            print("Warning: OPENWEATHERMAP_API_KEY is not set.")
+        else:
+            forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
+            current_weather_url = "https://api.openweathermap.org/data/2.5/weather"
 
-    try:
-        # Fetch 5-day forecast data
-        forecast_params = {
-            "q": "Alexandria,VA,US",
-            "appid": api_key,
-            "units": "imperial",  # Use Fahrenheit
-        }
-        forecast_response = requests.get(forecast_url, params=forecast_params)
-        if forecast_response.status_code == 200:
-            forecast = forecast_response.json()
-            # Extract weather data for each game date
-            for row in one_row:
-                game_date = row.week.date.strftime(
-                    "%Y-%m-%d"
-                )  # Ensure the date is in the correct format
-                total_rain_mm = 0  # Initialize total rain for the day in mm
-                weather_found = False
+            try:
+                forecast_params = {
+                    "q": "Alexandria,VA,US",
+                    "appid": api_key,
+                    "units": "imperial",
+                }
+                forecast_response = requests.get(forecast_url, params=forecast_params)
+                if forecast_response.status_code == 200:
+                    forecast = forecast_response.json()
+                    for row in one_row:
+                        game_date = row.week.date.strftime("%Y-%m-%d")
+                        total_rain_mm = 0
+                        weather_found = False
 
-                for item in forecast["list"]:
-                    if game_date in item["dt_txt"]:
-                        # Add rain for the 3-hour period, if available
-                        rain_mm = item.get("rain", {}).get("3h", 0)
-                        total_rain_mm += rain_mm
-                        # Store weather data for the first matching entry
-                        # (e.g., temperature, wind, description)
-                        if game_date not in weather_data:
-                            weather_data[game_date] = {
-                                "temp": item["main"].get("temp", "N/A"),
-                                "wind_speed": item["wind"].get("speed", "N/A"),
-                                "description": item["weather"][0].get(
-                                    "description", "N/A"
-                                ),
-                                "rain": total_rain_mm
-                                * 0.0393701,  # Convert rain to inches
+                        for item in forecast["list"]:
+                            if game_date in item["dt_txt"]:
+                                rain_mm = item.get("rain", {}).get("3h", 0)
+                                total_rain_mm += rain_mm
+                                if game_date not in weather_data:
+                                    weather_data[game_date] = {
+                                        "temp": item["main"].get("temp", "N/A"),
+                                        "wind_speed": item["wind"].get("speed", "N/A"),
+                                        "description": item["weather"][0].get(
+                                            "description", "N/A"
+                                        ),
+                                        "rain": total_rain_mm * 0.0393701,
+                                    }
+                                    weather_found = True
+                                    break
+
+                        if not weather_found and row.week.date == today:
+                            current_params = {
+                                "q": "Alexandria,VA,US",
+                                "appid": api_key,
+                                "units": "imperial",
                             }
-                            weather_found = True
-                            break
+                            current_response = requests.get(
+                                current_weather_url, params=current_params
+                            )
+                            if current_response.status_code == 200:
+                                current_weather = current_response.json()
+                                weather_data[game_date] = {
+                                    "temp": current_weather["main"].get("temp", "N/A"),
+                                    "wind_speed": current_weather["wind"].get(
+                                        "speed", "N/A"
+                                    ),
+                                    "description": current_weather["weather"][0].get(
+                                        "description", "N/A"
+                                    ),
+                                    "rain": current_weather.get("rain", {}).get("1h", 0)
+                                    * 0.0393701,
+                                }
 
-                # If no forecast data is found for today, fetch current weather
-                if not weather_found and row.week.date == today:
-                    current_params = {
-                        "q": "Alexandria,VA,US",
-                        "appid": api_key,
-                        "units": "imperial",
-                    }
-                    current_response = requests.get(
-                        current_weather_url, params=current_params
-                    )
-                    if current_response.status_code == 200:
-                        current_weather = current_response.json()
-                        weather_data[game_date] = {
-                            "temp": current_weather["main"].get("temp", "N/A"),
-                            "wind_speed": current_weather["wind"].get("speed", "N/A"),
-                            "description": current_weather["weather"][0].get(
-                                "description", "N/A"
-                            ),
-                            "rain": current_weather.get("rain", {}).get("1h", 0)
-                            * 0.0393701,  # Rain in inches
-                        }
+            except Exception as e:
+                print(f"Error fetching weather data: {e}")
 
-    except Exception as e:
-        print(f"Error fetching weather data: {e}")
+        cache.set(cache_key, weather_data, 60 * 30)  # cache for 30 minutes
 
     # Add weather data and other context variables
     context = {
