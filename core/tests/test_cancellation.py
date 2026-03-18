@@ -29,8 +29,8 @@ class CancellationBannerContextTest(TestCase):
         Hit the home view with all external dependencies mocked out.
         Returns the response object.
         """
-        with patch("core.views.MatchUp") as MockMatchUp, patch(
-            "core.views.requests.get"
+        with patch("core.views.home.MatchUp") as MockMatchUp, patch(
+            "core.views.home.requests.get"
         ) as mock_get, patch.dict("os.environ", {"OPENWEATHERMAP_API_KEY": "fake_key"}):
             mock_get.return_value.status_code = 200
             mock_get.return_value.json.return_value = {"list": []}
@@ -161,8 +161,8 @@ class CancellationBannerTemplateTest(TestCase):
         self.today = datetime.date.today()
 
     def _get_home(self):
-        with patch("core.views.MatchUp") as MockMatchUp, patch(
-            "core.views.requests.get"
+        with patch("core.views.home.MatchUp") as MockMatchUp, patch(
+            "core.views.home.requests.get"
         ) as mock_get, patch.dict("os.environ", {"OPENWEATHERMAP_API_KEY": "fake_key"}):
             mock_get.return_value.status_code = 200
             mock_get.return_value.json.return_value = {"list": []}

@@ -100,7 +100,7 @@ class StandingsLogicTestCase(TestCase):
         ]
 
         # Team A should rank higher due to more regulation wins
-        with patch("core.views.check_teams_play", return_value=False):
+        with patch("core.views.standings.check_teams_play", return_value=False):
             # Simulate the tiebreaker logic
             self.assertGreater(
                 team_stats[0].regulation_wins, team_stats[1].regulation_wins
@@ -118,13 +118,13 @@ class StandingsLogicTestCase(TestCase):
             ),  # 24 points, +10 diff
         ]
 
-        with patch("core.views.check_teams_play", return_value=False):
+        with patch("core.views.standings.check_teams_play", return_value=False):
             self.assertGreater(
                 team_stats[0].goal_differential, team_stats[1].goal_differential
             )
 
-    @patch("core.views.check_teams_play")
-    @patch("core.views.check_h2h_record")
+    @patch("core.views.standings.check_teams_play")
+    @patch("core.views.standings.check_h2h_record")
     def test_regulation_wins_beats_head_to_head(self, mock_h2h, mock_teams_play):
         """Test regulation wins tiebreaker takes precedence over head-to-head"""
         # Team B has fewer regulation wins even though it wins head-to-head
@@ -143,8 +143,8 @@ class StandingsLogicTestCase(TestCase):
         # Team A should rank higher due to more regulation wins (8 > 6)
         self.assertGreater(8, 6)  # Team A regulation wins > Team B regulation wins
 
-    @patch("core.views.check_teams_play")
-    @patch("core.views.check_h2h_record")
+    @patch("core.views.standings.check_teams_play")
+    @patch("core.views.standings.check_h2h_record")
     def test_head_to_head_when_regulation_wins_tied(self, mock_h2h, mock_teams_play):
         """Test head-to-head tiebreaker applies when regulation wins are equal"""
         # Both teams have same regulation wins, H2H should decide
@@ -212,8 +212,8 @@ class StandingsLogicTestCase(TestCase):
         self.assertEqual(team_stats[3].goal_differential, 10)  # Team D
 
         # Test the tiebreaker logic - regulation wins should be the primary tiebreaker
-        with patch("core.views.check_teams_play") as mock_teams_play, patch(
-            "core.views.check_h2h_record"
+        with patch("core.views.standings.check_teams_play") as mock_teams_play, patch(
+            "core.views.standings.check_h2h_record"
         ) as mock_h2h:
             # Assume teams haven't all played each other, so no H2H advantages
             mock_teams_play.return_value = False
@@ -288,8 +288,8 @@ class StandingsLogicTestCase(TestCase):
         self.assertEqual(team_stats[3].goal_differential, 12)  # Blaze (2nd best)
 
         # Test with mixed H2H records
-        with patch("core.views.check_teams_play") as mock_teams_play, patch(
-            "core.views.check_h2h_record"
+        with patch("core.views.standings.check_teams_play") as mock_teams_play, patch(
+            "core.views.standings.check_h2h_record"
         ) as mock_h2h:
 
             def mock_play_check(team1, team2):
@@ -421,8 +421,8 @@ class StandingsLogicTestCase(TestCase):
         # between teams with same reg wins
 
         # Mock circular H2H: Phaze beat IO, IO beat Mantis, Mantis beat Phaze
-        with patch("core.views.check_teams_play") as mock_teams_play, patch(
-            "core.views.check_h2h_record"
+        with patch("core.views.standings.check_teams_play") as mock_teams_play, patch(
+            "core.views.standings.check_h2h_record"
         ) as mock_h2h:
             mock_teams_play.return_value = True  # All teams played each other
 
@@ -489,7 +489,7 @@ class StandingsLogicTestCase(TestCase):
             ),  # 21 points, 7 reg wins, +5 diff
         ]
 
-        with patch("core.views.check_teams_play", return_value=False):
+        with patch("core.views.standings.check_teams_play", return_value=False):
             # All have same regulation wins, should be sorted by goal differential
             sorted_by_diff = sorted(
                 team_stats, key=lambda x: x.goal_differential, reverse=True
@@ -499,9 +499,9 @@ class StandingsLogicTestCase(TestCase):
             self.assertEqual(sorted_by_diff[1].team.team_name, "Team B")  # +10
             self.assertEqual(sorted_by_diff[2].team.team_name, "Team C")  # +5
 
-    @patch("core.views.check_teams_play")
-    @patch("core.views.check_h2h_record")
-    @patch("core.views.check_goal_diff")
+    @patch("core.views.standings.check_teams_play")
+    @patch("core.views.standings.check_h2h_record")
+    @patch("core.views.standings.check_goal_diff")
     def test_mixed_tiebreaker_scenario(self, mock_goal_diff, mock_h2h, mock_teams_play):
         """Test scenario where some teams have H2H records and others don't"""
         self.create_mock_team_stat(
@@ -562,7 +562,7 @@ class StandingsLogicTestCase(TestCase):
             ),  # Identical stats
         ]
 
-        with patch("core.views.check_teams_play", return_value=False):
+        with patch("core.views.standings.check_teams_play", return_value=False):
             # When everything is tied, order should remain as is (or by team name/ID)
             self.assertEqual(team_stats[0].total_points, team_stats[1].total_points)
             self.assertEqual(
