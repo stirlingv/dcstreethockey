@@ -1,5 +1,10 @@
 {% extends 'core/base.html' %}
 {% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'assets/css/schedule.css' %}">
+{% endblock %}
+
 {% block content %}
 <div id="content-wrapper" class="schedule">
 	<div id="content">
@@ -7,12 +12,14 @@
             <div class="title">
                 Scores
             </div>
-            {% for division in divisions %}
-                <div class="optionsdiv {% if division.division == active_division %}activeoption{% endif %} "
-                        onclick="javascript:handleDivision('{% url "scores" division.division %}')">
-                    {{division}}
-                </div>
-            {% endfor %}
+            <div class="division-filters">
+                {% for division in divisions %}
+                    <button class="filter-btn {% if division.division == active_division %}active{% endif %}"
+                            onclick="handleDivision('{% url "scores" division.division %}')">
+                        {{division}}
+                    </button>
+                {% endfor %}
+            </div>
             {% include 'partials/scores.html' %}
         </div>
 	</div>
