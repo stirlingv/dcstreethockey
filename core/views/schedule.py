@@ -242,22 +242,50 @@ def teams(request, team=0):
     return render(request, "leagues/team.html", context=context)
 
 
-def scores(request, division=1):
+def scores(request, division=0):
     context = {}
     context["view"] = "scores"
     context["divisions"] = Division.objects.all()
     context["matchups"] = OrderedDict()
     context["active_division"] = int(division)
-    division = [i for i in Division.DIVISION_TYPE if context["active_division"] in i]
-    # Check to see if the dvision from the URL is valid
-    if len(division):
-        # division ex: [(1, 'Sunday D1')]
-        context["division_name"] = division[0][1]
-        matchups = get_matches_for_division(context["active_division"]).filter(
-            week__date__lte=datetime.datetime.today()
+    if context["active_division"] == 0:
+        # Find the most recent played date per division
+        latest_per_div = (
+            MatchUp.objects.filter(
+                awayteam__is_active=True,
+                week__date__lte=datetime.datetime.today(),
+            )
+            .values("hometeam__division")
+            .annotate(latest_date=Max("week__date"))
         )
-        matchups = add_goals_for_matchups(matchups)
-        context["matchups"] = get_detailed_matchups(matchups)
+        division_latest = {
+            item["hometeam__division"]: item["latest_date"] for item in latest_per_div
+        }
+        q = Q()
+        for div_id, date in division_latest.items():
+            q |= Q(hometeam__division_id=div_id, week__date=date)
+        if q:
+            matchups = (
+                MatchUp.objects.filter(q)
+                .filter(awayteam__is_active=True)
+                .order_by("hometeam__division", "-week__date")
+            )
+            matchups = add_goals_for_matchups(matchups)
+            context["matchups"] = get_detailed_matchups(matchups)
+    else:
+        division = [
+            i for i in Division.DIVISION_TYPE if context["active_division"] in i
+        ]
+        # Check to see if the division from the URL is valid
+        if len(division):
+            # division ex: [(1, 'Sunday D1')]
+            context["division_name"] = division[0][1]
+            matchups = get_matches_for_division(context["active_division"]).filter(
+                week__date__lte=datetime.datetime.today(),
+                week__season__is_current_season=True,
+            )
+            matchups = add_goals_for_matchups(matchups)
+            context["matchups"] = get_detailed_matchups(matchups)
     return render(request, "leagues/scores.html", context=context)
 
 

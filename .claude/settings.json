@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "db_migration_scripts/auto_sync_if_stale.sh",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

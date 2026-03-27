@@ -13,6 +13,8 @@
                 Scores
             </div>
             <div class="division-filters">
+                <button class="filter-btn {% if active_division == 0 %}active{% endif %}"
+                        onclick="handleDivision('{% url "scores" %}')">All</button>
                 {% for division in divisions %}
                     <button class="filter-btn {% if division.division == active_division %}active{% endif %}"
                             onclick="handleDivision('{% url "scores" division.division %}')">

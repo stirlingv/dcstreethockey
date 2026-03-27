@@ -17,6 +17,7 @@ pg_upgrade_*
 virtualenve
 db_migration_scripts/*
 !db_migration_scripts/sync_render_to_local.sh
+!db_migration_scripts/auto_sync_if_stale.sh
 *.vscode
 venv/
 *.log
