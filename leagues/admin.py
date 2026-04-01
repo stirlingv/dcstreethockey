@@ -31,11 +31,68 @@ from leagues.models import (
     HomePage,
     TeamPhoto,
     PlayerPhoto,
+    SeasonSignup,
+    DraftSession,
+    DraftTeam,
+    DraftRound,
+    DraftPick,
 )
 import logging
 from datetime import timedelta, date
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Custom AdminSite — collapses draft models into a single "Setup Draft" entry
+# on the admin home page, separate from the league management models.
+# ---------------------------------------------------------------------------
+_DRAFT_OBJECT_NAMES = frozenset({"DraftSession", "SeasonSignup", "DraftPick"})
+
+
+class _DCHockeyAdminSite(admin.AdminSite):
+    def get_app_list(self, request, app_label=None):
+        app_list = super().get_app_list(request, app_label)
+
+        # Only reorganize the full index page, not app-specific views
+        if app_label is not None:
+            return app_list
+
+        leagues_app = next((a for a in app_list if a["app_label"] == "leagues"), None)
+        if leagues_app is None:
+            return app_list
+
+        league_models = [
+            m
+            for m in leagues_app["models"]
+            if m["object_name"] not in _DRAFT_OBJECT_NAMES
+        ]
+        leagues_app["models"] = league_models
+        leagues_app["name"] = "League Management"
+
+        draft_app = {
+            "name": "Wednesday Draft",
+            "app_label": "wednesday_draft",
+            "app_url": "/admin/leagues/draftsession/draft-setup/",
+            "has_module_perms": True,
+            "models": [
+                {
+                    "name": "Setup Draft",
+                    "object_name": "DraftSetup",
+                    "perms": {
+                        "add": False,
+                        "change": True,
+                        "delete": False,
+                        "view": True,
+                    },
+                    "admin_url": "/admin/leagues/draftsession/draft-setup/",
+                    "add_url": None,
+                }
+            ],
+        }
+        leagues_idx = app_list.index(leagues_app)
+        app_list.insert(leagues_idx, draft_app)
+        return app_list
 
 
 def get_current_season():
@@ -124,6 +181,7 @@ class RosterInline(admin.TabularInline):
         "position1",
         "position2",
         "player_number",
+        "is_captain",
         "is_substitute",
         "is_primary_goalie",
     ]
@@ -1009,3 +1067,472 @@ admin.site.register(Team_Stat)
 admin.site.register(MatchUp, MatchUpAdmin)
 admin.site.register(MatchUpGoalieStatus, MatchUpGoalieStatusAdmin)
 admin.site.register(Stat)
+
+
+# ===========================================================================
+# Wednesday Draft League – Admin
+# ===========================================================================
+
+
+@admin.register(SeasonSignup)
+class SeasonSignupAdmin(admin.ModelAdmin):
+    list_display = (
+        "last_name",
+        "first_name",
+        "email",
+        "season",
+        "primary_position",
+        "secondary_position",
+        "captain_interest_short",
+        "is_returning",
+        "linked_player",
+        "submitted_at",
+    )
+    list_filter = ("season", "primary_position", "captain_interest", "is_returning")
+    search_fields = ("first_name", "last_name", "email")
+    autocomplete_fields = ("linked_player",)
+    readonly_fields = ("submitted_at",)
+    list_editable = ("is_returning", "linked_player")
+    ordering = ("season", "last_name", "first_name")
+
+    fieldsets = (
+        (
+            "Player Info",
+            {
+                "fields": ("season", "first_name", "last_name", "email"),
+            },
+        ),
+        (
+            "Positions",
+            {
+                "fields": ("primary_position", "secondary_position"),
+            },
+        ),
+        (
+            "Availability & Interest",
+            {
+                "fields": ("captain_interest", "notes"),
+            },
+        ),
+        (
+            "Commissioner",
+            {
+                "fields": ("is_returning", "linked_player", "submitted_at"),
+                "description": "These fields are set by the commissioner, not the player.",
+            },
+        ),
+    )
+
+    def captain_interest_short(self, obj):
+        labels = {
+            SeasonSignup.CAPTAIN_YES: "Yes",
+            SeasonSignup.CAPTAIN_OVERDUE: "Overdue",
+            SeasonSignup.CAPTAIN_LAST_RESORT: "Last resort",
+            SeasonSignup.CAPTAIN_NO: "No",
+        }
+        return labels.get(obj.captain_interest, "—")
+
+    captain_interest_short.short_description = "Captain?"
+
+
+class DraftRoundInline(admin.TabularInline):
+    model = DraftRound
+    extra = 0
+    fields = ("round_number", "order_type")
+    ordering = ("round_number",)
+
+
+class DraftTeamInline(admin.TabularInline):
+    model = DraftTeam
+    extra = 0
+    fields = (
+        "captain",
+        "team_name",
+        "draft_position",
+        "captain_draft_round",
+        "captain_token_display",
+    )
+    readonly_fields = ("captain_token_display",)
+    autocomplete_fields = ("captain",)
+
+    def captain_token_display(self, obj):
+        if not obj.pk:
+            return "—"
+        return format_html(
+            '<a href="/draft/{}/captain/{}/" target="_blank">Captain link</a>',
+            obj.session_id,
+            obj.captain_token,
+        )
+
+    captain_token_display.short_description = "Captain URL"
+
+
+def _position_for_signup(signup):
+    """Map SeasonSignup primary_position to Roster.POSITION_TYPE int."""
+    mapping = {
+        SeasonSignup.POSITION_CENTER: 1,
+        SeasonSignup.POSITION_WING: 2,
+        SeasonSignup.POSITION_DEFENSE: 3,
+        SeasonSignup.POSITION_GOALIE: 4,
+    }
+    return mapping.get(signup.primary_position, 2)  # default Wing
+
+
+def _secondary_position_for_signup(signup):
+    """Map SeasonSignup secondary_position to Roster.POSITION_TYPE int (or None)."""
+    if signup.secondary_position == SeasonSignup.POSITION_ONE_THING:
+        return None
+    mapping = {
+        SeasonSignup.POSITION_CENTER: 1,
+        SeasonSignup.POSITION_WING: 2,
+        SeasonSignup.POSITION_DEFENSE: 3,
+        SeasonSignup.POSITION_GOALIE: 4,
+    }
+    return mapping.get(signup.secondary_position)
+
+
+@admin.register(DraftSession)
+class DraftSessionAdmin(admin.ModelAdmin):
+    actions = ["create_rosters_from_draft"]
+
+    @admin.action(description="Create Django teams & rosters from completed draft")
+    def create_rosters_from_draft(self, request, queryset):
+        from django.db import transaction
+
+        wed_division = Division.objects.filter(division=3).first()
+        if not wed_division:
+            self.message_user(
+                request, "Wednesday Draft League division not found.", messages.ERROR
+            )
+            return
+
+        created_teams = 0
+        created_players = 0
+        skipped = 0
+
+        for session in queryset:
+            if session.state != DraftSession.STATE_COMPLETE:
+                self.message_user(
+                    request,
+                    f"Draft for {session.season} is not complete — skipped.",
+                    messages.WARNING,
+                )
+                continue
+
+            with transaction.atomic():
+                for draft_team in session.teams.prefetch_related(
+                    "draft_picks__signup"
+                ).all():
+                    # Create or find the Player record for the captain
+                    captain_signup = draft_team.captain
+
+                    # Create Team object
+                    team, _ = Team.objects.get_or_create(
+                        team_name=draft_team.team_name,
+                        season=session.season,
+                        defaults={
+                            "division": wed_division,
+                            "team_color": "",
+                            "is_active": True,
+                        },
+                    )
+                    created_teams += 1
+
+                    for pick in draft_team.draft_picks.all():
+                        signup = pick.signup
+
+                        # Get or create the Player record
+                        if signup.linked_player:
+                            player = signup.linked_player
+                        else:
+                            player, p_created = Player.objects.get_or_create(
+                                first_name__iexact=signup.first_name,
+                                last_name__iexact=signup.last_name,
+                                defaults={
+                                    "first_name": signup.first_name,
+                                    "last_name": signup.last_name,
+                                    "email": signup.email,
+                                    "is_active": True,
+                                },
+                            )
+                            if p_created:
+                                created_players += 1
+                            # Update the signup to link this player
+                            SeasonSignup.objects.filter(pk=signup.pk).update(
+                                linked_player=player
+                            )
+
+                        pos1 = _position_for_signup(signup)
+                        pos2 = _secondary_position_for_signup(signup)
+                        is_captain = signup.pk == captain_signup.pk
+
+                        roster_entry, r_created = Roster.objects.update_or_create(
+                            player=player,
+                            team=team,
+                            defaults={
+                                "position1": pos1,
+                                "position2": pos2,
+                                "is_captain": is_captain,
+                                "is_substitute": False,
+                                "is_primary_goalie": pos1 == 4,
+                            },
+                        )
+                        if not r_created:
+                            skipped += 1
+
+        self.message_user(
+            request,
+            f"Done: {created_teams} team(s) created, {created_players} new player(s) created, {skipped} roster entries already existed.",
+            messages.SUCCESS,
+        )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path(
+                "draft-setup/",
+                self.admin_site.admin_view(self.draft_setup_hub),
+                name="leagues_draftsession_draft_setup_hub",
+            ),
+        ]
+        return custom + urls
+
+    def draft_setup_hub(self, request):
+        from django.template.response import TemplateResponse
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Wednesday Draft Setup",
+            "draft_sections": [
+                {
+                    "name": "Draft Sessions",
+                    "description": (
+                        "Create and configure draft sessions, "
+                        "rounds, and team captains."
+                    ),
+                    "changelist_url": reverse("admin:leagues_draftsession_changelist"),
+                    "add_url": reverse("admin:leagues_draftsession_add"),
+                    "count": DraftSession.objects.count(),
+                },
+                {
+                    "name": "Season Signups",
+                    "description": "View and manage player signups for the draft.",
+                    "changelist_url": reverse("admin:leagues_seasonsignup_changelist"),
+                    "add_url": reverse("admin:leagues_seasonsignup_add"),
+                    "count": SeasonSignup.objects.count(),
+                },
+                {
+                    "name": "Draft Picks",
+                    "description": (
+                        "View completed picks, manage trades, "
+                        "and correct draft errors."
+                    ),
+                    "changelist_url": reverse("admin:leagues_draftpick_changelist"),
+                    "add_url": None,
+                    "count": DraftPick.objects.count(),
+                },
+            ],
+        }
+        return TemplateResponse(request, "admin/leagues/draft_setup.html", context)
+
+    list_display = (
+        "season",
+        "state",
+        "num_teams",
+        "num_rounds",
+        "signups_open",
+        "signup_count",
+        "board_links",
+    )
+    list_filter = ("state", "signups_open")
+    readonly_fields = (
+        "commissioner_token",
+        "created_at",
+        "commissioner_url",
+        "spectator_url",
+        "signup_url",
+        "captain_portal_url",
+    )
+    inlines = [DraftRoundInline, DraftTeamInline]
+
+    fieldsets = (
+        (
+            "Season & State",
+            {
+                "fields": ("season", "state", "signups_open"),
+            },
+        ),
+        (
+            "Draft Configuration",
+            {
+                "fields": ("num_teams", "num_rounds"),
+                "description": (
+                    "Set these before starting the draft. "
+                    "Rounds are configured in the Rounds section below."
+                ),
+            },
+        ),
+        (
+            "URLs",
+            {
+                "fields": (
+                    "signup_url",
+                    "captain_portal_url",
+                    "spectator_url",
+                    "commissioner_url",
+                ),
+                "description": "Share these links with participants.",
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "System",
+            {
+                "fields": ("commissioner_token", "created_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def signup_count(self, obj):
+        return obj.season.signups.count()
+
+    signup_count.short_description = "Signups"
+
+    def commissioner_url(self, obj):
+        if not obj.pk:
+            return "—"
+        url = f"/draft/{obj.pk}/commissioner/{obj.commissioner_token}/"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, url)
+
+    commissioner_url.short_description = "Commissioner URL"
+
+    def spectator_url(self, obj):
+        if not obj.pk:
+            return "—"
+        url = f"/draft/{obj.pk}/"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, url)
+
+    spectator_url.short_description = "Spectator URL"
+
+    def signup_url(self, obj):
+        if not obj.pk:
+            return "—"
+        url = f"/draft/signup/{obj.season_id}/"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, url)
+
+    signup_url.short_description = "Signup Form URL"
+
+    def captain_portal_url(self, obj):
+        if not obj.pk:
+            return "—"
+        url = f"/draft/{obj.pk}/captains/"
+        return format_html('<a href="{}" target="_blank">{}</a>', url, url)
+
+    captain_portal_url.short_description = (
+        "Captain Portal URL (share with all captains)"
+    )
+
+    def board_links(self, obj):
+        if not obj.pk:
+            return "—"
+        return format_html(
+            '<a href="/draft/{}/" target="_blank">Board</a> | '
+            '<a href="/draft/{}/commissioner/{}/" target="_blank">Commissioner</a> | '
+            '<a href="/draft/{}/captains/" target="_blank">Captains</a>',
+            obj.pk,
+            obj.pk,
+            obj.commissioner_token,
+            obj.pk,
+        )
+
+    board_links.short_description = "Links"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Auto-create DraftRound entries when num_rounds is set/changed
+        if obj.num_rounds > 0:
+            existing_rounds = set(obj.rounds.values_list("round_number", flat=True))
+            for r in range(1, obj.num_rounds + 1):
+                if r not in existing_rounds:
+                    DraftRound.objects.create(
+                        session=obj,
+                        round_number=r,
+                        order_type=DraftRound.ORDER_SNAKE,
+                    )
+            # Remove rounds beyond num_rounds if reduced
+            obj.rounds.filter(round_number__gt=obj.num_rounds).delete()
+
+
+@admin.register(DraftPick)
+class DraftPickAdmin(admin.ModelAdmin):
+    list_display = (
+        "session",
+        "round_number",
+        "pick_number",
+        "team",
+        "signup",
+        "is_auto_captain",
+        "traded",
+        "trade_note",
+        "picked_at",
+    )
+    list_filter = ("session", "round_number", "is_auto_captain", "traded")
+    search_fields = ("signup__first_name", "signup__last_name", "team__team_name")
+    ordering = ("session", "round_number", "pick_number")
+    readonly_fields = ("picked_at",)
+    list_editable = ("team", "traded", "trade_note")
+    actions = ["swap_picks"]
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("session", "team__captain", "signup")
+        )
+
+    @admin.action(description="Swap players between two selected picks")
+    def swap_picks(self, request, queryset):
+        picks = list(queryset)
+        if len(picks) != 2:
+            self.message_user(
+                request, "Select exactly 2 picks to swap.", messages.WARNING
+            )
+            return
+
+        pick_a, pick_b = picks
+        if pick_a.session_id != pick_b.session_id:
+            self.message_user(
+                request,
+                "Both picks must be from the same draft session.",
+                messages.ERROR,
+            )
+            return
+
+        # Swap teams
+        team_a, team_b = pick_a.team, pick_b.team
+        note = f"Traded with {pick_b.signup.full_name} ({team_b.team_name})"
+        note_b = f"Traded with {pick_a.signup.full_name} ({team_a.team_name})"
+
+        pick_a.team = team_b
+        pick_a.traded = True
+        pick_a.trade_note = note
+        pick_a.save()
+
+        pick_b.team = team_a
+        pick_b.traded = True
+        pick_b.trade_note = note_b
+        pick_b.save()
+
+        self.message_user(
+            request,
+            f"Swapped: {pick_a.signup.full_name} → {team_b.team_name} and "
+            f"{pick_b.signup.full_name} → {team_a.team_name}.",
+            messages.SUCCESS,
+        )
+
+
+# Swap the admin site class so get_app_list reorganizes the index page.
+# All existing admin.site.register() / @admin.register() calls remain valid —
+# we're changing the class of the existing singleton, not creating a new one.
+admin.site.__class__ = _DCHockeyAdminSite

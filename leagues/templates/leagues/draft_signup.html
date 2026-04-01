@@ -1,0 +1,248 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}{{ season }} Draft League Registration – DC Street Hockey{% endblock %}
+
+{% block extra_head %}
+<style>
+  .signup-wrapper {
+    max-width: 680px;
+    margin: 40px auto;
+    padding: 0 16px 60px;
+  }
+  .signup-header {
+    background: #8b1a1a;
+    border-radius: 8px 8px 0 0;
+    padding: 28px 32px 24px;
+    color: #fff;
+  }
+  .signup-header h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .signup-header p {
+    margin: 0;
+    opacity: 0.88;
+    font-size: 0.95rem;
+  }
+  .signup-body {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 32px;
+  }
+  .signup-required-note {
+    color: #c0392b;
+    font-size: 0.85rem;
+    margin-bottom: 24px;
+  }
+  .form-group {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+    color: #222;
+  }
+  .form-group label .required-star {
+    color: #c0392b;
+    margin-left: 3px;
+  }
+  .form-group input[type="text"],
+  .form-group input[type="email"],
+  .form-group textarea,
+  .form-group select {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid #999;
+    outline: none;
+    font-size: 0.95rem;
+    padding: 4px 0 6px;
+    color: #333;
+    background: transparent;
+    box-sizing: border-box;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-bottom-color: #8b1a1a;
+  }
+  .form-group textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
+  .radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  .radio-option input[type="radio"] {
+    margin-top: 2px;
+    accent-color: #8b1a1a;
+    flex-shrink: 0;
+  }
+  .radio-option span {
+    font-size: 0.93rem;
+    color: #333;
+    line-height: 1.4;
+  }
+  .error-banner {
+    background: #fdf0f0;
+    border: 1px solid #e74c3c;
+    border-radius: 6px;
+    color: #c0392b;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 0.92rem;
+  }
+  .success-box {
+    background: #f0fdf4;
+    border: 1px solid #27ae60;
+    border-radius: 8px;
+    padding: 28px 32px;
+    text-align: center;
+    color: #1e7e34;
+  }
+  .success-box h2 { margin: 0 0 8px; font-size: 1.4rem; }
+  .success-box p { margin: 0; color: #444; }
+  .submit-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-top: 24px;
+  }
+  .btn-submit {
+    background: #8b1a1a;
+    color: #fff;
+    border: none;
+    padding: 11px 28px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+  }
+  .btn-submit:hover { background: #6e1414; }
+  .btn-clear {
+    background: none;
+    border: none;
+    color: #8b1a1a;
+    font-size: 0.92rem;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-wrapper">
+  <div id="content">
+    <div class="signup-wrapper">
+
+      <div class="signup-header">
+        <h1>{{ season }} Draft League Registration</h1>
+        <p>Fill this out to tell people who you are and what you do (hockey-wise)</p>
+      </div>
+
+      <div class="signup-body">
+
+        {% if submitted %}
+          <div class="success-box">
+            <h2>You're signed up!</h2>
+            <p>Thanks for registering for the {{ season }} Wednesday Draft League. The commissioner will be in touch with details.</p>
+          </div>
+
+        {% else %}
+
+          <p class="signup-required-note">* Indicates required question</p>
+
+          {% if error %}
+            <div class="error-banner">{{ error }}</div>
+          {% endif %}
+
+          <form method="post" novalidate>
+            {% csrf_token %}
+
+            <div class="form-group">
+              <label for="id_email">Email <span class="required-star">*</span></label>
+              <input type="email" id="id_email" name="email" placeholder="Your email"
+                     value="{{ request.POST.email }}" required>
+            </div>
+
+            <div class="form-group">
+              <label for="id_first_name">What's your FIRST name? <span class="required-star">*</span></label>
+              <input type="text" id="id_first_name" name="first_name" placeholder="Your answer"
+                     value="{{ request.POST.first_name }}" required>
+            </div>
+
+            <div class="form-group">
+              <label for="id_last_name">What's your Last name? <span class="required-star">*</span></label>
+              <input type="text" id="id_last_name" name="last_name" placeholder="Your answer"
+                     value="{{ request.POST.last_name }}" required>
+            </div>
+
+            <div class="form-group">
+              <label for="id_primary_position">Primary Position <span class="required-star">*</span></label>
+              <select id="id_primary_position" name="primary_position" required>
+                <option value="" disabled {% if not request.POST.primary_position %}selected{% endif %}>Choose</option>
+                {% for value, label in primary_position_choices %}
+                  <option value="{{ value }}"
+                    {% if request.POST.primary_position == value|stringformat:"s" %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="id_secondary_position">Secondary Position <span class="required-star">*</span></label>
+              <select id="id_secondary_position" name="secondary_position" required>
+                <option value="" disabled {% if not request.POST.secondary_position %}selected{% endif %}>Choose</option>
+                {% for value, label in secondary_position_choices %}
+                  <option value="{{ value }}"
+                    {% if request.POST.secondary_position == value|stringformat:"s" %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Do you want to captain this Season? <span class="required-star">*</span></label>
+              {% for value, label in captain_interest_choices %}
+                <label class="radio-option">
+                  <input type="radio" name="captain_interest" value="{{ value }}"
+                    {% if request.POST.captain_interest == value|stringformat:"s" %}checked{% endif %}>
+                  <span>{{ label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+
+            <div class="form-group">
+              <label for="id_notes">Notes for the season such as out for travel, etc beyond a random week or 2 that most miss.</label>
+              <textarea id="id_notes" name="notes" placeholder="Your answer">{{ request.POST.notes }}</textarea>
+            </div>
+
+            <div class="submit-row">
+              <button type="submit" class="btn-submit">Submit</button>
+              <button type="reset" class="btn-clear">Clear form</button>
+            </div>
+
+          </form>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

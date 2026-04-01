@@ -1,0 +1,43 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content_title %}<h1>{{ title }}</h1>{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p style="color:#ccc;margin-bottom:24px;">
+    Manage all Wednesday Draft League records from one place.
+  </p>
+
+  <div style="display:grid;gap:16px;">
+    {% for section in draft_sections %}
+    <div style="
+      background:#1f2937;
+      border:1px solid #374151;
+      border-radius:6px;
+      padding:20px 24px;
+    ">
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;">
+        <h2 style="margin:0;font-size:16px;">
+          <a href="{{ section.changelist_url }}" style="color:#79aec8;text-decoration:none;">
+            {{ section.name }}
+          </a>
+        </h2>
+        <span style="color:#9ca3af;font-size:13px;">
+          {{ section.count }} record{{ section.count|pluralize }}
+        </span>
+      </div>
+      <p style="color:#9ca3af;margin:0 0 14px;font-size:13px;">
+        {{ section.description }}
+      </p>
+      <div>
+        <a class="button" href="{{ section.changelist_url }}">View / Change</a>
+        {% if section.add_url %}
+        <a class="button" href="{{ section.add_url }}" style="margin-left:8px;">+ Add</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

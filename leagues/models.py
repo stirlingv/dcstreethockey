@@ -394,6 +394,315 @@ class Ref(models.Model):
         return self.__unicode__()
 
 
+# ---------------------------------------------------------------------------
+# Wednesday Draft League – Signup & Draft Board
+# ---------------------------------------------------------------------------
+
+
+class SeasonSignup(models.Model):
+    """A player's signup for a Wednesday Draft League season."""
+
+    # Positions match Roster.POSITION_TYPE (1-4) so stats queries stay consistent.
+    POSITION_CENTER = 1
+    POSITION_WING = 2
+    POSITION_DEFENSE = 3
+    POSITION_GOALIE = 4
+    POSITION_ONE_THING = 0  # secondary-only: "I only do one thing, period!"
+
+    PRIMARY_POSITION_CHOICES = (
+        (POSITION_CENTER, "Center"),
+        (POSITION_WING, "Wing"),
+        (POSITION_DEFENSE, "Defense"),
+        (POSITION_GOALIE, "Goalie"),
+    )
+    SECONDARY_POSITION_CHOICES = (
+        (POSITION_CENTER, "Center"),
+        (POSITION_WING, "Wing"),
+        (POSITION_DEFENSE, "Defense"),
+        (POSITION_GOALIE, "Goalie"),
+        (POSITION_ONE_THING, "I only do one thing, period!"),
+    )
+
+    CAPTAIN_YES = 1
+    CAPTAIN_OVERDUE = 2
+    CAPTAIN_LAST_RESORT = 3
+    CAPTAIN_NO = 4
+    CAPTAIN_INTEREST_CHOICES = (
+        (CAPTAIN_YES, "Yes for sure please so I control who I play with"),
+        (CAPTAIN_OVERDUE, "I can as I'm overdue to captain/help out"),
+        (CAPTAIN_LAST_RESORT, "Only if you can't find 8"),
+        (CAPTAIN_NO, "Nope, lazy or don't know enough"),
+    )
+
+    season = models.ForeignKey(Season, on_delete=models.PROTECT, related_name="signups")
+    # Entered at signup time; may or may not match an existing Player record
+    first_name = models.CharField(max_length=30)
+    last_name = models.CharField(max_length=30)
+    email = models.EmailField()
+    primary_position = models.PositiveIntegerField(
+        choices=PRIMARY_POSITION_CHOICES,
+    )
+    secondary_position = models.PositiveIntegerField(
+        choices=SECONDARY_POSITION_CHOICES,
+    )
+    captain_interest = models.PositiveIntegerField(
+        choices=CAPTAIN_INTEREST_CHOICES,
+        null=True,
+        blank=True,
+    )
+    notes = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        verbose_name="Notes for the season",
+        help_text="Out for travel, etc. beyond a random week or 2 that most miss.",
+    )
+    # Admin-only: set by commissioner after matching to an existing Player record
+    is_returning = models.BooleanField(
+        default=False,
+        verbose_name="Returning player?",
+        help_text="Set by commissioner. Has this player played in the Wednesday Draft League before?",
+    )
+    # Optionally linked to an existing Player for historical stats lookup
+    linked_player = models.ForeignKey(
+        Player,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="draft_signups",
+        help_text="Link to existing player record to pull historical stats.",
+    )
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("last_name", "first_name")
+
+    def __str__(self):
+        return f"{self.last_name}, {self.first_name} ({self.season})"
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+    @property
+    def is_goalie(self):
+        return self.primary_position == self.POSITION_GOALIE
+
+
+class DraftSession(models.Model):
+    """Configuration and state for a single Wednesday Draft League draft."""
+
+    STATE_SETUP = "setup"
+    STATE_DRAW = "draw"
+    STATE_ACTIVE = "active"
+    STATE_PAUSED = "paused"
+    STATE_COMPLETE = "complete"
+    STATE_CHOICES = (
+        (STATE_SETUP, "Setup"),
+        (STATE_DRAW, "Draw Phase"),
+        (STATE_ACTIVE, "Active"),
+        (STATE_PAUSED, "Paused"),
+        (STATE_COMPLETE, "Complete"),
+    )
+
+    season = models.OneToOneField(
+        Season, on_delete=models.PROTECT, related_name="draft_session"
+    )
+    state = models.CharField(max_length=20, choices=STATE_CHOICES, default=STATE_SETUP)
+    num_teams = models.PositiveIntegerField(default=0)
+    num_rounds = models.PositiveIntegerField(default=0)
+    signups_open = models.BooleanField(
+        default=False,
+        help_text="When checked, the public signup form is active for this season.",
+    )
+    # Token for the commissioner control URL
+    commissioner_token = models.UUIDField(default=uuid.uuid4, unique=True)
+    # Spectator URL uses the session pk — no token needed (read-only)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Set when commissioner triggers "Finalize Draft" to create real Team/Roster records
+    finalized_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Draft – {self.season} ({self.get_state_display()})"
+
+    @property
+    def current_pick(self):
+        """Return (round_number, pick_index) of the next pick to be made."""
+        picks = self.picks.order_by("round_number", "pick_number")
+        total_picks = picks.count()
+        expected = self.num_rounds * self.num_teams
+        if total_picks >= expected:
+            return None  # draft complete
+        pick_in_round = total_picks % self.num_teams
+        round_number = (total_picks // self.num_teams) + 1
+        return round_number, pick_in_round
+
+    def pick_order_for_round(self, round_number):
+        """
+        Return ordered list of DraftTeam PKs for a given round.
+        Randomized: teams are shuffled deterministically using a seeded RNG.
+        Snake: direction alternates, but randomized rounds are excluded from
+        the parity count so the snake continues uninterrupted after them.
+        """
+        import random as _random
+
+        teams = list(
+            self.teams.exclude(draft_position__isnull=True).order_by("draft_position")
+        )
+        try:
+            round_obj = self.rounds.get(round_number=round_number)
+        except DraftRound.DoesNotExist:
+            round_obj = None
+
+        if round_obj and round_obj.order_type == DraftRound.ORDER_RANDOMIZED:
+            rng = _random.Random(f"{self.pk}-{round_number}")
+            rng.shuffle(teams)
+            return [t.pk for t in teams]
+
+        # Snake parity: count only non-randomized rounds before this one so
+        # a randomized round doesn't break the snake direction.
+        randomized_before = self.rounds.filter(
+            round_number__lt=round_number,
+            order_type=DraftRound.ORDER_RANDOMIZED,
+        ).count()
+        effective_round = round_number - randomized_before
+
+        if effective_round % 2 == 0:
+            return [t.pk for t in reversed(teams)]
+        return [t.pk for t in teams]
+
+
+class DraftRound(models.Model):
+    """Per-round configuration. Defaults to snake; can be overridden to randomized."""
+
+    ORDER_SNAKE = "snake"
+    ORDER_RANDOMIZED = "randomized"
+    ORDER_CHOICES = (
+        (ORDER_SNAKE, "Snake (reverse of previous round)"),
+        (ORDER_RANDOMIZED, "Re-randomized"),
+    )
+
+    session = models.ForeignKey(
+        DraftSession, on_delete=models.CASCADE, related_name="rounds"
+    )
+    round_number = models.PositiveIntegerField()
+    order_type = models.CharField(
+        max_length=20, choices=ORDER_CHOICES, default=ORDER_SNAKE
+    )
+
+    class Meta:
+        ordering = ("round_number",)
+        unique_together = ("session", "round_number")
+
+    def __str__(self):
+        return f"Round {self.round_number} – {self.get_order_type_display()}"
+
+
+class DraftTeam(models.Model):
+    """A team/captain slot within a draft session."""
+
+    session = models.ForeignKey(
+        DraftSession, on_delete=models.CASCADE, related_name="teams"
+    )
+    captain = models.ForeignKey(
+        SeasonSignup,
+        on_delete=models.PROTECT,
+        related_name="captained_teams",
+    )
+    team_name = models.CharField(
+        max_length=55,
+        blank=True,
+        help_text="Defaults to '{First Name}'s Team' if left blank.",
+    )
+    # Set during draw phase; null until then
+    draft_position = models.PositiveIntegerField(null=True, blank=True)
+    # Round in which the captain is auto-drafted onto their own team.
+    # When the draft reaches this round for this team, the captain is automatically
+    # inserted as a pick and skipped for manual selection.
+    captain_draft_round = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Round number in which this captain is automatically drafted onto their team. Leave blank if not applicable.",
+    )
+    # Unique URL token for captain to make picks
+    captain_token = models.UUIDField(default=uuid.uuid4, unique=True)
+    # Set after "Finalize Draft" creates the real Team record for this slot
+    league_team = models.ForeignKey(
+        "Team",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="draft_team",
+        help_text="The real Team record created when this draft was finalized.",
+    )
+
+    class Meta:
+        ordering = ("draft_position", "pk")
+        unique_together = ("session", "captain")
+
+    def save(self, *args, **kwargs):
+        if not self.team_name:
+            self.team_name = f"{self.captain.first_name}'s Team"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        pos = self.draft_position or "TBD"
+        return f"{self.team_name} (Pick #{pos})"
+
+    @property
+    def picks(self):
+        return self.draft_picks.order_by("round_number", "pick_number")
+
+
+class DraftPick(models.Model):
+    """A single pick made during the draft."""
+
+    session = models.ForeignKey(
+        DraftSession, on_delete=models.CASCADE, related_name="picks"
+    )
+    team = models.ForeignKey(
+        DraftTeam, on_delete=models.CASCADE, related_name="draft_picks"
+    )
+    signup = models.ForeignKey(
+        SeasonSignup,
+        on_delete=models.PROTECT,
+        related_name="draft_pick",
+    )
+    round_number = models.PositiveIntegerField()
+    pick_number = models.PositiveIntegerField(
+        help_text="Pick index within the round (0-based)."
+    )
+    picked_at = models.DateTimeField(auto_now_add=True)
+    is_auto_captain = models.BooleanField(
+        default=False,
+        help_text="Set automatically when a captain is auto-drafted onto their own team.",
+    )
+    traded = models.BooleanField(
+        default=False,
+        help_text="Check if this pick was acquired via a trade. Original draft slot is preserved for reference.",
+    )
+    trade_note = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Optional note describing the trade (e.g. 'Swapped with Smith from Team B').",
+    )
+
+    class Meta:
+        ordering = ("round_number", "pick_number")
+        unique_together = (
+            ("session", "signup"),  # player can only be picked once
+            ("session", "round_number", "pick_number"),  # one pick per slot
+        )
+
+    def __str__(self):
+        traded_marker = " [TRADED]" if self.traded else ""
+        return (
+            f"R{self.round_number}P{self.pick_number + 1} – "
+            f"{self.team.team_name} picks {self.signup.full_name}{traded_marker}"
+        )
+
+
 class HomePage(models.Model):
     logo = models.ImageField(upload_to="homepage", null=True)
     announcement = models.CharField(max_length=1000, null=True, blank=True)
