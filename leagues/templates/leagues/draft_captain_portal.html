@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Captain Links – {{ session.season }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1a1a;
+      color: #e5e5e5;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    header p {
+      color: #9ca3af;
+      font-size: 0.95rem;
+    }
+
+    .instructions {
+      background: #2d2d2d;
+      border: 1px solid #3f3f3f;
+      border-left: 4px solid #8b1a1a;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-bottom: 28px;
+      font-size: 0.9rem;
+      color: #d1d5db;
+      line-height: 1.5;
+    }
+
+    .team-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .team-card {
+      background: #2d2d2d;
+      border: 1px solid #3f3f3f;
+      border-radius: 8px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .team-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .captain-name {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .team-name {
+      font-size: 0.82rem;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+
+    .draft-position {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .btn-captain {
+      display: inline-block;
+      background: #8b1a1a;
+      color: #fff;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+
+    .btn-captain:hover {
+      background: #a02020;
+    }
+
+    .no-teams {
+      text-align: center;
+      color: #6b7280;
+      padding: 48px 0;
+      font-size: 0.95rem;
+    }
+
+    .spectator-link {
+      text-align: center;
+      margin-top: 32px;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+
+    .spectator-link a {
+      color: #79aec8;
+      text-decoration: none;
+    }
+
+    .spectator-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>DC Street Hockey Draft</h1>
+      <p>{{ session.season }} &mdash; Captain Links</p>
+    </header>
+
+    <div class="instructions">
+      Find your name below and tap <strong>Go to My Board</strong> to open your
+      private captain link. Keep that page open during the draft &mdash; it's
+      how you'll make your picks.
+    </div>
+
+    {% if teams %}
+    <div class="team-list">
+      {% for team in teams %}
+      <div class="team-card">
+        <div class="team-info">
+          <div class="captain-name">{{ team.captain.full_name }}</div>
+          <div class="team-name">{{ team.team_name }}</div>
+          {% if team.draft_position %}
+          <div class="draft-position">Draft pick #{{ team.draft_position }}</div>
+          {% endif %}
+        </div>
+        <a class="btn-captain"
+           href="/draft/{{ session.pk }}/captain/{{ team.captain_token }}/">
+          Go to My Board
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-teams">
+      No captains have been assigned yet. Check back once the commissioner
+      has set up the draft session.
+    </div>
+    {% endif %}
+
+    <div class="spectator-link">
+      Just watching? <a href="/draft/{{ session.pk }}/">Open the spectator board</a>
+    </div>
+  </div>
+</body>
+</html>

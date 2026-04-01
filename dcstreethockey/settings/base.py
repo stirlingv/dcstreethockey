@@ -113,6 +113,14 @@ TEMPLATES = [
 # WSGI_APPLICATION = 'dcstreethockey.wsgi.application'
 ASGI_APPLICATION = "dcstreethockey.asgi.application"
 
+# Channel layer — in-memory is fine for single-server Render deployments.
+# Swap for channels_redis.core.RedisChannelLayer if you ever run multiple workers.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
+
 # Database
 # https://docs.djangoproject.com/en/1.9/ref/settings/#databases
 
@@ -241,6 +249,44 @@ LOGGING = {
         },
     },
 }
+# ---------------------------------------------------------------------------
+# Django Suit admin theme — split sidebar into draft vs league management
+# ---------------------------------------------------------------------------
+SUIT_CONFIG = {
+    "ADMIN_NAME": "DC Street Hockey",
+    "MENU": [
+        {
+            "label": "Wednesday Draft",
+            "models": [
+                {
+                    "label": "Setup Draft",
+                    "url": "/admin/leagues/draftsession/draft-setup/",
+                },
+            ],
+        },
+        {
+            "label": "League Management",
+            "models": [
+                "leagues.division",
+                "leagues.season",
+                "leagues.player",
+                "leagues.team",
+                "leagues.roster",
+                "leagues.stat",
+                "leagues.team_stat",
+                "leagues.week",
+                "leagues.matchup",
+                "leagues.matchupgoaliestatus",
+                "leagues.teamphoto",
+                "leagues.playerphoto",
+                "leagues.ref",
+                "leagues.homepage",
+            ],
+        },
+        {"app": "auth"},
+    ],
+}
+
 # Import AWS settings only if AWS environment variables are available
 import os
 

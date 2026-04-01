@@ -10,5 +10,12 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(timeout 8 python manage.py runserver 8001 --noreload)",
+      "Bash(python manage.py migrate leagues 0093_draft_finalize_fields)",
+      "Bash(python -c \"import leagues.management.commands.seed_draft_test\")"
+    ]
   }
 }

@@ -1,0 +1,1491 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}
+  {% if is_commissioner %}Commissioner –{% elif is_captain %}Captain –{% endif %}
+  {{ session.season }} Draft Board – DC Street Hockey
+{% endblock %}
+
+{% block extra_head %}
+{% csrf_token %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+<style>
+  /* ---- Layout ---- */
+  .draft-shell {
+    display: flex;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+    font-size: 0.88rem;
+  }
+
+  /* ---- Left: draft board grid ---- */
+  .draft-main {
+    flex: 1 1 0;
+    overflow: auto;
+    padding: 16px 20px;
+    background: #f7f7f7;
+  }
+  .draft-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #8b1a1a;
+    margin-bottom: 4px;
+  }
+  .draft-role-label {
+    margin-bottom: 6px;
+  }
+  .role-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .role-commissioner { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+  .role-captain      { background: #d4edda; color: #155724; border: 1px solid #28a745; }
+  .role-spectator    { background: #e9ecef; color: #495057; border: 1px solid #ced4da; }
+  .draft-status {
+    font-size: 0.82rem;
+    color: #666;
+    margin-bottom: 16px;
+  }
+  .draft-status .state-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    background: #ddd;
+    color: #555;
+  }
+  .state-badge.active  { background: #d4edda; color: #155724; }
+  .state-badge.paused  { background: #fff3cd; color: #856404; }
+  .state-badge.complete{ background: #cce5ff; color: #004085; }
+  .state-badge.draw    { background: #f0e6ff; color: #4a0080; }
+
+  /* Grid table */
+  .board-table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 600px;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .board-table th {
+    background: #8b1a1a;
+    color: #fff;
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .board-table th.round-header {
+    background: #5a1010;
+    width: 52px;
+    text-align: right;
+    padding-right: 10px;
+  }
+  .board-table td {
+    padding: 6px 10px;
+    border: 1px solid #eee;
+    text-align: center;
+    vertical-align: top;
+    min-width: 110px;
+  }
+  .board-table td.round-label {
+    background: #f2f2f2;
+    font-weight: 600;
+    color: #555;
+    text-align: right;
+    width: 52px;
+    font-size: 0.8rem;
+  }
+  .board-table td.randomized-round {
+    background: #fdf5ff;
+  }
+  .pick-cell {
+    min-height: 30px;
+  }
+  .pick-cell .player-name {
+    font-weight: 600;
+    color: #222;
+    line-height: 1.3;
+  }
+  /* Goalie cells in the board grid get a teal tint */
+  td.goalie-pick {
+    background-color: #e0f4f4 !important;
+    border-left: 3px solid #2a9d8f !important;
+  }
+  /* Captain auto-pick cells get a gold tint */
+  td.captain-pick {
+    background-color: #fffbe6 !important;
+    border-left: 3px solid #d4a017 !important;
+  }
+  /* Pre-announced captain slot (not yet filled) */
+  td.captain-slot-pending {
+    background-color: #fffdf0;
+    border-left: 3px dashed #d4a017;
+  }
+  .captain-slot-label {
+    font-size: 0.72rem;
+    color: #a07800;
+    font-style: italic;
+  }
+  .captain-badge {
+    display: inline-block;
+    background: #d4a017;
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 2px;
+    margin-left: 4px;
+    vertical-align: middle;
+    letter-spacing: 0.04em;
+  }
+  /* Captain's "it's your turn" notice */
+  .your-turn-notice {
+    background: #1a3a5c;
+    border: 2px solid #2980b9;
+    border-radius: 6px;
+    color: #d6eaf8;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+  /* Captain's own "you are being drafted" notice */
+  .your-pick-notice {
+    background: #fffbe6;
+    border: 2px solid #d4a017;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 8px 16px;
+    font-size: 0.88rem;
+    color: #856400;
+    font-weight: 600;
+    text-align: center;
+  }
+  .pick-cell .player-name .goalie-badge {
+    display: inline-block;
+    background: #2a9d8f;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-left: 4px;
+    vertical-align: middle;
+    letter-spacing: 0.04em;
+  }
+  .pos-badge {
+    display: inline-block;
+    background: transparent;
+    color: #aaa;
+    font-size: 0.65rem;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .active-pick-cell {
+    background: #fffbe6;
+    outline: 2px solid #f0c040;
+  }
+  .my-turn-cell {
+    background: #e8f5e9;
+    outline: 2px solid #27ae60;
+  }
+
+  /* Commissioner controls */
+  .commissioner-bar {
+    background: #fff3cd;
+    border-bottom: 1px solid #ffc107;
+    padding: 8px 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .commissioner-bar .bar-label {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #856404;
+    margin-right: 4px;
+  }
+  .btn {
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .btn-primary   { background: #8b1a1a; color: #fff; }
+  .btn-primary:hover { background: #6e1414; }
+  .btn-warning   { background: #ffc107; color: #333; }
+  .btn-warning:hover { background: #e0a800; }
+  .btn-danger    { background: #dc3545; color: #fff; }
+  .btn-danger:hover { background: #c82333; }
+  .btn-draw      { background: #6f42c1; color: #fff; }
+  .btn-draw:hover{ background: #5a32a3; }
+  .btn-success   { background: #28a745; color: #fff; }
+  .btn-success:hover { background: #218838; }
+  .btn-reset     { background: transparent; color: #999; border: 1px solid #555; }
+  .btn-reset:hover   { background: #3a0a0a; color: #e07070; border-color: #e07070; }
+  .btn:disabled  { opacity: 0.5; cursor: not-allowed; }
+
+  /* ---- Right: player pool ---- */
+  .player-pool {
+    width: 300px;
+    flex-shrink: 0;
+    background: #fff;
+    border-left: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .pool-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid #eee;
+  }
+  .pool-header h3 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #222;
+  }
+  /* Info icon + tooltip */
+  .pool-info-icon {
+    position: relative;
+    display: inline-block;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .pool-info-icon i {
+    font-size: 13px;
+    color: #007bff;
+    cursor: help;
+    border: 1px solid #007bff;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-style: normal;
+    font-weight: bold;
+    line-height: 1;
+  }
+  .pool-info-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    z-index: 1000;
+    top: 125%;
+    right: 0;
+    width: 300px;
+    background: #333;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    transition: opacity 0.2s, visibility 0.2s;
+  }
+  .pool-info-tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    right: 8px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid #333;
+  }
+  .pool-info-icon:hover .pool-info-tooltip {
+    visibility: visible;
+    opacity: 1;
+  }
+  .pool-info-tooltip strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+    color: #fff;
+  }
+  .pool-info-tooltip .tip-section {
+    margin-bottom: 8px;
+  }
+  .pool-info-tooltip .tip-section:last-child {
+    margin-bottom: 0;
+  }
+  .pool-info-tooltip .tip-label {
+    font-weight: 700;
+    color: #79c8ff;
+  }
+  .pool-info-tooltip .tip-note {
+    font-size: 11px;
+    color: #ccc;
+    font-style: italic;
+    margin-top: 8px;
+  }
+  @media (max-width: 600px) {
+    .pool-info-tooltip {
+      width: 240px;
+      right: -60px;
+    }
+  }
+  .pool-search {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+  }
+  .pool-filters {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .pool-sort-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 5px;
+  }
+  .sort-label {
+    font-size: 0.73rem;
+    color: #999;
+    white-space: nowrap;
+  }
+  .sort-btn {
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.76rem;
+    cursor: pointer;
+    color: #555;
+  }
+  .sort-btn.active {
+    background: #3a6ea5;
+    color: #fff;
+    border-color: #3a6ea5;
+  }
+  .filter-btn {
+    padding: 3px 9px;
+    border-radius: 12px;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.76rem;
+    cursor: pointer;
+    color: #555;
+  }
+  .filter-btn.active {
+    background: #8b1a1a;
+    color: #fff;
+    border-color: #8b1a1a;
+  }
+  .pool-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    list-style: none;
+    margin: 0;
+  }
+  .pool-player {
+    padding: 9px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: default;
+    transition: background 0.1s;
+  }
+  .pool-player:hover { background: #fafafa; }
+  .pool-player.is-pickable { cursor: pointer; }
+  .pool-player.is-pickable:hover { background: #e8f5e9; }
+  /* Goalie rows in the pool get a teal left-border and light background */
+  .pool-player.is-goalie {
+    background-color: #f0fafa;
+    border-left: 3px solid #2a9d8f;
+  }
+  .pool-player.is-goalie:hover { background-color: #e0f4f4; }
+  .pool-player.is-goalie.is-pickable:hover { background-color: #d0eeee; }
+  /* Goalie unavailable (team already has one) */
+  .pool-player.goalie-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .pool-player.goalie-locked .pname::after {
+    content: " — team has a goalie";
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: #888;
+    font-style: italic;
+  }
+  .pool-player .pname-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .pool-player .pname {
+    font-weight: 600;
+    color: #222;
+    font-size: 0.88rem;
+    line-height: 1.3;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pool-player .pname-adp {
+    font-size: 0.72rem;
+    color: #aaa;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .pool-player .pname-adp .adp-val {
+    font-weight: 600;
+    color: #888;
+  }
+  .pool-player .pposition {
+    font-size: 0.73rem;
+    color: #888;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .pool-player .pstats {
+    font-size: 0.76rem;
+    color: #555;
+    margin-top: 2px;
+  }
+  .pool-player .pstats .sval {
+    font-weight: 700;
+    color: #222;
+  }
+  .pool-player .pstats .slbl {
+    color: #999;
+    font-size: 0.7rem;
+  }
+  .pool-player .pstats .sdot {
+    color: #ccc;
+    margin: 0 4px;
+  }
+  .pool-player .pstats .sper {
+    color: #aaa;
+    font-size: 0.68rem;
+    font-style: italic;
+  }
+  .pool-player .pmeta .badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+  .badge-goalie { background: #2a9d8f; color: #fff; }
+  .pool-row-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .pick-cta {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #1565c0;
+    white-space: nowrap;
+  }
+
+  /* Draw phase overlay */
+  .draw-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    z-index: 1000;
+    overflow-y: auto;
+    padding: 24px 16px;
+  }
+  .draw-overlay.visible { display: flex; }
+  .draw-card-container {
+    background: #1a0a0a;
+    border-radius: 12px;
+    padding: 32px 40px 40px;
+    text-align: center;
+    min-width: min(400px, 100%);
+    max-width: 560px;
+    width: 100%;
+    color: #fff;
+    margin: auto;
+  }
+  .draw-card-container h2 { font-size: 1.5rem; margin: 0 0 24px; }
+  .draw-slot {
+    background: #2a1010;
+    border: 2px solid #8b1a1a;
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .draw-slot.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .draw-slot .pick-num {
+    font-size: 2rem;
+    font-weight: 900;
+    color: #f0c040;
+    width: 50px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .draw-slot .team-info { text-align: left; }
+  .draw-slot .team-info .tname { font-weight: 700; font-size: 1rem; }
+  .draw-slot .team-info .captain { font-size: 0.82rem; color: #aaa; }
+  .draw-done-btn {
+    margin-top: 20px;
+    background: #8b1a1a;
+    color: #fff;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: none;
+  }
+  .draw-done-btn.visible { display: inline-block; }
+
+  /* Pick confirm modal */
+  .pick-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+  }
+  .pick-modal.visible { display: flex; }
+  .pick-modal-box {
+    background: #fff;
+    border-radius: 8px;
+    padding: 28px 32px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+  }
+  .pick-modal-box h3 { margin: 0 0 8px; font-size: 1.1rem; }
+  .pick-modal-box p { color: #555; margin: 0 0 20px; }
+  .pick-modal-actions { display: flex; gap: 10px; justify-content: center; }
+
+  /* Swap / edit modal */
+  .swap-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+  }
+  .swap-modal-box {
+    background: #fff;
+    border-radius: 8px;
+    padding: 28px 32px;
+    max-width: 420px;
+    width: 90%;
+  }
+  .swap-modal-box h3 { margin: 0 0 12px; font-size: 1.1rem; }
+  .swap-modal-box select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.95rem;
+  }
+  .swap-modal-actions { display: flex; gap: 10px; justify-content: center; }
+
+  /* Edit mode pick cells */
+  .edit-mode-cell { position: relative; }
+  .edit-pick-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: rgba(0,0,0,0.45);
+    border: none;
+    color: #fff;
+    font-size: 0.68rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .edit-pick-btn:hover { background: rgba(0,0,0,0.75); }
+  td.edit-mode-cell { outline: 2px dashed rgba(255,193,7,0.6); }
+
+  .connection-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .connection-dot.connected { background: #27ae60; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if is_commissioner %}
+<div class="commissioner-bar">
+  <span class="bar-label">COMMISSIONER</span>
+  <div id="commissioner-controls">
+    {% if session.state == 'setup' %}
+      <button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>
+    {% elif session.state == 'draw' %}
+      <button class="btn btn-primary" onclick="advanceState()" disabled>Start Draft</button>
+    {% elif session.state == 'active' %}
+      <button class="btn btn-warning" onclick="advanceState()">Pause Draft</button>
+      <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+    {% elif session.state == 'paused' %}
+      <button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
+      <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+    {% endif %}
+  </div>
+  <span style="margin-left:auto;font-size:0.78rem;color:#856404;">
+    Commissioner view &mdash; share spectator link: <strong>{{ request.scheme }}://{{ request.get_host }}/draft/{{ session.pk }}/</strong>
+  </span>
+</div>
+{% endif %}
+
+<div class="draft-shell">
+
+  <!-- Main board -->
+  <div class="draft-main">
+    <div class="draft-title">{{ session.season }} Wednesday Draft Board</div>
+    <div class="draft-role-label">
+      {% if is_commissioner %}
+        <span class="role-badge role-commissioner">Commissioner View</span>
+      {% elif is_captain %}
+        <span class="role-badge role-captain">Captain: {{ captain_name }}</span>
+      {% else %}
+        <span class="role-badge role-spectator">Spectator View</span>
+      {% endif %}
+    </div>
+    <div class="draft-status">
+      <span id="status-badge" class="state-badge {{ session.state }}">{{ session.get_state_display }}</span>
+      &nbsp;
+      <span class="connection-dot" id="conn-dot"></span>
+      <span id="conn-label" style="font-size:0.78rem;color:#999;">connecting…</span>
+    </div>
+
+    <div id="board-container"></div>
+  </div>
+
+  <!-- Player pool (right sidebar) -->
+  <div class="player-pool">
+    <div class="pool-header">
+      <h3>Available Players <span id="pool-count" style="color:#888;font-weight:400;font-size:0.85rem;"></span><span class="pool-info-icon" id="pool-info-icon">
+        <i>?</i>
+        <div class="pool-info-tooltip">
+          <strong>Reading the Player List</strong>
+          <div class="tip-section">
+            <span class="tip-label">Stats</span> are per-season averages from Wednesday Draft League history only &mdash; other leagues are not included.<br>
+            Skaters show <span class="tip-label">G</span> (goals), <span class="tip-label">A</span> (assists), and <span class="tip-label">Pts</span> per season.<br>
+            Goalies show <span class="tip-label">GAA</span> (goals allowed per game).<br>
+            <em style="color:#ccc;">New to league</em> means no recorded Wednesday Draft history.
+          </div>
+          <div class="tip-section">
+            <span class="tip-label">ADP</span> (Average Draft Round) is the average round this player was selected in past Wednesday drafts. Lower = picked earlier = higher demand. <em style="color:#ccc;">&ndash;&ndash;</em> means no draft history yet.
+          </div>
+          <div class="tip-note">Sort the list by ADP using the Sort buttons below.</div>
+        </div>
+      </span></h3>
+      <input class="pool-search" type="text" id="pool-search" placeholder="Search players…" oninput="renderPool()">
+      <div class="pool-filters">
+        <button class="filter-btn active" id="filter-all" onclick="setFilter('all')">All</button>
+        <button class="filter-btn" id="filter-players" onclick="setFilter('players')">Players</button>
+        <button class="filter-btn" id="filter-goalies" onclick="setFilter('goalies')">Goalies</button>
+      </div>
+      <div class="pool-sort-row">
+        <span class="sort-label">Sort:</span>
+        <button class="sort-btn active" id="sort-alpha" onclick="setSort('alpha')">A &rarr; Z</button>
+        <button class="sort-btn" id="sort-adp" onclick="setSort('adp')">ADP</button>
+        <button class="sort-btn" id="sort-goals" onclick="setSort('goals')">G</button>
+        <button class="sort-btn" id="sort-assists" onclick="setSort('assists')">A</button>
+      </div>
+    </div>
+    {% if is_captain %}
+    <div id="your-turn-notice" class="your-turn-notice" style="display:none;">
+      It's your turn to pick! Click a player from the list below.
+    </div>
+    <div id="your-pick-notice" class="your-pick-notice" style="display:none;">
+      You're being drafted onto your team this round — sit tight!
+    </div>
+    {% endif %}
+    <ul class="pool-list" id="pool-list"></ul>
+  </div>
+
+</div>
+
+<!-- Draw phase overlay -->
+<div class="draw-overlay" id="draw-overlay">
+  <div class="draw-card-container">
+    <h2 id="draw-overlay-title">Draft Position Draw</h2>
+    <div id="draw-slots"></div>
+    <button class="draw-done-btn" id="draw-done-btn" onclick="closeDraw()">
+      Start Draft
+    </button>
+  </div>
+</div>
+
+<!-- Pick confirm modal -->
+<div class="pick-modal" id="pick-modal">
+  <div class="pick-modal-box">
+    <h3>Confirm Pick</h3>
+    <p id="pick-modal-text"></p>
+    <div class="pick-modal-actions">
+      <button class="btn btn-primary" onclick="confirmPick()">Confirm</button>
+      <button class="btn" style="background:#eee;color:#333;" onclick="cancelPick()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Swap pick modal (commissioner edit mode) -->
+<div class="swap-modal" id="swap-modal">
+  <div class="swap-modal-box">
+    <h3 id="swap-modal-title">Change pick</h3>
+    <select id="swap-select"></select>
+    <input type="hidden" id="swap-pick-id">
+    <div class="swap-modal-actions">
+      <button class="btn btn-primary" onclick="confirmSwap()">Save Change</button>
+      <button class="btn" style="background:#eee;color:#333;" onclick="closeSwapModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+const SESSION_PK   = {{ session.pk }};
+const IS_CAPTAIN   = {{ is_captain|yesno:"true,false" }};
+const IS_COMMISSIONER = {{ is_commissioner|yesno:"true,false" }};
+const CAPTAIN_TEAM_PK = {% if captain_team_pk %}{{ captain_team_pk }}{% else %}null{% endif %};
+const CAPTAIN_TOKEN   = "{% if captain_token %}{{ captain_token }}{% endif %}";
+const COMMISSIONER_TOKEN = "{% if commissioner_token %}{{ commissioner_token }}{% endif %}";
+{% if is_commissioner %}
+const ALL_PLAYERS = {{ all_players_json|safe }};
+{% endif %}
+
+// Rounds and their order types, keyed by round_number
+const ROUND_TYPES = {
+  {% for r in rounds %}"{{ r.round_number }}": "{{ r.order_type }}"{% if not forloop.last %},{% endif %}{% endfor %}
+};
+
+let state = {{ initial_state|safe }};
+let pendingPickSignupId = null;
+let poolFilter = 'all';
+let poolSort = 'alpha';
+// True if positions are already drawn (handles page reload after draw)
+let drawComplete = state.teams.length > 0 && state.teams.every(t => t.draft_position !== null);
+let editMode = false;
+let drawMode = 'draw'; // 'draw' | 'round_reveal'
+
+// ============================================================
+// WebSocket — with auto-reconnect
+// ============================================================
+const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+const wsUrl = `${wsProto}://${window.location.host}/ws/draft/${SESSION_PK}/`;
+let wsReconnectDelay = 2000;
+const WS_MAX_DELAY = 30000;
+
+function handleWsMessage(e) {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'state_update') {
+    state = msg.state;
+    if (msg.undone_pick) showToast(`Undone: ${msg.undone_pick.player_name} (R${msg.undone_pick.round} P${msg.undone_pick.pick})`);
+    if (msg.pick) showToast(`${msg.pick.team_name} picks ${msg.pick.player.full_name}`);
+    if (msg.randomized_round_reveal) showRoundRevealOverlay(msg.randomized_round_reveal);
+    render();
+  } else if (msg.type === 'positions_drawn') {
+    if (!drawOverlayShown) {
+      drawOverlayShown = true;
+      showDrawOverlay(msg.reveal_order);
+    }
+  }
+}
+
+function connectWs() {
+  const ws = new WebSocket(wsUrl);
+  ws.onopen = () => {
+    wsReconnectDelay = 2000;
+    document.getElementById('conn-dot').classList.add('connected');
+    document.getElementById('conn-label').textContent = 'Live';
+  };
+  ws.onclose = () => {
+    document.getElementById('conn-dot').classList.remove('connected');
+    document.getElementById('conn-label').textContent = 'Reconnecting…';
+    setTimeout(connectWs, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_MAX_DELAY);
+  };
+  ws.onmessage = handleWsMessage;
+}
+connectWs();
+
+// ============================================================
+// Render
+// ============================================================
+let _autoCaptainPending = false;
+
+function render() {
+  renderBoard();
+  renderPool();
+  updateStatusBadge();
+  if (IS_COMMISSIONER) updateCommissionerButtons();
+  if (IS_COMMISSIONER) triggerPendingAutoPick();
+}
+
+// When the commissioner board loads (or receives a state update) while the
+// active slot is a captain auto-draft slot, automatically fire the pick so
+// the draft doesn't stall waiting for manual input.
+function triggerPendingAutoPick() {
+  if (_autoCaptainPending || state.state !== 'active' || state.active_team_pk === null) return;
+  const activeTeam = state.teams.find(t => t.id === state.active_team_pk);
+  if (!activeTeam || activeTeam.captain_draft_round !== state.current_round) return;
+  const captainAlreadyDrafted = Object.values(activeTeam.picks || {}).some(
+    p => p.id === activeTeam.captain_signup_id
+  );
+  if (captainAlreadyDrafted) return;
+
+  _autoCaptainPending = true;
+  const body = new URLSearchParams({
+    signup_pk: activeTeam.captain_signup_id,
+    commissioner_token: COMMISSIONER_TOKEN,
+  });
+  fetch(`/draft/${SESSION_PK}/pick/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+    .then(r => r.json())
+    .then(data => {
+      _autoCaptainPending = false;
+      if (data.state) { state = data.state; render(); }
+    })
+    .catch(() => { _autoCaptainPending = false; });
+}
+
+function updateStatusBadge() {
+  const badge = document.getElementById('status-badge');
+  badge.textContent = {
+    setup: 'Setup', draw: 'Draw Phase', active: 'Active',
+    paused: 'Paused', complete: 'Complete'
+  }[state.state] || state.state;
+  badge.className = `state-badge ${state.state}`;
+}
+
+function renderBoard() {
+  const teams = [...state.teams].sort((a, b) => (a.draft_position || 999) - (b.draft_position || 999));
+  if (!teams.length) {
+    document.getElementById('board-container').innerHTML = '<p style="color:#999;">No teams configured yet.</p>';
+    return;
+  }
+
+  const positionsDrawn = teams.some(t => t.draft_position !== null);
+  let html = '<table class="board-table"><thead><tr><th class="round-header">Rnd</th>';
+  for (let i = 0; i < teams.length; i++) {
+    const t = teams[i];
+    if (positionsDrawn) {
+      html += `<th>${escHtml(t.team_name)}</th>`;
+    } else {
+      html += `<th style="color:rgba(255,255,255,0.5);font-style:italic;">Team ${i + 1}</th>`;
+    }
+  }
+  html += '</tr></thead><tbody>';
+
+  for (let r = 1; r <= state.num_rounds; r++) {
+    const isRandom = ROUND_TYPES[r] === 'randomized';
+    const pickOrder = pickOrderForRound(r, teams);
+    html += `<tr>`;
+    html += `<td class="round-label">${r}${isRandom ? ' <span title="Re-randomized" style="color:#9b59b6;font-size:0.7rem;">↺</span>' : ''}</td>`;
+
+    for (const team of teams) {
+      const pick = team.picks && team.picks[r];
+      const isActiveSlot = state.current_round === r && state.active_team_pk === team.id;
+      const isMyTurn = IS_CAPTAIN && isActiveSlot && team.id === CAPTAIN_TEAM_PK;
+      const isGoaliePick = pick && pick.is_goalie;
+      const isCaptainPick = pick && pick.is_captain_pick;
+      // A "pending captain slot" is an unfilled round designated as this team's captain round
+      const isCaptainSlotPending = !pick && team.captain_draft_round === r;
+
+      const cellClass = [
+        isRandom ? 'randomized-round' : '',
+        isMyTurn ? 'my-turn-cell' : (isActiveSlot && state.state === 'active' ? 'active-pick-cell' : ''),
+        isGoaliePick && !isCaptainPick ? 'goalie-pick' : '',
+        isCaptainPick ? 'captain-pick' : '',
+        isCaptainSlotPending ? 'captain-slot-pending' : '',
+      ].filter(Boolean).join(' ');
+
+      const cellEditMode = editMode && IS_COMMISSIONER && pick;
+      const fullCellClass = cellEditMode ? (cellClass ? cellClass + ' edit-mode-cell' : 'edit-mode-cell') : cellClass;
+      html += `<td class="${fullCellClass}">`;
+      if (pick) {
+        html += `<div class="pick-cell"><span class="player-name">${escHtml(pick.full_name)}`;
+        if (isCaptainPick) html += `<span class="captain-badge">C</span>`;
+        if (pick.is_goalie) html += `<span class="goalie-badge">G</span>`;
+        const abbr = posAbbr(pick.primary_position);
+        if (abbr) html += `<span class="pos-badge">${abbr}</span>`;
+        html += `</span>`;
+        if (cellEditMode) {
+          html += `<button class="edit-pick-btn" onclick="event.stopPropagation();swapPick(${pick.pick_id},'${escAttr(pick.full_name)}')">&#9998;</button>`;
+        }
+        if (pick.stats) {
+          if (pick.stats.is_new) {
+            html += `<div style="font-size:0.72rem;color:#aaa;font-style:italic;">New</div>`;
+          } else if (pick.is_goalie && pick.stats.gaa !== null) {
+            html += `<div style="font-size:0.72rem;color:#777;">${pick.stats.gaa} GAA</div>`;
+          } else if (!pick.is_goalie) {
+            html += `<div style="font-size:0.72rem;color:#777;">${pick.stats.goals_per_season}G ${pick.stats.assists_per_season}A ${pick.stats.points_per_season}Pts <span style="opacity:0.6;">/szn</span></div>`;
+          }
+        }
+        html += `</div>`;
+      } else if (isCaptainSlotPending) {
+        html += `<div class="captain-slot-label">Captain pick${positionsDrawn ? `<br>(${escHtml(team.captain_name)})` : ''}</div>`;
+      } else if (isActiveSlot && state.state === 'active') {
+        html += `<div style="font-size:0.75rem;color:#888;">On the clock…</div>`;
+      }
+      html += `</td>`;
+    }
+    html += `</tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('board-container').innerHTML = html;
+}
+
+function pickOrderForRound(roundNum, teams) {
+  // Mirror the server-side logic for display purposes only
+  const sorted = [...teams].sort((a, b) => (a.draft_position || 999) - (b.draft_position || 999));
+  if (ROUND_TYPES[roundNum] === 'randomized') return sorted; // server does actual shuffle
+
+  // Count randomized rounds before this one so they don't break snake parity
+  let randomizedBefore = 0;
+  for (let r = 1; r < roundNum; r++) {
+    if (ROUND_TYPES[r] === 'randomized') randomizedBefore++;
+  }
+  const effectiveRound = roundNum - randomizedBefore;
+  return effectiveRound % 2 === 0 ? [...sorted].reverse() : sorted;
+}
+
+function renderPool() {
+  const search = document.getElementById('pool-search').value.toLowerCase();
+  const players = state.available_players || [];
+
+  const filtered = players.filter(p => {
+    if (poolFilter === 'goalies' && !p.is_goalie) return false;
+    if (poolFilter === 'players' && p.is_goalie) return false;
+    if (search && !p.full_name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  // Sort: goalies always first (they're scarce and high-priority), then by chosen sort order
+  filtered.sort((a, b) => {
+    if (a.is_goalie !== b.is_goalie) return a.is_goalie ? -1 : 1;
+    if (poolSort === 'adp') {
+      const adpA = a.stats && a.stats.adp !== null ? a.stats.adp : 9999;
+      const adpB = b.stats && b.stats.adp !== null ? b.stats.adp : 9999;
+      if (adpA !== adpB) return adpA - adpB;
+    }
+    if (poolSort === 'goals') {
+      const gA = a.stats ? (a.stats.goals_per_season ?? 0) : 0;
+      const gB = b.stats ? (b.stats.goals_per_season ?? 0) : 0;
+      if (gA !== gB) return gB - gA;
+    }
+    if (poolSort === 'assists') {
+      const aA = a.stats ? (a.stats.assists_per_season ?? 0) : 0;
+      const aB = b.stats ? (b.stats.assists_per_season ?? 0) : 0;
+      if (aA !== aB) return aB - aA;
+    }
+    return a.last_name.localeCompare(b.last_name);
+  });
+
+  // Check if this is the captain's auto-draft round (they can't pick, they're being drafted)
+  const myTeam = IS_CAPTAIN ? state.teams.find(t => t.id === CAPTAIN_TEAM_PK) : null;
+  const isMyAutoRound = myTeam &&
+    state.current_round !== null &&
+    myTeam.captain_draft_round === state.current_round &&
+    state.active_team_pk === CAPTAIN_TEAM_PK &&
+    state.state === 'active';
+
+  const isMyTurn = IS_CAPTAIN && state.active_team_pk === CAPTAIN_TEAM_PK && state.state === 'active' && !isMyAutoRound;
+
+  // Show/hide captain turn notices
+  const turnNotice = document.getElementById('your-turn-notice');
+  if (turnNotice) turnNotice.style.display = isMyTurn ? 'block' : 'none';
+  const noticeEl = document.getElementById('your-pick-notice');
+  if (noticeEl) noticeEl.style.display = isMyAutoRound ? 'block' : 'none';
+
+  document.getElementById('pool-count').textContent = `(${filtered.length})`;
+
+  // Determine if the currently active team already has a goalie
+  const activeTeam = state.teams.find(t => t.id === state.active_team_pk);
+
+  // Captain auto-draft slots must not be manually picked — the server will
+  // auto-pick the captain; suppress commissioner pick controls for these slots.
+  const activeSlotCaptainDrafted = activeTeam && Object.values(activeTeam.picks || {}).some(
+    p => p.id === activeTeam.captain_signup_id
+  );
+  const activeSlotIsAutoPick = (
+    activeTeam &&
+    state.current_round !== null &&
+    activeTeam.captain_draft_round === state.current_round &&
+    !activeSlotCaptainDrafted
+  );
+  const canPickAsCommissioner = IS_COMMISSIONER && state.state === 'active' && !activeSlotIsAutoPick;
+  const activeTeamHasGoalie = activeTeam ? activeTeam.has_goalie : false;
+
+  let html = '';
+  for (const p of filtered) {
+    const goalieBlocked = p.is_goalie && activeTeamHasGoalie && (isMyTurn || canPickAsCommissioner);
+    const pickable = (isMyTurn || canPickAsCommissioner) && !goalieBlocked;
+    const classes = [
+      'pool-player',
+      p.is_goalie ? 'is-goalie' : '',
+      pickable ? 'is-pickable' : '',
+      goalieBlocked ? 'goalie-locked' : '',
+    ].filter(Boolean).join(' ');
+
+    html += `<li class="${classes}" onclick="${pickable ? `requestPick(${p.id}, '${escAttr(p.full_name)}')` : ''}">`;
+    html += `<div class="pool-row-inner">`;
+    html += `<div>`;
+    // Name row — player name on left, ADP on right (always shown, "--" if unknown)
+    const adpVal = (p.stats && p.stats.adp !== null) ? p.stats.adp : '&ndash;&ndash;';
+    html += `<div class="pname-row">` +
+      `<span class="pname">${escHtml(p.full_name)}</span>` +
+      `<span class="pname-adp">ADP: <span class="adp-val">${adpVal}</span></span>` +
+      `</div>`;
+    // Position line
+    if (p.is_goalie) {
+      html += `<div class="pposition"><span class="badge badge-goalie">GOALIE</span></div>`;
+    } else {
+      html += `<div class="pposition">${escHtml(p.primary_position)}</div>`;
+    }
+    // Stats line — omitted entirely when no history exists
+    if (p.stats && !p.stats.is_new) {
+      if (p.is_goalie && p.stats.gaa !== null) {
+        html += `<div class="pstats"><span class="sval">${p.stats.gaa}</span><span class="slbl"> GAA</span><span class="sper">/szn</span></div>`;
+      } else if (!p.is_goalie) {
+        html += `<div class="pstats">` +
+          `<span class="sval">${p.stats.goals_per_season}</span><span class="slbl">G</span>` +
+          `<span class="sdot">&middot;</span>` +
+          `<span class="sval">${p.stats.assists_per_season}</span><span class="slbl">A</span>` +
+          `<span class="sdot">&middot;</span>` +
+          `<span class="sval">${p.stats.points_per_season}</span><span class="slbl">Pts</span>` +
+          `<span class="sper">&nbsp;/szn</span>` +
+          `</div>`;
+      }
+    }
+    html += `</div>`; // close inner left div
+    if (pickable) html += `<span class="pick-cta">Pick &rarr;</span>`;
+    html += `</div></li>`; // close pool-row-inner + li
+  }
+  document.getElementById('pool-list').innerHTML = html || '<li style="padding:16px;color:#999;text-align:center;">No players available</li>';
+}
+
+function setFilter(f) {
+  poolFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`filter-${f}`).classList.add('active');
+  renderPool();
+}
+
+function setSort(s) {
+  poolSort = s;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`sort-${s}`).classList.add('active');
+  renderPool();
+}
+
+// ============================================================
+// Pick flow
+// ============================================================
+function requestPick(signupId, name) {
+  if (state.state !== 'active') return;
+  pendingPickSignupId = signupId;
+  document.getElementById('pick-modal-text').textContent = `Pick ${name}?`;
+  document.getElementById('pick-modal').classList.add('visible');
+}
+
+function cancelPick() {
+  pendingPickSignupId = null;
+  document.getElementById('pick-modal').classList.remove('visible');
+}
+
+function confirmPick() {
+  document.getElementById('pick-modal').classList.remove('visible');
+  if (!pendingPickSignupId) return;
+
+  const body = new URLSearchParams({ signup_pk: pendingPickSignupId });
+  if (IS_CAPTAIN) body.append('captain_token', CAPTAIN_TOKEN);
+  if (IS_COMMISSIONER) body.append('commissioner_token', COMMISSIONER_TOKEN);
+
+  fetch(`/draft/${SESSION_PK}/pick/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) showToast(data.error, true);
+      else applyResponseState(data);
+    });
+
+  pendingPickSignupId = null;
+}
+
+// ============================================================
+// Commissioner actions
+// ============================================================
+
+// Apply a full state update from an API response immediately, without
+// waiting for the WebSocket broadcast (which may not be available locally).
+function applyResponseState(data) {
+  if (data.state) {
+    state = data.state;
+    render();
+  }
+}
+
+function advanceState() {
+  fetch(`/draft/${SESSION_PK}/advance/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+  }).then(r => r.json()).then(d => {
+    if (d.error) showToast(d.error, true);
+    else applyResponseState(d);
+  });
+}
+
+let drawOverlayShown = false;
+function triggerDraw() {
+  fetch(`/draft/${SESSION_PK}/draw/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showToast(d.error, true); return; }
+    if (d.reveal_order && !drawOverlayShown) {
+      drawOverlayShown = true;
+      showDrawOverlay(d.reveal_order);
+    }
+  });
+}
+
+function undoPick() {
+  if (!confirm('Undo the last pick?')) return;
+  fetch(`/draft/${SESSION_PK}/undo/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+  }).then(r => r.json()).then(d => {
+    if (d.error) showToast(d.error, true);
+    else {
+      if (d.undone) showToast(`Undone: ${d.undone.player_name} (R${d.undone.round} P${d.undone.pick})`);
+      applyResponseState(d);
+    }
+  });
+}
+
+function updateCommissionerButtons() {
+  const ctrl = document.getElementById('commissioner-controls');
+  if (!ctrl) return;
+
+  const s = state.state;
+  let html = '';
+  if (s === 'setup') {
+    html = `<button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>`;
+  } else if (s === 'draw') {
+    html = `<span style="color:#aaa;font-size:0.9rem;">Positions drawn — close the overlay to start the draft.</span>`;
+  } else if (s === 'active') {
+    html = `<button class="btn btn-warning" onclick="advanceState()">Pause Draft</button>
+            <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>`;
+  } else if (s === 'paused') {
+    html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
+            <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>`;
+  } else if (s === 'complete') {
+    if (editMode) {
+      html = `<button class="btn btn-success" onclick="finalizeDraft()">Re-finalize &amp; Update Rosters</button>`
+           + `<button class="btn btn-warning" onclick="toggleEditMode()" style="margin-left:8px;">Done Editing</button>`;
+    } else if (state.finalized) {
+      html = `<span style="font-weight:600;color:#155724;">&#10003; Rosters Created</span>`
+           + `<button class="btn" style="margin-left:12px;background:#555;color:#fff;" onclick="toggleEditMode()">Edit Draft Results</button>`;
+    } else {
+      html = `<button class="btn btn-success" onclick="finalizeDraft()">Finalize Draft &amp; Create Rosters</button>`;
+    }
+  }
+  if (s !== 'setup') {
+    html += `<button class="btn btn-reset" onclick="resetDraft()" style="margin-left:12px;">Reset Draft</button>`;
+  }
+  ctrl.innerHTML = html;
+}
+
+function finalizeDraft() {
+  const msg = editMode
+    ? 'Update Team and Roster records from the current draft results?'
+    : 'Create Team and Roster records from these draft picks?';
+  if (!confirm(msg)) return;
+  fetch(`/draft/${SESSION_PK}/finalize/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+  }).then(r => {
+    if (!r.ok) { r.text().then(t => showToast('Server error — check console.', true)); console.error(t); return null; }
+    return r.json();
+  }).then(d => {
+    if (!d) return;
+    if (d.error) { showToast(d.error, true); return; }
+    const label = editMode ? 'Rosters updated' : 'Done';
+    showToast(`${label}: ${d.created_teams} team(s), ${d.created_rosters} roster entries.`);
+    editMode = false;
+    applyResponseState(d);
+  }).catch(e => showToast('Network error — could not finalize.', true));
+}
+
+function toggleEditMode() {
+  editMode = !editMode;
+  render();
+}
+
+function resetDraft() {
+  const confirmed = confirm(
+    'Reset the draft?\n\n' +
+    'This will permanently delete all picks and draft positions for this session. ' +
+    'The draft will return to the pre-draw setup phase and signups will reopen.\n\n' +
+    'This cannot be undone.'
+  );
+  if (!confirmed) return;
+  fetch(`/draft/${SESSION_PK}/reset/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+  }).then(r => {
+    if (!r.ok) { r.text().then(() => showToast('Server error — reset failed.', true)); return null; }
+    return r.json();
+  }).then(d => {
+    if (!d) return;
+    if (d.error) { showToast(d.error, true); return; }
+    editMode = false;
+    drawComplete = false;
+    drawOverlayShown = false;
+    showToast('Draft reset. All picks and positions cleared.');
+    applyResponseState(d);
+  }).catch(() => showToast('Network error — reset failed.', true));
+}
+
+function swapPick(pickId, currentName) {
+  const all = typeof ALL_PLAYERS !== 'undefined' ? ALL_PLAYERS : [];
+  if (!all.length) return;
+
+  // Build select options grouped by position
+  const byPos = {};
+  for (const p of all) {
+    const pos = p.is_goalie ? 'Goalies' : p.primary_position;
+    (byPos[pos] = byPos[pos] || []).push(p);
+  }
+
+  let optHtml = `<option value="">— select player —</option>`;
+  for (const [pos, players] of Object.entries(byPos)) {
+    optHtml += `<optgroup label="${escHtml(pos)}">`;
+    for (const p of players) {
+      optHtml += `<option value="${p.id}">${escHtml(p.full_name)}</option>`;
+    }
+    optHtml += `</optgroup>`;
+  }
+
+  const modal = document.getElementById('swap-modal');
+  document.getElementById('swap-modal-title').textContent = `Change pick: ${currentName}`;
+  document.getElementById('swap-select').innerHTML = optHtml;
+  document.getElementById('swap-pick-id').value = pickId;
+  modal.style.display = 'flex';
+}
+
+function confirmSwap() {
+  const pickId = document.getElementById('swap-pick-id').value;
+  const newSignupPk = document.getElementById('swap-select').value;
+  if (!newSignupPk) return;
+
+  const body = new URLSearchParams({ pick_id: pickId, new_signup_pk: newSignupPk });
+  fetch(`/draft/${SESSION_PK}/swap/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+    body,
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showToast(d.error, true); return; }
+    closeSwapModal();
+    applyResponseState(d);
+  }).catch(() => showToast('Network error — swap failed.', true));
+}
+
+function closeSwapModal() {
+  document.getElementById('swap-modal').style.display = 'none';
+}
+
+// ============================================================
+// Draw overlay
+// ============================================================
+function showDrawOverlay(revealOrder) {
+  const overlay = document.getElementById('draw-overlay');
+  const slots = document.getElementById('draw-slots');
+  overlay.classList.add('visible');
+  slots.innerHTML = '';
+
+  revealOrder.forEach((item, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'draw-slot';
+    slot.innerHTML = `
+      <div class="pick-num">#${item.position}</div>
+      <div class="team-info">
+        <div class="tname">${escHtml(item.team_name)}</div>
+        <div class="captain">Captain: ${escHtml(item.captain_name)}</div>
+      </div>`;
+    slots.appendChild(slot);
+
+    setTimeout(() => slot.classList.add('revealed'), i * 600 + 200);
+  });
+
+  const doneBtn = document.getElementById('draw-done-btn');
+  setTimeout(() => {
+    doneBtn.classList.add('visible');
+    drawComplete = true;
+    if (IS_COMMISSIONER) updateCommissionerButtons();
+  }, revealOrder.length * 600 + 600);
+}
+
+function closeDraw() {
+  document.getElementById('draw-overlay').classList.remove('visible');
+  const wasDrawMode = drawMode === 'draw';
+  // Reset overlay to defaults for next use
+  drawMode = 'draw';
+  document.getElementById('draw-overlay-title').textContent = 'Draft Position Draw';
+  document.getElementById('draw-done-btn').textContent = 'Start Draft';
+  if (wasDrawMode && IS_COMMISSIONER) advanceState();
+}
+
+function showRoundRevealOverlay(data) {
+  drawMode = 'round_reveal';
+  document.getElementById('draw-overlay-title').textContent = `Round ${data.round} — Pick Order`;
+  document.getElementById('draw-done-btn').textContent = 'Continue Draft';
+
+  const slots = document.getElementById('draw-slots');
+  slots.innerHTML = '';
+  data.order.forEach((item, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'draw-slot';
+    slot.innerHTML = `
+      <div class="pick-num">#${item.position}</div>
+      <div class="team-info">
+        <div class="tname">${escHtml(item.team_name)}</div>
+        <div class="captain">Captain: ${escHtml(item.captain_name)}</div>
+      </div>`;
+    slots.appendChild(slot);
+    setTimeout(() => slot.classList.add('revealed'), i * 300 + 100);
+  });
+
+  const doneBtn = document.getElementById('draw-done-btn');
+  doneBtn.classList.remove('visible');
+  setTimeout(() => doneBtn.classList.add('visible'), data.order.length * 300 + 300);
+  document.getElementById('draw-overlay').classList.add('visible');
+}
+
+// ============================================================
+// Toast notifications
+// ============================================================
+function showToast(msg, isError = false) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+    background: isError ? '#dc3545' : '#333', color: '#fff',
+    padding: '10px 20px', borderRadius: '4px', fontSize: '0.88rem',
+    zIndex: '2000', opacity: '1', transition: 'opacity 0.4s',
+    whiteSpace: 'nowrap',
+  });
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2800);
+}
+
+// ============================================================
+// Utils
+// ============================================================
+function getCsrf() {
+  // Prefer the token embedded directly in the page (always fresh, no cookie timing issues)
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  if (meta) return meta.getAttribute('content');
+  // Fallback: read from cookie
+  const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+  if (cookie) return cookie.split('=')[1];
+  console.error('CSRF token not found — AJAX requests will fail. Reload the page.');
+  return '';
+}
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s ?? '').replace(/'/g, "\\'");
+}
+function posAbbr(pos) {
+  return { Center: 'C', Wing: 'W', Defense: 'D' }[pos] || '';
+}
+
+// ============================================================
+// Pool info tooltip — click-to-toggle for touch devices
+// ============================================================
+(function() {
+  const icon = document.getElementById('pool-info-icon');
+  const tip  = icon && icon.querySelector('.pool-info-tooltip');
+  if (!icon || !tip) return;
+  let open = false;
+  icon.addEventListener('click', function(e) {
+    e.stopPropagation();
+    open = !open;
+    tip.style.visibility = open ? 'visible' : 'hidden';
+    tip.style.opacity    = open ? '1' : '0';
+  });
+  document.addEventListener('click', function() {
+    if (open) {
+      open = false;
+      tip.style.visibility = 'hidden';
+      tip.style.opacity = '0';
+    }
+  });
+})();
+
+// ============================================================
+// Init
+// ============================================================
+render();
+</script>
+{% endblock %}
