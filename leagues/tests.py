@@ -966,14 +966,14 @@ class QuickCancelTemplateTagTest(TestCase):
         result = self._call_tag()
         self.assertNotIn(past_date, result["grouped_weeks"])
 
-    def test_includes_weeks_just_beyond_one_week(self):
-        # The window is 90 days, so a week 8 days out should still be shown.
+    def test_excludes_weeks_beyond_seven_days(self):
+        # The window is 7 days, so a game 8 days out should not be shown.
         future_date = self.today + datetime.timedelta(days=8)
         Week.objects.create(
             division=self.division1, season=self.season, date=future_date
         )
         result = self._call_tag()
-        self.assertIn(future_date, result["grouped_weeks"])
+        self.assertNotIn(future_date, result["grouped_weeks"])
 
     def test_all_cancelled_true_when_all_weeks_cancelled(self):
         Week.objects.create(
