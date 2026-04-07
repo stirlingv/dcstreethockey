@@ -228,8 +228,10 @@ LOGGING = {
     "handlers": {
         "file": {
             "level": "ERROR",
-            "class": "logging.FileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "filename": "django_error.log",
+            "maxBytes": 1_000_000,  # 1 MB per file
+            "backupCount": 3,
         },
         "console": {
             "level": "ERROR",
