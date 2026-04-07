@@ -112,6 +112,17 @@
   .pick-cell {
     min-height: 30px;
   }
+  .pick-cell .pick-stats {
+    font-size: 0.72rem;
+    color: #777;
+    margin-top: 1px;
+    letter-spacing: 0.01em;
+  }
+  .pick-cell .pick-stats.is-new {
+    color: #aaa;
+    font-style: italic;
+  }
+  .pick-cell .pick-stats .ps-per { opacity: 0.6; }
   .pick-cell .player-name {
     font-weight: 600;
     color: #222;
@@ -467,6 +478,10 @@
     align-items: center;
     gap: 5px;
   }
+  .psecondary {
+    color: #bbb;
+    font-size: 0.7rem;
+  }
   .pool-player .pstats {
     font-size: 0.76rem;
     color: #555;
@@ -658,6 +673,124 @@
     vertical-align: middle;
   }
   .connection-dot.connected { background: #27ae60; }
+
+  /* ---- Sidebar tabs ---- */
+  .sidebar-tabs {
+    display: flex;
+    flex-shrink: 0;
+    border-bottom: 2px solid #eee;
+  }
+  .sidebar-tab {
+    flex: 1;
+    padding: 9px 4px;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #999;
+    cursor: pointer;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .sidebar-tab:hover { color: #555; }
+  .sidebar-tab.active { color: #8b1a1a; border-bottom-color: #8b1a1a; }
+
+  /* ---- Pool view wrapper ---- */
+  #pool-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+  /* ---- Team panel ---- */
+  #team-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  #team-panel.visible { display: flex; }
+
+  .team-selector-row {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+  }
+  .team-selector-row select {
+    width: 100%;
+    background: #fff;
+    color: #333;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 0.82rem;
+  }
+  #team-panel-body {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .team-section-label {
+    padding: 5px 12px 3px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #999;
+    background: #f7f7f7;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+  }
+  .team-player-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px 5px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.82rem;
+  }
+  .team-player-row:last-child { border-bottom: none; }
+  .team-player-name {
+    color: #222;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .team-player-stats {
+    font-size: 0.72rem;
+    color: #888;
+    white-space: nowrap;
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+  .team-player-stats .sval { color: #444; font-weight: 600; }
+  .team-player-stats .slbl { color: #aaa; }
+  .team-player-stats .sdot { color: #ccc; margin: 0 2px; }
+  .team-player-new { font-size: 0.7rem; color: #aaa; font-style: italic; margin-left: 8px; white-space: nowrap; }
+  .team-summary {
+    margin: 10px 12px;
+    padding: 8px 10px;
+    background: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    color: #666;
+    line-height: 1.7;
+  }
+  .team-summary .sum-label { color: #999; }
+  .team-summary .sum-val { color: #333; font-weight: 600; }
+  .team-summary .no-goalie-warn {
+    color: #856404;
+    font-size: 0.75rem;
+    margin-top: 2px;
+    background: #fff3cd;
+    border-radius: 3px;
+    padding: 2px 6px;
+    display: inline-block;
+  }
+  .team-empty-msg {
+    padding: 24px 16px;
+    color: #bbb;
+    text-align: center;
+    font-style: italic;
+    font-size: 0.85rem;
+  }
 </style>
 {% endblock %}
 
@@ -711,46 +844,69 @@
 
   <!-- Player pool (right sidebar) -->
   <div class="player-pool">
-    <div class="pool-header">
-      <h3>Available Players <span id="pool-count" style="color:#888;font-weight:400;font-size:0.85rem;"></span><span class="pool-info-icon" id="pool-info-icon">
-        <i>?</i>
-        <div class="pool-info-tooltip">
-          <strong>Reading the Player List</strong>
-          <div class="tip-section">
-            <span class="tip-label">Stats</span> are per-season averages from Wednesday Draft League history only &mdash; other leagues are not included.<br>
-            Skaters show <span class="tip-label">G</span> (goals), <span class="tip-label">A</span> (assists), and <span class="tip-label">Pts</span> per season.<br>
-            Goalies show <span class="tip-label">GAA</span> (goals allowed per game).<br>
-            <em style="color:#ccc;">New to league</em> means no recorded Wednesday Draft history.
+
+    <!-- Sidebar view tabs -->
+    <div class="sidebar-tabs">
+      <button class="sidebar-tab active" id="tab-pool" onclick="setSidebarView('pool')">Available</button>
+      <button class="sidebar-tab" id="tab-team" onclick="setSidebarView('team')">{% if is_captain %}My Team{% else %}Teams{% endif %}</button>
+    </div>
+
+    <!-- Pool view -->
+    <div id="pool-view">
+      <div class="pool-header">
+        <h3>Available Players <span id="pool-count" style="color:#888;font-weight:400;font-size:0.85rem;"></span><span class="pool-info-icon" id="pool-info-icon">
+          <i>?</i>
+          <div class="pool-info-tooltip">
+            <strong>Reading the Player List</strong>
+            <div class="tip-section">
+              <span class="tip-label">Stats</span> are per-season averages from Wednesday Draft League history only &mdash; other leagues are not included.<br>
+              Skaters show <span class="tip-label">G</span> (goals), <span class="tip-label">A</span> (assists), and <span class="tip-label">Pts</span> per season.<br>
+              Goalies show <span class="tip-label">GAA</span> (goals allowed per game).<br>
+              <em style="color:#ccc;">New to league</em> means no recorded Wednesday Draft history.
+            </div>
+            <div class="tip-section">
+              <span class="tip-label">ADP</span> (Average Draft Round) is the average round this player was selected in past Wednesday drafts. Lower = picked earlier = higher demand. <em style="color:#ccc;">&ndash;&ndash;</em> means no draft history yet.
+            </div>
+            <div class="tip-note">Sort the list by ADP using the Sort buttons below.</div>
           </div>
-          <div class="tip-section">
-            <span class="tip-label">ADP</span> (Average Draft Round) is the average round this player was selected in past Wednesday drafts. Lower = picked earlier = higher demand. <em style="color:#ccc;">&ndash;&ndash;</em> means no draft history yet.
-          </div>
-          <div class="tip-note">Sort the list by ADP using the Sort buttons below.</div>
+        </span></h3>
+        <input class="pool-search" type="text" id="pool-search" placeholder="Search players…" oninput="renderPool()">
+        <div class="pool-filters">
+          <span class="sort-label">Players:</span>
+          <button class="filter-btn active" id="filter-all" onclick="setFilter('all')">All</button>
+          <button class="filter-btn" id="filter-defense" onclick="setFilter('defense')">D</button>
+          <button class="filter-btn" id="filter-center" onclick="setFilter('center')">C</button>
+          <button class="filter-btn" id="filter-wing" onclick="setFilter('wing')">W</button>
+          <button class="filter-btn" id="filter-goalies" onclick="setFilter('goalies')">G</button>
         </div>
-      </span></h3>
-      <input class="pool-search" type="text" id="pool-search" placeholder="Search players…" oninput="renderPool()">
-      <div class="pool-filters">
-        <button class="filter-btn active" id="filter-all" onclick="setFilter('all')">All</button>
-        <button class="filter-btn" id="filter-players" onclick="setFilter('players')">Players</button>
-        <button class="filter-btn" id="filter-goalies" onclick="setFilter('goalies')">Goalies</button>
+        <div class="pool-sort-row">
+          <span class="sort-label">Sort:</span>
+          <button class="sort-btn active" id="sort-alpha" onclick="setSort('alpha')">A &rarr; Z</button>
+          <button class="sort-btn" id="sort-adp" onclick="setSort('adp')">ADP</button>
+          <button class="sort-btn" id="sort-goals" onclick="setSort('goals')">G</button>
+          <button class="sort-btn" id="sort-assists" onclick="setSort('assists')">A</button>
+          <button class="sort-btn" id="sort-gaa" onclick="setSort('gaa')">GAA</button>
+        </div>
       </div>
-      <div class="pool-sort-row">
-        <span class="sort-label">Sort:</span>
-        <button class="sort-btn active" id="sort-alpha" onclick="setSort('alpha')">A &rarr; Z</button>
-        <button class="sort-btn" id="sort-adp" onclick="setSort('adp')">ADP</button>
-        <button class="sort-btn" id="sort-goals" onclick="setSort('goals')">G</button>
-        <button class="sort-btn" id="sort-assists" onclick="setSort('assists')">A</button>
+      {% if is_captain %}
+      <div id="your-turn-notice" class="your-turn-notice" style="display:none;">
+        It's your turn to pick! Click a player from the list below.
       </div>
+      <div id="your-pick-notice" class="your-pick-notice" style="display:none;">
+        You're being drafted onto your team this round — sit tight!
+      </div>
+      {% endif %}
+      <ul class="pool-list" id="pool-list"></ul>
     </div>
-    {% if is_captain %}
-    <div id="your-turn-notice" class="your-turn-notice" style="display:none;">
-      It's your turn to pick! Click a player from the list below.
+
+    <!-- Team panel -->
+    <div id="team-panel">
+      <div class="team-selector-row">
+        <select id="team-selector" onchange="setTeamView(parseInt(this.value))"></select>
+      </div>
+      <div id="team-panel-body"></div>
     </div>
-    <div id="your-pick-notice" class="your-pick-notice" style="display:none;">
-      You're being drafted onto your team this round — sit tight!
-    </div>
-    {% endif %}
-    <ul class="pool-list" id="pool-list"></ul>
+
   </div>
 
 </div>
@@ -817,6 +973,8 @@ let poolSort = 'alpha';
 // True if positions are already drawn (handles page reload after draw)
 let drawComplete = state.teams.length > 0 && state.teams.every(t => t.draft_position !== null);
 let editMode = false;
+let sidebarView = 'pool';
+let teamViewPk = CAPTAIN_TEAM_PK;
 let drawMode = 'draw'; // 'draw' | 'round_reveal'
 
 // ============================================================
@@ -869,6 +1027,7 @@ function render() {
   renderBoard();
   renderPool();
   updateStatusBadge();
+  if (sidebarView === 'team') renderTeamPanel();
   if (IS_COMMISSIONER) updateCommissionerButtons();
   if (IS_COMMISSIONER) triggerPendingAutoPick();
 }
@@ -969,11 +1128,12 @@ function renderBoard() {
         }
         if (pick.stats) {
           if (pick.stats.is_new) {
-            html += `<div style="font-size:0.72rem;color:#aaa;font-style:italic;">New</div>`;
-          } else if (pick.is_goalie && pick.stats.gaa !== null) {
-            html += `<div style="font-size:0.72rem;color:#777;">${pick.stats.gaa} GAA</div>`;
-          } else if (!pick.is_goalie) {
-            html += `<div style="font-size:0.72rem;color:#777;">${pick.stats.goals_per_season}G ${pick.stats.assists_per_season}A ${pick.stats.points_per_season}Pts <span style="opacity:0.6;">/szn</span></div>`;
+            html += `<div class="pick-stats is-new">New to league</div>`;
+          } else if (pick.is_goalie) {
+            const gaaStr = pick.stats.gaa !== null ? pick.stats.gaa : '&mdash;';
+            html += `<div class="pick-stats">${gaaStr} GAA</div>`;
+          } else {
+            html += `<div class="pick-stats">${pick.stats.goals_per_season}G&nbsp;&middot;&nbsp;${pick.stats.assists_per_season}A&nbsp;&middot;&nbsp;${pick.stats.points_per_season}Pts <span class="ps-per">/szn</span></div>`;
           }
         }
         html += `</div>`;
@@ -1009,8 +1169,10 @@ function renderPool() {
   const players = state.available_players || [];
 
   const filtered = players.filter(p => {
-    if (poolFilter === 'goalies' && !p.is_goalie) return false;
-    if (poolFilter === 'players' && p.is_goalie) return false;
+    if (poolFilter === 'goalies'  && !p.is_goalie) return false;
+    if (poolFilter === 'defense'  && (p.is_goalie || p.primary_position !== 'Defense')) return false;
+    if (poolFilter === 'center'   && (p.is_goalie || p.primary_position !== 'Center'))  return false;
+    if (poolFilter === 'wing'     && (p.is_goalie || p.primary_position !== 'Wing'))    return false;
     if (search && !p.full_name.toLowerCase().includes(search)) return false;
     return true;
   });
@@ -1033,6 +1195,11 @@ function renderPool() {
       const aB = b.stats ? (b.stats.assists_per_season ?? 0) : 0;
       if (aA !== aB) return aB - aA;
     }
+    if (poolSort === 'gaa' && a.is_goalie && b.is_goalie) {
+      const gaaA = a.stats && a.stats.gaa !== null ? a.stats.gaa : 9999;
+      const gaaB = b.stats && b.stats.gaa !== null ? b.stats.gaa : 9999;
+      if (gaaA !== gaaB) return gaaA - gaaB;
+    }
     return a.last_name.localeCompare(b.last_name);
   });
 
@@ -1045,6 +1212,13 @@ function renderPool() {
     state.state === 'active';
 
   const isMyTurn = IS_CAPTAIN && state.active_team_pk === CAPTAIN_TEAM_PK && state.state === 'active' && !isMyAutoRound;
+
+  // Auto-switch to pool when the captain's turn comes up while viewing a team
+  if (isMyTurn && sidebarView === 'team') {
+    setSidebarView('pool');
+    showToast("Your pick is up — showing available players");
+    return;
+  }
 
   // Show/hide captain turn notices
   const turnNotice = document.getElementById('your-turn-notice');
@@ -1091,16 +1265,19 @@ function renderPool() {
       `<span class="pname">${escHtml(p.full_name)}</span>` +
       `<span class="pname-adp">ADP: <span class="adp-val">${adpVal}</span></span>` +
       `</div>`;
-    // Position line
+    // Position line — show primary; append secondary abbreviation if not "one thing only"
+    const secAbbr = { Defense: 'D', Center: 'C', Wing: 'W', Goalie: 'G' }[p.secondary_position] || '';
     if (p.is_goalie) {
-      html += `<div class="pposition"><span class="badge badge-goalie">GOALIE</span></div>`;
+      const secSuffix = secAbbr ? ` <span class="psecondary">/ ${secAbbr}</span>` : '';
+      html += `<div class="pposition"><span class="badge badge-goalie">GOALIE</span>${secSuffix}</div>`;
     } else {
-      html += `<div class="pposition">${escHtml(p.primary_position)}</div>`;
+      const secSuffix = secAbbr ? ` <span class="psecondary">/ ${secAbbr}</span>` : '';
+      html += `<div class="pposition">${escHtml(p.primary_position)}${secSuffix}</div>`;
     }
     // Stats line — omitted entirely when no history exists
     if (p.stats && !p.stats.is_new) {
       if (p.is_goalie && p.stats.gaa !== null) {
-        html += `<div class="pstats"><span class="sval">${p.stats.gaa}</span><span class="slbl"> GAA</span><span class="sper">/szn</span></div>`;
+        html += `<div class="pstats"><span class="sval">${p.stats.gaa}</span><span class="slbl"> GAA</span></div>`;
       } else if (!p.is_goalie) {
         html += `<div class="pstats">` +
           `<span class="sval">${p.stats.goals_per_season}</span><span class="slbl">G</span>` +
@@ -1458,6 +1635,120 @@ function escAttr(s) {
 }
 function posAbbr(pos) {
   return { Center: 'C', Wing: 'W', Defense: 'D' }[pos] || '';
+}
+
+// ============================================================
+// Sidebar view switching
+// ============================================================
+function setSidebarView(v) {
+  sidebarView = v;
+  document.getElementById('tab-pool').classList.toggle('active', v === 'pool');
+  document.getElementById('tab-team').classList.toggle('active', v === 'team');
+  const poolView = document.getElementById('pool-view');
+  const teamPanel = document.getElementById('team-panel');
+  poolView.style.display = v === 'pool' ? 'flex' : 'none';
+  teamPanel.style.display = v === 'team' ? 'flex' : 'none';
+  if (v === 'pool') renderPool();
+  if (v === 'team') renderTeamPanel();
+}
+
+function setTeamView(pk) {
+  teamViewPk = pk;
+  renderTeamPanel();
+}
+
+function renderTeamPanel() {
+  const teams = [...state.teams].sort((a, b) => (a.draft_position || 999) - (b.draft_position || 999));
+
+  // Populate the team selector
+  const sel = document.getElementById('team-selector');
+  if (!sel) return;
+
+  // If teamViewPk is not in the current team list, default to first team
+  if (teams.length && !teams.find(t => t.id === teamViewPk)) {
+    teamViewPk = teams[0].id;
+  }
+
+  if (!teams.length) {
+    sel.innerHTML = '<option>No teams yet</option>';
+    document.getElementById('team-panel-body').innerHTML =
+      '<div class="team-empty-msg">No teams configured yet.</div>';
+    return;
+  }
+
+  sel.innerHTML = teams.map(t =>
+    `<option value="${t.id}"${t.id === teamViewPk ? ' selected' : ''}>${escHtml(t.team_name)}</option>`
+  ).join('');
+
+  const team = teams.find(t => t.id === teamViewPk);
+  const body = document.getElementById('team-panel-body');
+  if (!team) { body.innerHTML = ''; return; }
+
+  const picks = Object.values(team.picks || {});
+  if (!picks.length) {
+    body.innerHTML = '<div class="team-empty-msg">No picks yet.</div>';
+    return;
+  }
+
+  const goalies = picks.filter(p => p.is_goalie);
+  const defense = picks.filter(p => !p.is_goalie && p.primary_position === 'Defense');
+  const centers = picks.filter(p => !p.is_goalie && p.primary_position === 'Center');
+  const wings   = picks.filter(p => !p.is_goalie && p.primary_position === 'Wing');
+
+  let html = '';
+  if (goalies.length) html += buildPositionSection('Goalie', goalies, true, team.captain_signup_id);
+  if (defense.length) html += buildPositionSection('Defense', defense, false, team.captain_signup_id);
+  if (centers.length) html += buildPositionSection('Center', centers, false, team.captain_signup_id);
+  if (wings.length)   html += buildPositionSection('Wing', wings, false, team.captain_signup_id);
+
+  // Summary block
+  const nonGoalies = picks.filter(p => !p.is_goalie);
+  const statsPlayers = nonGoalies.filter(p => p.stats && !p.stats.is_new);
+  let sumHtml = '<div class="team-summary">';
+  sumHtml += `<span class="sum-label">Roster:</span> <span class="sum-val">${picks.length}</span> player${picks.length !== 1 ? 's' : ''}`;
+  if (statsPlayers.length) {
+    const avgG   = (statsPlayers.reduce((s, p) => s + (p.stats.goals_per_season   || 0), 0) / statsPlayers.length).toFixed(1);
+    const avgA   = (statsPlayers.reduce((s, p) => s + (p.stats.assists_per_season || 0), 0) / statsPlayers.length).toFixed(1);
+    const avgPts = (statsPlayers.reduce((s, p) => s + (p.stats.points_per_season  || 0), 0) / statsPlayers.length).toFixed(1);
+    sumHtml += `<br><span class="sum-label">Player avg:</span> ` +
+      `<span class="sum-val">${avgG}</span><span class="sum-label">G</span>&nbsp;&middot;&nbsp;` +
+      `<span class="sum-val">${avgA}</span><span class="sum-label">A</span>&nbsp;&middot;&nbsp;` +
+      `<span class="sum-val">${avgPts}</span><span class="sum-label">Pts</span>` +
+      `<span style="color:#bbb;font-size:0.7rem;"> /szn</span>`;
+  }
+  if (!goalies.length) {
+    sumHtml += `<div class="no-goalie-warn">&#9888; No goalie yet</div>`;
+  }
+  sumHtml += '</div>';
+  html += sumHtml;
+
+  body.innerHTML = html;
+}
+
+function buildPositionSection(label, players, isGoalie, captainSignupId) {
+  let html = `<div class="team-section"><div class="team-section-label">${label}</div>`;
+  for (const p of players) {
+    html += `<div class="team-player-row">`;
+    html += `<div class="team-player-name">${escHtml(p.full_name)}`;
+    if (p.id === captainSignupId) html += `<span class="captain-badge">C</span>`;
+    html += `</div>`;
+    if (!p.stats || p.stats.is_new) {
+      html += `<span class="team-player-new">New</span>`;
+    } else if (isGoalie && p.stats.gaa !== null) {
+      html += `<div class="team-player-stats"><span class="sval">${p.stats.gaa}</span><span class="slbl"> GAA</span></div>`;
+    } else if (!isGoalie) {
+      html += `<div class="team-player-stats">` +
+        `<span class="sval">${p.stats.goals_per_season}</span><span class="slbl">G</span>` +
+        `<span class="sdot">&middot;</span>` +
+        `<span class="sval">${p.stats.assists_per_season}</span><span class="slbl">A</span>` +
+        `<span class="sdot">&middot;</span>` +
+        `<span class="sval">${p.stats.points_per_season}</span><span class="slbl">Pts</span>` +
+        `</div>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
 }
 
 // ============================================================

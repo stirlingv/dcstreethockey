@@ -310,10 +310,13 @@ class Command(BaseCommand):
 
     def _create_historical_stats(self, signups):
         """
-        Create fake Wednesday League history for ~60% of non-goalie players so
-        the draft board shows per-season averages instead of 'New' for everyone.
+        Create fake Wednesday League history so the draft board shows real stats.
+
+        Non-goalies (~60%): one Stat row per season played (season totals).
+        Goalies (all):      one Stat row per game so that GAA is calculable via
+                            row count (matchup=None, each row = 1 game played).
+
         Uses two clearly-test past seasons (2097, 2098).
-        Stat rows use matchup=None (the field is nullable) and represent season totals.
         """
         wed_div, _ = Division.objects.get_or_create(division=3)
 
@@ -348,6 +351,7 @@ class Command(BaseCommand):
             SeasonSignup.POSITION_DEFENSE: (1, 5, 4, 12),
         }
 
+        # ~60% of non-goalies get historical skater stats (season-total rows)
         non_goalies = [s for s in signups if not s.is_goalie]
         veterans = random.sample(non_goalies, int(len(non_goalies) * 0.6))
 
@@ -372,8 +376,33 @@ class Command(BaseCommand):
                     goals_against=0,
                 )
 
+        # All goalies get linked players + per-game stat rows so GAA is realistic.
+        # Each row = 1 game (matchup=None); row count is used as the game denominator.
+        goalies = [s for s in signups if s.is_goalie]
+        for signup in goalies:
+            player = Player.objects.create(
+                first_name=signup.first_name,
+                last_name=signup.last_name,
+            )
+            signup.linked_player = player
+            signup.save(update_fields=["linked_player"])
+
+            for ps in random.sample(past_seasons, random.randint(1, 2)):
+                team = random.choice(past_teams[ps.pk])
+                num_games = random.randint(10, 22)
+                for _ in range(num_games):
+                    Stat.objects.create(
+                        player=player,
+                        team=team,
+                        matchup=None,
+                        goals=0,
+                        assists=0,
+                        goals_against=random.randint(1, 6),
+                    )
+
         self.stdout.write(
-            f"Created historical stats for {len(veterans)} of {len(non_goalies)} players."
+            f"Created historical stats for {len(veterans)} of {len(non_goalies)} players "
+            f"and all {len(goalies)} goalies."
         )
 
     def _create_historical_adp_data(self, signups):

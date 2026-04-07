@@ -74,13 +74,16 @@ def _get_wednesday_stats(player):
         goals=Sum("goals"),
         assists=Sum("assists"),
         goals_against=Sum("goals_against"),
-        games=Count("matchup", distinct=True),
+        matchup_games=Count("matchup", distinct=True),
     )
 
     goals = agg["goals"] or 0
     assists = agg["assists"] or 0
     goals_against = agg["goals_against"] or 0
-    games = agg["games"] or 0
+    # Production data: each Stat row has a real MatchUp FK → count distinct matchups.
+    # Seed / legacy data: matchup=None (season-total rows) → fall back to row count so
+    # GAA is still calculable (each row represents one game in that case).
+    games = agg["matchup_games"] or qs.count()
     points = goals + assists
 
     def per_season(n):
