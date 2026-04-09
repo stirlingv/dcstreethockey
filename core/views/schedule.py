@@ -280,12 +280,24 @@ def scores(request, division=0):
         if len(division):
             # division ex: [(1, 'Sunday D1')]
             context["division_name"] = division[0][1]
-            matchups = get_matches_for_division(context["active_division"]).filter(
-                week__date__lte=datetime.datetime.today(),
-                week__season__is_current_season=True,
+            # Find the most recent season with played games for this division
+            recent_season_id = (
+                MatchUp.objects.filter(
+                    hometeam__division=context["active_division"],
+                    awayteam__is_active=True,
+                    week__date__lte=datetime.datetime.today(),
+                )
+                .order_by("-week__season__year", "-week__season__season_type")
+                .values_list("week__season_id", flat=True)
+                .first()
             )
-            matchups = add_goals_for_matchups(matchups)
-            context["matchups"] = get_detailed_matchups(matchups)
+            if recent_season_id:
+                matchups = get_matches_for_division(context["active_division"]).filter(
+                    week__date__lte=datetime.datetime.today(),
+                    week__season_id=recent_season_id,
+                )
+                matchups = add_goals_for_matchups(matchups)
+                context["matchups"] = get_detailed_matchups(matchups)
     return render(request, "leagues/scores.html", context=context)
 
 
