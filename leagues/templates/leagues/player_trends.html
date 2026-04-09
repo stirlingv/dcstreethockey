@@ -12,9 +12,14 @@
                     {{ player.first_name }} {{ player.last_name }}
                 </h2>
                 <h3>
-                    Average Goals/Season: {{ average_goals|floatformat:2 }} &nbsp;
-                    Average Assists/Season: {{ average_assists|floatformat:2 }} &nbsp;
-                    Average Points/Season: {{ average_points|floatformat:2 }}<br>
+                    {% if goalie_trend %}
+                        Career GAA (primary goalie seasons): {{ goalie_trend.avg_gaa|floatformat:2 }}<br>
+                    {% endif %}
+                    {% if player_seasons and not is_primarily_goalie %}
+                        Average Goals/Season: {{ average_goals|floatformat:2 }} &nbsp;
+                        Average Assists/Season: {{ average_assists|floatformat:2 }} &nbsp;
+                        Average Points/Season: {{ average_points|floatformat:2 }}<br>
+                    {% endif %}
                     Displaying for: {{ timespan }} seasons, Division: {% if division == 'all' %}All Divisions{% else %}{{ division|get_division_name }}{% endif %}
                 </h3>
             {% endif %}
@@ -43,8 +48,25 @@
             </form>
 
             {% if player %}
-                <h3>Player Trends</h3>
-                <canvas id="playerTrendsChart"></canvas>
+                {% if is_primarily_goalie %}
+                    {% if goalie_trend %}
+                    <h3>Goalie Trends <small style="font-size: 0.65em; color: #888;">lower GAA = better</small></h3>
+                    <canvas id="goalieTrendsChart"></canvas>
+                    {% endif %}
+                {% else %}
+                    {% if player_seasons %}
+                    <h3>Offensive Trends</h3>
+                    <canvas id="playerTrendsChart"></canvas>
+                    {% endif %}
+                    {% if goalie_trend %}
+                    <h3 style="margin-top: {% if player_seasons %}32px{% else %}0{% endif %};">
+                        Goalie Trends                    </h3>
+                    <canvas id="goalieTrendsChart"></canvas>
+                    {% endif %}
+                {% endif %}
+                {% if not player_seasons and not goalie_trend %}
+                <p>No trend data available for this player.</p>
+                {% endif %}
             {% else %}
                 {% if player_id %}
                     <p>No player found or no data available.</p>
@@ -70,32 +92,32 @@
     });
 </script>
 
-{% if player %}
+{% if player_seasons %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var ctx = document.getElementById('playerTrendsChart').getContext('2d');
         var playerTrendsChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: {{ player_seasons|safe }}, // List of seasons with year, season, and team name
+                labels: {{ player_seasons|safe }},
                 datasets: [
                     {
                         label: 'Goals',
-                        data: {{ player_goals|safe }}, // List of goals per season
+                        data: {{ player_goals|safe }},
                         borderColor: 'rgba(75, 192, 192, 1)',
                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         fill: false
                     },
                     {
                         label: 'Assists',
-                        data: {{ player_assists|safe }}, // List of assists per season
+                        data: {{ player_assists|safe }},
                         borderColor: 'rgba(255, 99, 132, 1)',
                         backgroundColor: 'rgba(255, 99, 132, 0.2)',
                         fill: false
                     },
                     {
                         label: 'Point Trend',
-                        data: {{ trend_line|safe }}, // Trend line for total points
+                        data: {{ trend_line|safe }},
                         borderColor: 'rgba(255, 206, 86, 1)',
                         backgroundColor: 'rgba(255, 206, 86, 0.2)',
                         fill: false,
@@ -105,27 +127,56 @@
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true, // Ensure the aspect ratio is maintained
+                maintainAspectRatio: true,
                 scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Season'
+                    x: { title: { display: true, text: 'Season' } },
+                    y: { title: { display: true, text: 'Count' } }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) { return tooltipItems[0].label; }
                         }
-                    },
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endif %}
+{% if goalie_trend %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('goalieTrendsChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ goalie_trend.goalie_seasons|safe }},
+                datasets: [{
+                    label: 'GAA',
+                    data: {{ goalie_trend.goalie_gaas|safe }},
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    fill: false,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: { title: { display: true, text: 'Season' } },
                     y: {
-                        title: {
-                            display: true,
-                            text: 'Count'
-                        }
+                        title: { display: true, text: 'Goals Against Average' },
+                        reverse: true
                     }
                 },
                 plugins: {
                     tooltip: {
                         callbacks: {
-                            title: function(tooltipItems) {
-                                return tooltipItems[0].label;
-                            }
+                            title: function(items) { return items[0].label; },
+                            label: function(item) { return 'GAA: ' + item.raw; }
                         }
                     }
                 }

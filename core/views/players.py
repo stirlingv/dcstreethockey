@@ -5,6 +5,7 @@ from dal import autocomplete
 from django.db import connection
 from django.db.models import (
     Case,
+    Count,
     DecimalField,
     ExpressionWrapper,
     F,
@@ -405,6 +406,129 @@ def get_goalie_stats(player, scope="combined"):
     )
 
 
+def group_offensive_stats_by_division(stats):
+    """Group a list of offensive stat rows by division with subtotals."""
+    groups = {}
+    for stat in stats:
+        div = stat["team__division"]
+        if div not in groups:
+            groups[div] = {
+                "division": div,
+                "total_goals": 0,
+                "total_assists": 0,
+                "season_count": 0,
+                "rows": [],
+            }
+        groups[div]["season_count"] += 1
+        groups[div]["total_goals"] += stat["sum_goals"] or 0
+        groups[div]["total_assists"] += stat["sum_assists"] or 0
+        groups[div]["rows"].append(stat)
+
+    result = sorted(groups.values(), key=lambda g: g["division"] or 99)
+    for g in result:
+        g["total_points"] = g["total_goals"] + g["total_assists"]
+        count = g["season_count"]
+        g["avg_goals"] = round(g["total_goals"] / count, 1) if count else 0
+        g["avg_assists"] = round(g["total_assists"] / count, 1) if count else 0
+    return result
+
+
+def group_goalie_stats_by_division(stats):
+    """Group a list of goalie stat rows by division with subtotals."""
+    groups = {}
+    for stat in stats:
+        div = stat["team__division"]
+        if div not in groups:
+            groups[div] = {
+                "division": div,
+                "total_games": 0,
+                "total_goals_against": 0,
+                "rows": [],
+            }
+        groups[div]["total_games"] += stat["sum_games_played"] or 0
+        groups[div]["total_goals_against"] += stat["sum_goals_against"] or 0
+        groups[div]["rows"].append(stat)
+
+    result = sorted(groups.values(), key=lambda g: g["division"] or 99)
+    for g in result:
+        total_games = g["total_games"]
+        g["career_gaa"] = (
+            round(g["total_goals_against"] / total_games, 2) if total_games > 0 else 0
+        )
+    return result
+
+
+def is_primarily_goalie_player(player_id):
+    """Return True if the player has more goalie-position seasons than non-goalie seasons."""
+    base = Roster.objects.filter(player_id=player_id, is_substitute=False)
+    goalie_count = base.filter(position1=4).count()
+    non_goalie_count = base.exclude(position1=4).count()
+    return goalie_count > non_goalie_count
+
+
+def get_goalie_trend_data(player, season_mapping, division=None, timespan=None):
+    """
+    Return GAA-per-season data for teams where this player's primary position was Goalie.
+    Returns None if the player has no goalie-position roster entries.
+    Optional filters: division (int) and timespan (int, most-recent N seasons).
+    """
+    goalie_roster_qs = Roster.objects.filter(
+        player=player, position1=4, is_substitute=False
+    )
+    if division and division != "all":
+        goalie_roster_qs = goalie_roster_qs.filter(team__division=division)
+    goalie_team_ids = list(goalie_roster_qs.values_list("team_id", flat=True))
+
+    if not goalie_team_ids:
+        return None
+
+    stats = (
+        Stat.objects.filter(player=player, team_id__in=goalie_team_ids)
+        .values(
+            "team__id",
+            "team__team_name",
+            "team__season__year",
+            "team__season__season_type",
+        )
+        .annotate(
+            sum_goals_against=Sum(
+                Coalesce("goals_against", 0) - Coalesce("empty_net", 0)
+            ),
+            sum_games_played=Count("id"),
+        )
+        .order_by("team__season__year", "team__season__season_type")
+    )
+
+    seasons = []
+    gaas = []
+    for stat in stats:
+        gp = stat["sum_games_played"] or 0
+        if gp > 0:
+            gaa = round((stat["sum_goals_against"] or 0) / gp, 2)
+            label = (
+                f"{stat['team__season__year']} "
+                f"{season_mapping.get(stat['team__season__season_type'], 'Unknown')} "
+                f"({stat['team__team_name']})"
+            )
+            seasons.append(label)
+            gaas.append(gaa)
+
+    if timespan and timespan != "all":
+        seasons = seasons[-int(timespan) :]
+        gaas = gaas[-int(timespan) :]
+
+    if not seasons:
+        return None
+
+    avg_gaa = round(sum(gaas) / len(gaas), 2)
+    return {
+        "goalie_seasons": seasons,
+        "goalie_gaas": gaas,
+        "avg_gaa": avg_gaa,
+        "goalie_team_ids": goalie_team_ids,
+    }
+
+
 def get_average_stats_for_player(player_id, scope="combined"):
     stats = filter_stats_by_scope(Stat.objects.filter(player_id=player_id), scope)
     totals = stats.aggregate(
@@ -445,10 +569,14 @@ def get_stats_for_past_team(team):
     )
 
 
-def calculate_player_stats(player, season_mapping, scope="combined"):
+def calculate_player_stats(
+    player, season_mapping, scope="combined", exclude_team_ids=None
+):
+    base_qs = filter_stats_by_scope(Stat.objects.filter(player=player), scope)
+    if exclude_team_ids:
+        base_qs = base_qs.exclude(team_id__in=exclude_team_ids)
     offensive_stats = (
-        filter_stats_by_scope(Stat.objects.filter(player=player), scope)
-        .select_related("team__season", "team__division")
+        base_qs.select_related("team__season", "team__division")
         .values(
             "team__season__year",
             "team__season__season_type",
@@ -653,33 +781,37 @@ def PlayerAllTimeStats_list(request):
 def player_view(request, player_id):
     player = get_object_or_404(Player, id=player_id)
     season_mapping = {1: "Spring", 2: "Summer", 3: "Fall", 4: "Winter"}
-    stats = calculate_player_stats(player, season_mapping, scope="combined")
+    primarily_goalie = is_primarily_goalie_player(player_id)
+    snapshot_limit = 15
+    goalie_trend = get_goalie_trend_data(
+        player, season_mapping, timespan=snapshot_limit
+    )
+    # Exclude primary-goalie teams from the offensive snapshot
+    goalie_team_ids = goalie_trend["goalie_team_ids"] if goalie_trend else []
+    stats = calculate_player_stats(
+        player, season_mapping, scope="combined", exclude_team_ids=goalie_team_ids
+    )
+    # Limit offensive snapshot to the most recent seasons
+    for key in ("player_seasons", "player_goals", "player_assists", "trend_line"):
+        if len(stats.get(key, [])) > snapshot_limit:
+            stats[key] = stats[key][-snapshot_limit:]
     career_stats = get_career_stats_for_player(player_id)
+
+    def build_stat_section(key, label, scope):
+        offensive_stats = list(get_offensive_stats_for_player(player_id, scope=scope))
+        goalie_stats = list(get_goalie_stats(player_id, scope=scope))
+        return {
+            "key": key,
+            "label": label,
+            "offensive_groups": group_offensive_stats_by_division(offensive_stats),
+            "goalie_stats": goalie_stats,
+            "goalie_groups": group_goalie_stats_by_division(goalie_stats),
+        }
+
     stat_sections = [
-        {
-            "key": "regular",
-            "label": "Regular Season",
-            "offensive_stats": get_offensive_stats_for_player(
-                player_id, scope="regular"
-            ),
-            "goalie_stats": get_goalie_stats(player_id, scope="regular"),
-        },
-        {
-            "key": "postseason",
-            "label": "Post Season",
-            "offensive_stats": get_offensive_stats_for_player(
-                player_id, scope="postseason"
-            ),
-            "goalie_stats": get_goalie_stats(player_id, scope="postseason"),
-        },
-        {
-            "key": "combined",
-            "label": "Combined",
-            "offensive_stats": get_offensive_stats_for_player(
-                player_id, scope="combined"
-            ),
-            "goalie_stats": get_goalie_stats(player_id, scope="combined"),
-        },
+        build_stat_section("regular", "Regular Season", "regular"),
+        build_stat_section("postseason", "Post Season", "postseason"),
+        build_stat_section("combined", "Combined", "combined"),
     ]
 
     context = {
@@ -688,7 +820,11 @@ def player_view(request, player_id):
         "career_stats": career_stats,
         "seasons": get_seasons_played(player_id),
         "goalie_stats": get_goalie_stats(player_id, scope="combined"),
+        "goalie_trend": goalie_trend,
+        "is_primarily_goalie": primarily_goalie,
         "stat_sections": stat_sections,
+        # True when both snapshot charts should appear side-by-side
+        "both_snapshots": bool(goalie_trend) and not primarily_goalie,
         "average_stats": {
             "combined": {
                 "average_goals_per_season": career_stats.get(
@@ -728,11 +864,18 @@ def player_trends_view(request):
         try:
             player = get_object_or_404(Player, id=player_id)
             season_mapping = {1: "Spring", 2: "Summer", 3: "Fall", 4: "Winter"}
-            calculate_player_stats(player, season_mapping)
+            primarily_goalie = is_primarily_goalie_player(int(player_id))
 
-            # Apply division and timespan filters if necessary
+            # Goalie trend (filtered by division/timespan)
+            goalie_trend = get_goalie_trend_data(
+                player, season_mapping, division=division, timespan=timespan
+            )
+            goalie_team_ids = goalie_trend["goalie_team_ids"] if goalie_trend else []
+
+            # Offensive stats — exclude teams where the player was the primary goalie
             offensive_stats = (
                 Stat.objects.filter(player=player)
+                .exclude(team_id__in=goalie_team_ids)
                 .select_related("team__season", "team__division")
                 .values(
                     "team__season__year",
@@ -752,21 +895,18 @@ def player_trends_view(request):
                 timespan = int(timespan)
                 offensive_stats = offensive_stats[:timespan]
 
-            # Reverse the order to display the most recent seasons on the far right
             offensive_stats = list(offensive_stats)[::-1]
 
-            # Check the player's position for each season and filter out seasons with zero goals and zero assists if the player's primary position is not goalie or defense
+            # Filter out 0/0 seasons for non-defense/non-goalie players
             filtered_stats = []
             for stat in offensive_stats:
                 roster_entry = Roster.objects.filter(
                     player=player, is_substitute=False, team_id=stat["team__id"]
                 ).first()
                 primary_position = roster_entry.position1 if roster_entry else None
-                sum_goals = stat["sum_goals"] if stat["sum_goals"] is not None else 0
-                sum_assists = (
-                    stat["sum_assists"] if stat["sum_assists"] is not None else 0
-                )
-                if primary_position not in [3, 4]:  # 3: Defense, 4: Goalie
+                sum_goals = stat["sum_goals"] or 0
+                sum_assists = stat["sum_assists"] or 0
+                if primary_position not in [3, 4]:
                     if sum_goals > 0 or sum_assists > 0:
                         filtered_stats.append(stat)
                 else:
@@ -776,17 +916,9 @@ def player_trends_view(request):
                 f"{stat['team__season__year']} {season_mapping.get(stat['team__season__season_type'], 'Unknown')} ({stat['team__team_name']})"
                 for stat in filtered_stats
             ]
-            player_goals = [
-                stat["sum_goals"] if stat["sum_goals"] is not None else 0
-                for stat in filtered_stats
-            ]
-            player_assists = [
-                stat["sum_assists"] if stat["sum_assists"] is not None else 0
-                for stat in filtered_stats
-            ]
-            player_points = [
-                goals + assists for goals, assists in zip(player_goals, player_assists)
-            ]
+            player_goals = [stat["sum_goals"] or 0 for stat in filtered_stats]
+            player_assists = [stat["sum_assists"] or 0 for stat in filtered_stats]
+            player_points = [g + a for g, a in zip(player_goals, player_assists)]
 
             average_goals = sum(player_goals) / len(player_goals) if player_goals else 0
             average_assists = (
@@ -796,14 +928,16 @@ def player_trends_view(request):
                 sum(player_points) / len(player_points) if player_points else 0
             )
 
-            # Calculate trend line for total points
-            x = np.arange(len(player_points))
-            y = np.array(player_points)
-            if len(x) > 1:  # Ensure there are enough points to calculate a trend line
-                trend = np.polyfit(x, y, 1)
-                trend_line = trend[0] * x + trend[1]
+            if player_points:
+                x = np.arange(len(player_points))
+                y = np.array(player_points)
+                trend_line = (
+                    (np.polyfit(x, y, 1)[0] * x + np.polyfit(x, y, 1)[1]).tolist()
+                    if len(x) > 1
+                    else y.tolist()
+                )
             else:
-                trend_line = y  # Not enough points to calculate a trend line
+                trend_line = []
 
             context.update(
                 {
@@ -812,26 +946,17 @@ def player_trends_view(request):
                     "player_goals": player_goals,
                     "player_assists": player_assists,
                     "player_points": player_points,
-                    "trend_line": trend_line.tolist(),  # Convert numpy array to list for JSON serialization
+                    "trend_line": trend_line,
                     "timespan": timespan,
                     "player_id": player_id,
                     "division": division,
                     "average_goals": average_goals,
                     "average_assists": average_assists,
                     "average_points": average_points,
+                    "goalie_trend": goalie_trend,
+                    "is_primarily_goalie": primarily_goalie,
                 }
             )
-
-            # Debug statements
-            print(f"Player: {player.first_name} {player.last_name}")
-            print(f"Seasons: {player_seasons}")
-            print(f"Goals: {player_goals}")
-            print(f"Assists: {player_assists}")
-            print(f"Points: {player_points}")
-            print(f"Average Goals: {average_goals}")
-            print(f"Average Assists: {average_assists}")
-            print(f"Average Points: {average_points}")
-            print(f"Trend Line: {trend_line}")
 
         except Exception as e:
             print(f"Error: {e}")

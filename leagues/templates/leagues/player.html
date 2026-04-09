@@ -29,6 +29,95 @@
             min-width: 480px;
         }
     }
+    /* Division accordion */
+    .division-group {
+        margin-bottom: 4px;
+    }
+    .division-group-header {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        padding: 8px 14px;
+        background: #f4f4f4;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        user-select: none;
+    }
+    .division-group-header:hover {
+        background: #e8e8e8;
+    }
+    .division-group-name {
+        font-weight: bold;
+        min-width: 64px;
+    }
+    .division-group-summary {
+        flex: 1;
+        color: #555;
+        font-size: 0.9em;
+        margin-left: 14px;
+    }
+    .division-group-chevron {
+        font-size: 0.75em;
+        color: #888;
+        transition: transform 0.2s;
+        margin-left: 8px;
+    }
+    .division-group.expanded .division-group-chevron {
+        transform: rotate(180deg);
+    }
+    .division-group-body {
+        display: none;
+        border: 1px solid #ddd;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .division-group-body .table {
+        min-width: 520px;
+        margin-bottom: 0;
+    }
+    .division-group.expanded .division-group-body {
+        display: block;
+    }
+    @media screen and (max-width: 736px) {
+        .division-group-body .table {
+            min-width: 480px;
+        }
+    }
+    .snapshot-pair {
+        display: flex;
+        gap: 16px;
+    }
+    .snapshot-pair > div {
+        flex: 1;
+        min-width: 0;
+    }
+    .snapshot-pair h3 {
+        font-size: 0.9em;
+        margin-bottom: 6px;
+    }
+    /* Align data cells to match centered stat-column headers */
+    .division-group-body .table td {
+        text-align: center;
+    }
+    .division-group-body .table td:nth-child(3) {
+        text-align: left;
+    }
+    /* Tighten section spacing — override framework's section padding */
+    .team #content section.stat-block {
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+    /* Single control bar: scope toggle left, expand/collapse right */
+    .stats-control-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
 </style>
 {% endblock %}
 {% block content %}
@@ -36,7 +125,7 @@
     <div id="content">
         <div class="container">
             <div class="row">
-                <div class="8u 12u(mobile)">
+                <div class="{% if both_snapshots %}6u{% else %}8u{% endif %} 12u(mobile)">
                     {% if player %}
                     <div class="title">
                         {{ player.first_name }} {{ player.last_name }}
@@ -59,116 +148,147 @@
                     {% endif %}
                     {% endif %}
                 </div>
-                <div class="4u 12u(mobile)">
-                    {% if offensive_stats %}
-                    <h3>Player Trends Snapshot</h3>
-                    <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
+                <div class="{% if both_snapshots %}6u{% else %}4u{% endif %} 12u(mobile)">
+                    {% if is_primarily_goalie %}
+                        {% if goalie_trend %}
+                        <h3>Goalie Trends Snapshot</h3>
+                        <canvas id="goalieSnapshotChart" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
+                        {% endif %}
+                    {% elif both_snapshots %}
+                        <div class="snapshot-pair">
+                            <div>
+                                <h3>Offensive Trends</h3>
+                                <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
+                            </div>
+                            <div>
+                                <h3>Goalie Trends</h3>
+                                <canvas id="goalieSnapshotChart" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
+                            </div>
+                        </div>
+                    {% else %}
+                        {% if offensive_stats %}
+                        <h3>Player Trends Snapshot</h3>
+                        <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
+                        {% endif %}
+                        {% if goalie_trend %}
+                        <h3>Goalie Trends Snapshot</h3>
+                        <canvas id="goalieSnapshotChart" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
             <section class="rostersection">
-                <div class="stat-scope-header">
-                    <div class="stat-breakdown-note">
-                        Stats view: Combined (default), Regular Season, or Post Season.
+                <div class="stats-control-bar">
+                    <div class="stat-scope-toggle fancy">
+                        <div class="optionsdiv stat-scope-option activeoption" onclick="showStatScope('combined', this)">Combined</div>
+                        <div class="optionsdiv stat-scope-option" onclick="showStatScope('regular', this)">Regular Season</div>
+                        <div class="optionsdiv stat-scope-option" onclick="showStatScope('postseason', this)">Post Season</div>
                     </div>
                     <div class="stat-scope-toggle fancy">
-                        <div class="optionsdiv stat-scope-option activeoption" onclick="showStatScope('combined', this)">
-                            Combined
-                        </div>
-                        <div class="optionsdiv stat-scope-option" onclick="showStatScope('regular', this)">
-                            Regular Season
-                        </div>
-                        <div class="optionsdiv stat-scope-option" onclick="showStatScope('postseason', this)">
-                            Post Season
-                        </div>
+                        <div class="optionsdiv stat-scope-option" onclick="expandAllActiveGroups()">Expand All</div>
+                        <div class="optionsdiv stat-scope-option" onclick="collapseAllActiveGroups()">Collapse All</div>
                     </div>
                 </div>
-                {% if goalie_stats %}
-                    <h2> Career Goals Against Average: {{ career_stats.average_goals_against_per_game|floatformat:2 }} </h2>
-                {% endif %}
                 {% for section in stat_sections %}
                 <section class="rostersection stat-block stat-scope-target {% if section.key != "combined" %}hidden{% endif %}" data-scope="{{ section.key }}" id="stats-{{ section.key }}">
-                    <h3 class="stat-block-title">{{ section.label }}</h3>
-                    <div class="row player_stats">
-                        <div class="12u 12u(mobile)">
-                            <div class="table-scroll">
-                                <table class="table">
-                                    <tr>
-                                        <th class="stat-column">Year</th>
-                                        <th class="stat-column">Season</th>
-                                        <th class="stat-column">Team (Record)</th>
-                                        <th class="stat-column">Div</th>
-                                        <th class="stat-column">Goals</th>
-                                        <th class="stat-column">Assists</th>
-                                        <th class="stat-column">Pts</th>
-                                    </tr>
-                                    {% if section.offensive_stats %}
-                                    {% for stat in section.offensive_stats %}
-                                    <tr>
-                                        <td>{{ stat.team__season__year }}</td>
-                                        <td>{{ stat.team__season__season_type|season_type }}</td>
-                                        <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
-                                            {% if stat.team__season__year < 2022 %}
-                                                {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
-                                            {% else %}
-                                                {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_otw|default:0 }} - {{ stat.team_otl|default:0 }} - {{ stat.team_losses|default:0 }})
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ stat.team__division|division_type }}</td>
-                                        <td>{{ stat.sum_goals|default:0 }}</td>
-                                        <td>{{ stat.sum_assists|default:0 }}</td>
-                                        <td>{{ stat.sum_goals|add:stat.sum_assists|default:0 }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                    {% else %}
-                                    <tr>
-                                        <td colspan="7">No offensive stats available.</td>
-                                    </tr>
-                                    {% endif %}
-                                </table>
-                            </div>
+
+                    {% if section.offensive_groups %}
+                    {% for group in section.offensive_groups %}
+                    <div class="division-group" data-section="{{ section.key }}" data-stat-type="offensive">
+                        <div class="division-group-header" onclick="toggleDivisionGroup(this)">
+                            <span class="division-group-name">{{ group.division|division_type }}</span>
+                            <span class="division-group-summary">
+                                {{ group.season_count }} season{{ group.season_count|pluralize }}
+                                &nbsp;&middot;&nbsp;
+                                {{ group.total_goals }} G &nbsp;/&nbsp; {{ group.total_assists }} A &nbsp;/&nbsp; {{ group.total_points }} Pts
+                                &nbsp;&middot;&nbsp;
+                                avg {{ group.avg_goals }} G &nbsp;/&nbsp; {{ group.avg_assists }} A per season
+                            </span>
+                            <span class="division-group-chevron">&#9660;</span>
+                        </div>
+                        <div class="division-group-body">
+                            <table class="table">
+                                <tr>
+                                    <th class="stat-column">Year</th>
+                                    <th class="stat-column">Season</th>
+                                    <th class="stat-column">Team (Record)</th>
+                                    <th class="stat-column">Goals</th>
+                                    <th class="stat-column">Assists</th>
+                                    <th class="stat-column">Pts</th>
+                                </tr>
+                                {% for stat in group.rows %}
+                                <tr>
+                                    <td>{{ stat.team__season__year }}</td>
+                                    <td>{{ stat.team__season__season_type|season_type }}</td>
+                                    <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
+                                        {% if stat.team__season__year < 2022 %}
+                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
+                                        {% else %}
+                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_otw|default:0 }} - {{ stat.team_otl|default:0 }} - {{ stat.team_losses|default:0 }})
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ stat.sum_goals|default:0 }}</td>
+                                    <td>{{ stat.sum_assists|default:0 }}</td>
+                                    <td>{{ stat.sum_goals|add:stat.sum_assists|default:0 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </table>
                         </div>
                     </div>
-                    <div class="row player_stats">
-                        <div class="12u 12u(mobile)">
-                            <div class="table-scroll">
-                                <table class="table">
-                                    <tr>
-                                        <th class="stat-column">Year</th>
-                                        <th class="stat-column">Season</th>
-                                        <th class="stat-column">Team Name (Record)</th>
-                                        <th class="stat-column">Div</th>
-                                        <th class="stat-column">GAA</th>
-                                        <th class="stat-column">GP</th>
-                                        <th class="stat-column">GA</th>
-                                    </tr>
-                                    {% if section.goalie_stats %}
-                                    {% for stat in section.goalie_stats %}
-                                    <tr>
-                                        <td>{{ stat.team__season__year }}</td>
-                                        <td>{{ stat.team__season__season_type|season_type }}</td>
-                                        <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
-                                            {% if stat.team__season__year < 2022 %}
-                                                {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
-                                            {% else %}
-                                                {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_otw|default:0 }} - {{ stat.team_otl|default:0 }} - {{ stat.team_losses|default:0 }})
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ stat.team__division|division_type }}</td>
-                                        <td>{{ stat.average_goals_against|floatformat:2 }}</td>
-                                        <td>{{ stat.sum_games_played|default:0 }}</td>
-                                        <td>{{ stat.sum_goals_against|default:0 }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                    {% else %}
-                                    <tr>
-                                        <td colspan="7">No goalie stats available.</td>
-                                    </tr>
-                                    {% endif %}
-                                </table>
-                            </div>
+                    {% endfor %}
+                    {% else %}
+                    <p class="stat-breakdown-note">No offensive stats available.</p>
+                    {% endif %}
+
+                    {% if section.goalie_groups %}
+                    <h4 class="stat-block-title" style="margin-top: 24px;">
+                        Goalie Stats
+                        {% if section.key == "combined" and career_stats.average_goals_against_per_game %}
+                        <span class="stat-breakdown-note" style="display: inline; margin-left: 12px;">Career GAA: {{ career_stats.average_goals_against_per_game|floatformat:2 }}</span>
+                        {% endif %}
+                    </h4>
+                    {% for group in section.goalie_groups %}
+                    <div class="division-group" data-section="{{ section.key }}" data-stat-type="goalie">
+                        <div class="division-group-header" onclick="toggleDivisionGroup(this)">
+                            <span class="division-group-name">{{ group.division|division_type }}</span>
+                            <span class="division-group-summary">
+                                {{ group.total_games }} game{{ group.total_games|pluralize }}
+                                &nbsp;&middot;&nbsp;
+                                {{ group.total_goals_against }} GA &nbsp;/&nbsp; {{ group.career_gaa }} GAA
+                            </span>
+                            <span class="division-group-chevron">&#9660;</span>
+                        </div>
+                        <div class="division-group-body">
+                            <table class="table">
+                                <tr>
+                                    <th class="stat-column">Year</th>
+                                    <th class="stat-column">Season</th>
+                                    <th class="stat-column">Team (Record)</th>
+                                    <th class="stat-column">GAA</th>
+                                    <th class="stat-column">GP</th>
+                                    <th class="stat-column">GA</th>
+                                </tr>
+                                {% for stat in group.rows %}
+                                <tr>
+                                    <td>{{ stat.team__season__year }}</td>
+                                    <td>{{ stat.team__season__season_type|season_type }}</td>
+                                    <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
+                                        {% if stat.team__season__year < 2022 %}
+                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
+                                        {% else %}
+                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_otw|default:0 }} - {{ stat.team_otl|default:0 }} - {{ stat.team_losses|default:0 }})
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ stat.average_goals_against|floatformat:2 }}</td>
+                                    <td>{{ stat.sum_games_played|default:0 }}</td>
+                                    <td>{{ stat.sum_goals_against|default:0 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </table>
                         </div>
                     </div>
+                    {% endfor %}
+                    {% endif %}
                 </section>
                 {% endfor %}
             </section>
@@ -178,8 +298,40 @@
 {% endblock %}
 
 {% block extra_scripts %}
-{% if offensive_stats %}
 <script>
+    function toggleDivisionGroup(header) {
+        header.closest('.division-group').classList.toggle('expanded');
+    }
+
+    function expandAllGroups(scope, statType) {
+        document.querySelectorAll(
+            '#stats-' + scope + ' .division-group[data-stat-type="' + statType + '"]'
+        ).forEach(function(g) { g.classList.add('expanded'); });
+    }
+
+    function collapseAllGroups(scope, statType) {
+        document.querySelectorAll(
+            '#stats-' + scope + ' .division-group[data-stat-type="' + statType + '"]'
+        ).forEach(function(g) { g.classList.remove('expanded'); });
+    }
+
+    function getActiveScopeKey() {
+        var active = document.querySelector('.stat-scope-target:not(.hidden)[id^="stats-"]');
+        return active ? active.dataset.scope : 'combined';
+    }
+
+    function expandAllActiveGroups() {
+        var scope = getActiveScopeKey();
+        expandAllGroups(scope, 'offensive');
+        expandAllGroups(scope, 'goalie');
+    }
+
+    function collapseAllActiveGroups() {
+        var scope = getActiveScopeKey();
+        collapseAllGroups(scope, 'offensive');
+        collapseAllGroups(scope, 'goalie');
+    }
+
     function showStatScope(scope, element) {
         var sections = document.querySelectorAll('.stat-scope-target');
         sections.forEach(function(section) {
@@ -195,7 +347,57 @@
         });
         element.classList.add('activeoption');
     }
-
+</script>
+{% if goalie_trend %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('goalieSnapshotChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ goalie_trend.goalie_seasons|safe }},
+                datasets: [{
+                    label: 'GAA',
+                    data: {{ goalie_trend.goalie_gaas|safe }},
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    fill: false,
+                    pointRadius: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Season' },
+                        ticks: {
+                            callback: function(value) {
+                                var label = this.getLabelForValue(value);
+                                return label.length > 10 ? label.substr(0, 10) + '...' : label;
+                            }
+                        }
+                    },
+                    y: {
+                        title: { display: true, text: 'GAA' },
+                        reverse: true
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(items) { return items[0].label; },
+                            label: function(item) { return 'GAA: ' + item.raw; }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endif %}
+{% if offensive_stats %}
+<script>
     document.addEventListener('DOMContentLoaded', function() {
         console.log("JavaScript loaded");
 
