@@ -409,6 +409,7 @@ section .game:first-of-type{
     empty-cells: show;
     width: 100%;
     margin-bottom: 20px;
+    table-layout: fixed;
 }
 .stats table caption{
     text-align: left;
@@ -432,8 +433,9 @@ section .game:first-of-type{
 .stats table th{
     border-bottom:1px solid #96a9b5;
     font-weight: bold;
-    width: 12%;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .stats table td{
     border-bottom: 1px solid #96a9b5;
@@ -449,9 +451,14 @@ section .game:first-of-type{
 .stats table th:first-child, .stats table td:first-child{
     text-align: left;
 }
-
-.stats table td:nth-child(2){
-    width: 150p;
+.stats table .player-name {
+    width: 33%;
+}
+.stats table .team-name {
+    width: 27%;
+}
+.stats table .stat-column {
+    width: 13%;
 }
 .stats table.roster td + td{
     border-left:1px solid #96a9b5

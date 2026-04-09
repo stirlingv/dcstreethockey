@@ -98,11 +98,22 @@
         margin-bottom: 6px;
     }
     /* Align data cells to match centered stat-column headers */
+    .division-group-body .table {
+        table-layout: fixed;
+    }
     .division-group-body .table td {
         text-align: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
-    .division-group-body .table td:nth-child(3) {
+    .division-group-body .table td:nth-child(3),
+    .division-group-body .table th:nth-child(3) {
         text-align: left;
+        width: 42%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     /* Tighten section spacing — override framework's section padding */
     .team #content section.stat-block {
