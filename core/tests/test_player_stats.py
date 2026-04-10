@@ -467,7 +467,7 @@ class StatScopeAveragesTestCase(TestCase):
             season=self.season_post,
             is_active=True,
         )
-        self.player = Player.objects.create(first_name="Ava", last_name="Skater")
+        self.player = Player.objects.create(first_name="Ava", last_name="Forward")
         Roster.objects.create(
             player=self.player,
             team=self.team_regular,

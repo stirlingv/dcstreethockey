@@ -351,7 +351,7 @@ class Command(BaseCommand):
             SeasonSignup.POSITION_DEFENSE: (1, 5, 4, 12),
         }
 
-        # ~60% of non-goalies get historical skater stats (season-total rows)
+        # ~60% of non-goalies get historical player stats (season-total rows)
         non_goalies = [s for s in signups if not s.is_goalie]
         veterans = random.sample(non_goalies, int(len(non_goalies) * 0.6))
 

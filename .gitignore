@@ -1,24 +1,54 @@
-.idea
+# Python
 *.pyc
+*.pyo
+__pycache__/
+*.egg-info/
+
+# Virtual environments
 env/
+venv/
 venv3/
-static/assets/.sass-cache/*
-.DS_Store
-db.sqlite3
-polls/
-media/teams/
-*.dump
-*.dump*
-database_dumps/*
-queries.txt
-log.txt
-media/homepage/*
-pg_upgrade_*
 virtualenve
+
+# Django
+db.sqlite3
+*.log
+staticfiles/
+
+# Django media uploads (not committed; served from S3 in production)
+media/teams/
+media/homepage/
+
+# Local dev secrets — never commit credentials
+.env
+.env.*
+
+# Test & coverage artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Database dumps & migration scripts
+database_dumps/*
 db_migration_scripts/*
 !db_migration_scripts/sync_render_to_local.sh
 !db_migration_scripts/auto_sync_if_stale.sh
+
+# Editor & OS
+.DS_Store
+.idea
 *.vscode
-venv/
-*.log
-.env
+.vscode/
+
+# Claude Code local config (hooks, permissions — machine-specific)
+.claude/
+
+# Legacy / scratch files
+queries.txt
+polls/
+pg_upgrade_*
+debug_teams.html
+=
+
+# Registration data / CSV exports (may contain PII)
+docs/*.csv

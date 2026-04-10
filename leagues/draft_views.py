@@ -34,7 +34,7 @@ from .models import (
 def _get_wednesday_stats(player):
     """
     Return career Wednesday Draft League stats for a linked Player.
-    Skaters:  per-season averages for goals, assists, points.
+    Non-goalies:  per-season averages for goals, assists, points.
     Goalies:  GAA (goals against per game played).
     New players (no recorded stats): is_new=True, all averages zero.
     Also returns adp: average round drafted across all past sessions (None if no history).
