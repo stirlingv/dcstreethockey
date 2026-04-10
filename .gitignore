@@ -41,7 +41,8 @@ db_migration_scripts/*
 .vscode/
 
 # Claude Code local config (hooks, permissions — machine-specific)
-.claude/
+.claude/settings.json
+.claude/settings.local.json
 
 # Legacy / scratch files
 queries.txt
