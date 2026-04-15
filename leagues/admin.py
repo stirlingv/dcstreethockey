@@ -1153,7 +1153,23 @@ class DraftTeamInline(admin.TabularInline):
         "captain_token_display",
     )
     readonly_fields = ("captain_token_display",)
-    autocomplete_fields = ("captain",)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "captain":
+            session_pk = request.resolver_match.kwargs.get("object_id")
+            if session_pk:
+                try:
+                    session = DraftSession.objects.select_related("season").get(
+                        pk=session_pk
+                    )
+                    kwargs["queryset"] = SeasonSignup.objects.filter(
+                        season=session.season
+                    ).order_by("last_name", "first_name")
+                except DraftSession.DoesNotExist:
+                    kwargs["queryset"] = SeasonSignup.objects.none()
+            else:
+                kwargs["queryset"] = SeasonSignup.objects.none()
+        return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
 
     def captain_token_display(self, obj):
         if not obj.pk:

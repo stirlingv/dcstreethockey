@@ -151,7 +151,8 @@ def _session_state_payload(session):
     teams_data = []
     for team in teams:
         picks_by_round = {}
-        has_goalie = False
+        # A goalie-captain counts even before their auto-pick round fires.
+        has_goalie = team.captain.is_goalie
         for pick in team.draft_picks.all():
             payload = _signup_payload(pick.signup)
             payload["is_captain_pick"] = pick.is_auto_captain
@@ -459,7 +460,12 @@ def draw_positions(request, session_pk, token):
         session.signups_open = False
         session.save(update_fields=["signups_open"])
 
-    # Broadcast via channels
+    # Broadcast the new DRAW state so all clients update state.state before
+    # the overlay animation completes — the commissioner's panel will then
+    # correctly render the captain-rounds UI when the overlay is closed.
+    _broadcast_state_change(session)
+
+    # Broadcast the reveal order separately so clients can animate the draw.
     from channels.layers import get_channel_layer
     from asgiref.sync import async_to_sync
 
@@ -498,6 +504,27 @@ def advance_state(request, session_pk, token):
         return JsonResponse({"error": "No transition available."}, status=400)
 
     update_fields = ["state"]
+
+    # Require every team to have a captain_draft_round before going active.
+    # Captains are excluded from the available player pool and can only be
+    # drafted via the auto-captain mechanism, so a missing round means they
+    # would never be picked.
+    if (
+        next_state == DraftSession.STATE_ACTIVE
+        and session.state == DraftSession.STATE_DRAW
+    ):
+        missing = session.teams.filter(captain_draft_round__isnull=True).select_related(
+            "captain"
+        )
+        if missing.exists():
+            names = ", ".join(t.captain.full_name for t in missing)
+            return JsonResponse(
+                {
+                    "error": f"Captain round not set for: {names}. "
+                    "Set a draft round for every captain before starting."
+                },
+                status=400,
+            )
 
     # Close signups when the draft first goes active from the draw phase
     if (
@@ -650,9 +677,11 @@ def make_pick(request, session_pk):
     picking_team = None
 
     if captain_token:
-        picking_team = DraftTeam.objects.filter(
-            session=session, captain_token=captain_token
-        ).first()
+        picking_team = (
+            DraftTeam.objects.select_related("captain")
+            .filter(session=session, captain_token=captain_token)
+            .first()
+        )
         if not picking_team:
             return JsonResponse({"error": "Invalid captain token."}, status=403)
     elif not is_commissioner:
@@ -709,11 +738,19 @@ def make_pick(request, session_pk):
         )
 
     if signup.primary_position == SeasonSignup.POSITION_GOALIE:
-        team_already_has_goalie = DraftPick.objects.filter(
-            session=session,
-            team=picking_team,
-            signup__primary_position=SeasonSignup.POSITION_GOALIE,
-        ).exists()
+        # A goalie-captain counts as the team's goalie even before their
+        # auto-pick round fires, so block any additional goalie pick.
+        captain_is_goalie = (
+            picking_team.captain.primary_position == SeasonSignup.POSITION_GOALIE
+        )
+        team_already_has_goalie = (
+            captain_is_goalie
+            or DraftPick.objects.filter(
+                session=session,
+                team=picking_team,
+                signup__primary_position=SeasonSignup.POSITION_GOALIE,
+            ).exists()
+        )
         if team_already_has_goalie:
             return JsonResponse(
                 {"error": f"{picking_team.team_name} already has a goalie."},
@@ -932,9 +969,10 @@ def swap_pick(request, session_pk, token):
 
     session = get_object_or_404(DraftSession, pk=session_pk, commissioner_token=token)
 
-    if session.state != DraftSession.STATE_COMPLETE:
+    if session.state not in (DraftSession.STATE_COMPLETE, DraftSession.STATE_PAUSED):
         return JsonResponse(
-            {"error": "Can only edit picks after draft is complete."}, status=400
+            {"error": "Can only edit picks when the draft is paused or complete."},
+            status=400,
         )
 
     pick_id = request.POST.get("pick_id")
@@ -998,6 +1036,64 @@ def swap_pick(request, session_pk, token):
             pick_a.signup = new_signup
             pick_a.is_auto_captain = False
             pick_a.save(update_fields=["signup", "is_auto_captain"])
+
+    _broadcast_state_change(session)
+    return JsonResponse({"success": True, "state": _session_state_payload(session)})
+
+
+# ---------------------------------------------------------------------------
+# Commissioner: set captain draft rounds (during setup or draw phase)
+# ---------------------------------------------------------------------------
+
+
+@require_POST
+def set_captain_rounds(request, session_pk, token):
+    """
+    Set the captain_draft_round for each team.  Only allowed before the draft
+    goes active (setup or draw state).
+
+    POST body (JSON): {"rounds": {"<team_pk>": <round_number_or_null>, ...}}
+    """
+    import json as _json
+
+    session = get_object_or_404(DraftSession, pk=session_pk, commissioner_token=token)
+
+    if session.state not in (DraftSession.STATE_SETUP, DraftSession.STATE_DRAW):
+        return JsonResponse(
+            {"error": "Captain rounds can only be set before the draft starts."},
+            status=400,
+        )
+
+    try:
+        body = _json.loads(request.body)
+        rounds_map = body.get("rounds", {})
+    except (_json.JSONDecodeError, AttributeError):
+        return JsonResponse({"error": "Invalid JSON body."}, status=400)
+
+    teams = {str(t.pk): t for t in session.teams.all()}
+    num_rounds = session.num_rounds
+
+    for team_pk_str, round_val in rounds_map.items():
+        team = teams.get(team_pk_str)
+        if not team:
+            continue
+        if round_val is None:
+            team.captain_draft_round = None
+        else:
+            try:
+                r = int(round_val)
+            except (TypeError, ValueError):
+                return JsonResponse(
+                    {"error": f"Invalid round value for team {team_pk_str}."},
+                    status=400,
+                )
+            if r < 1 or r > num_rounds:
+                return JsonResponse(
+                    {"error": f"Round {r} is out of range (1–{num_rounds})."},
+                    status=400,
+                )
+            team.captain_draft_round = r
+        team.save(update_fields=["captain_draft_round"])
 
     _broadcast_state_change(session)
     return JsonResponse({"success": True, "state": _session_state_payload(session)})

@@ -552,9 +552,16 @@ class AdvanceStateViewTests(DraftTestBase):
         self.session.refresh_from_db()
         self.assertEqual(self.session.state, DraftSession.STATE_DRAW)
 
+    def _set_all_captain_rounds(self):
+        """Give every team a captain_draft_round so DRAW→ACTIVE succeeds."""
+        for i, team in enumerate(self.session.teams.all(), start=1):
+            team.captain_draft_round = i
+            team.save(update_fields=["captain_draft_round"])
+
     def test_draw_to_active(self):
         self.session.state = DraftSession.STATE_DRAW
         self.session.save(update_fields=["state"])
+        self._set_all_captain_rounds()
         self.client.post(self._advance_url())
         self.session.refresh_from_db()
         self.assertEqual(self.session.state, DraftSession.STATE_ACTIVE)
@@ -563,9 +570,34 @@ class AdvanceStateViewTests(DraftTestBase):
         self.session.state = DraftSession.STATE_DRAW
         self.session.signups_open = True
         self.session.save(update_fields=["state", "signups_open"])
+        self._set_all_captain_rounds()
         self.client.post(self._advance_url())
         self.session.refresh_from_db()
         self.assertFalse(self.session.signups_open)
+
+    def test_draw_to_active_blocked_when_captain_round_missing(self):
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+        # teams have no captain_draft_round (default null)
+        response = self.client.post(self._advance_url())
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn("captain round not set", data["error"].lower())
+
+    def test_draw_to_active_blocked_when_one_captain_round_missing(self):
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+        # Set rounds for only two of three teams
+        teams = list(self.session.teams.all())
+        teams[0].captain_draft_round = 1
+        teams[0].save(update_fields=["captain_draft_round"])
+        teams[1].captain_draft_round = 2
+        teams[1].save(update_fields=["captain_draft_round"])
+        # teams[2] left null
+        response = self.client.post(self._advance_url())
+        self.assertEqual(response.status_code, 400)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_DRAW)
 
     def test_active_to_paused(self):
         self._activate()
@@ -687,6 +719,33 @@ class MakePickViewTests(DraftTestBase):
                 session=self.session, signup=self.cap1, team=self.team1
             ).exists()
         )
+
+    def test_goalie_captain_blocks_second_goalie_before_auto_pick(self):
+        # Make cap1 a goalie captain. Even before their auto-pick round fires,
+        # the team should not be allowed to draft another goalie.
+        self.cap1.primary_position = SeasonSignup.POSITION_GOALIE
+        self.cap1.save(update_fields=["primary_position"])
+        self.team1.captain_draft_round = 2
+        self.team1.save(update_fields=["captain_draft_round"])
+        # Round 1, team1's turn — try to draft a goalie
+        response = self._post_pick(
+            self.goalie1.pk, commissioner_token=self.session.commissioner_token
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("goalie", json.loads(response.content)["error"])
+
+    def test_goalie_captain_has_goalie_true_in_payload(self):
+        self.cap1.primary_position = SeasonSignup.POSITION_GOALIE
+        self.cap1.save(update_fields=["primary_position"])
+        payload = _session_state_payload(self.session)
+        team1_data = next(t for t in payload["teams"] if t["id"] == self.team1.pk)
+        self.assertTrue(team1_data["has_goalie"])
+
+    def test_non_goalie_captain_has_goalie_false_in_payload(self):
+        # cap1 is center by default (from DraftTestBase)
+        payload = _session_state_payload(self.session)
+        team1_data = next(t for t in payload["teams"] if t["id"] == self.team1.pk)
+        self.assertFalse(team1_data["has_goalie"])
 
     def test_second_goalie_to_same_team_returns_400(self):
         # Team1 picks goalie1, then tries to pick goalie2
@@ -916,13 +975,22 @@ class SwapPickViewTests(DraftTestBase):
         pick.refresh_from_db()
         self.assertEqual(pick.signup, self.cap1)
 
-    def test_swap_requires_draft_complete(self):
+    def test_swap_allowed_when_paused(self):
+        self.session.state = DraftSession.STATE_PAUSED
+        self.session.save(update_fields=["state"])
+        pick = self._make_pick(self.team1, self.players[0], 1, 0)
+        response = self._swap(pick.pk, self.players[1].pk)
+        self.assertEqual(response.status_code, 200)
+        pick.refresh_from_db()
+        self.assertEqual(pick.signup, self.players[1])
+
+    def test_swap_blocked_when_active(self):
         self.session.state = DraftSession.STATE_ACTIVE
         self.session.save(update_fields=["state"])
         pick = self._make_pick(self.team1, self.players[0], 1, 0)
         response = self._swap(pick.pk, self.players[1].pk)
         self.assertEqual(response.status_code, 400)
-        self.assertIn("complete", json.loads(response.content)["error"])
+        self.assertIn("paused or complete", json.loads(response.content)["error"])
 
     def test_swap_wrong_token_returns_404(self):
         import uuid
@@ -993,6 +1061,110 @@ class ResetDraftViewTests(DraftTestBase):
         url = reverse("draft_reset", args=[self.session.pk, uuid.uuid4()])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# View: set_captain_rounds
+# ---------------------------------------------------------------------------
+
+
+class SetCaptainRoundsViewTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        # Put session in DRAW state (positions already drawn by DraftTestBase)
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
+        self._broadcast_patcher.start()
+
+    def tearDown(self):
+        self._broadcast_patcher.stop()
+        super().tearDown()
+
+    def _url(self):
+        return reverse(
+            "draft_set_captain_rounds",
+            args=[self.session.pk, self.session.commissioner_token],
+        )
+
+    def _post(self, rounds_map):
+        return self.client.post(
+            self._url(),
+            data=json.dumps({"rounds": rounds_map}),
+            content_type="application/json",
+        )
+
+    def test_sets_rounds_in_draw_state(self):
+        response = self._post(
+            {str(self.team1.pk): 1, str(self.team2.pk): 2, str(self.team3.pk): 3}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.team1.refresh_from_db()
+        self.team2.refresh_from_db()
+        self.team3.refresh_from_db()
+        self.assertEqual(self.team1.captain_draft_round, 1)
+        self.assertEqual(self.team2.captain_draft_round, 2)
+        self.assertEqual(self.team3.captain_draft_round, 3)
+
+    def test_sets_rounds_in_setup_state(self):
+        self.session.state = DraftSession.STATE_SETUP
+        self.session.save(update_fields=["state"])
+        response = self._post({str(self.team1.pk): 2})
+        self.assertEqual(response.status_code, 200)
+        self.team1.refresh_from_db()
+        self.assertEqual(self.team1.captain_draft_round, 2)
+
+    def test_clears_round_when_null(self):
+        self.team1.captain_draft_round = 1
+        self.team1.save(update_fields=["captain_draft_round"])
+        response = self._post({str(self.team1.pk): None})
+        self.assertEqual(response.status_code, 200)
+        self.team1.refresh_from_db()
+        self.assertIsNone(self.team1.captain_draft_round)
+
+    def test_rejects_round_out_of_range(self):
+        response = self._post({str(self.team1.pk): 99})
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn("out of range", data["error"])
+
+    def test_rejects_round_zero(self):
+        response = self._post({str(self.team1.pk): 0})
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_when_active(self):
+        self.session.state = DraftSession.STATE_ACTIVE
+        self.session.save(update_fields=["state"])
+        response = self._post({str(self.team1.pk): 1})
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn("before the draft starts", data["error"])
+
+    def test_wrong_token_returns_404(self):
+        import uuid
+
+        url = reverse("draft_set_captain_rounds", args=[self.session.pk, uuid.uuid4()])
+        response = self.client.post(
+            url,
+            data=json.dumps({"rounds": {str(self.team1.pk): 1}}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_not_allowed(self):
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 405)
+
+    def test_returns_updated_state_payload(self):
+        response = self._post({str(self.team1.pk): 1})
+        data = json.loads(response.content)
+        self.assertIn("state", data)
+        team_data = next(t for t in data["state"]["teams"] if t["id"] == self.team1.pk)
+        self.assertEqual(team_data["captain_draft_round"], 1)
+
+    def test_ignores_unknown_team_pk(self):
+        response = self._post({"99999": 1})
+        self.assertEqual(response.status_code, 200)
 
 
 # ---------------------------------------------------------------------------
