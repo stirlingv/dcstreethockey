@@ -210,6 +210,11 @@ class Command(BaseCommand):
         skipped = 0
 
         for row in rows:
+            if (
+                not row.get(COL_EMAIL, "").strip()
+                and not row.get(COL_FIRST, "").strip()
+            ):
+                continue  # skip blank rows
             data = self._parse_row(row)
             if data["email"] in existing_emails:
                 self.stdout.write(
@@ -295,7 +300,11 @@ class Command(BaseCommand):
         return session
 
     def _print_summary(self, rows, num_teams):
-        parsed = [self._parse_row(r) for r in rows]
+        parsed = [
+            self._parse_row(r)
+            for r in rows
+            if r.get(COL_EMAIL, "").strip() or r.get(COL_FIRST, "").strip()
+        ]
         from collections import Counter
 
         pos_counts = Counter(r["primary_position"] for r in parsed)

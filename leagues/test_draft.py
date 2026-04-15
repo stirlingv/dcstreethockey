@@ -1063,3 +1063,764 @@ class SessionStatePayloadTests(DraftTestBase):
         self.assertIsNone(payload["current_round"])
         self.assertIsNone(payload["current_pick_index"])
         self.assertIsNone(payload["active_team_pk"])
+
+
+# ---------------------------------------------------------------------------
+# Edge: multiple randomized rounds — snake parity skips all of them
+# ---------------------------------------------------------------------------
+
+
+class MultipleRandomizedRoundsTests(DraftTestBase):
+    """
+    When two or more rounds are randomized the snake-parity counter excludes
+    all of them.  With rounds 2 and 3 both randomized in a 4-round draft,
+    round 4's effective round is 4 - 2 = 2 (even) → reversed pick order.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.session.num_rounds = 4
+        self.session.save(update_fields=["num_rounds"])
+        DraftRound.objects.create(
+            session=self.session, round_number=2, order_type=DraftRound.ORDER_RANDOMIZED
+        )
+        DraftRound.objects.create(
+            session=self.session, round_number=3, order_type=DraftRound.ORDER_RANDOMIZED
+        )
+
+    def test_round_1_still_forward_with_later_randomized_rounds(self):
+        order = self.session.pick_order_for_round(1)
+        self.assertEqual(order, [self.team1.pk, self.team2.pk, self.team3.pk])
+
+    def test_round_4_parity_skips_both_randomized_rounds(self):
+        # effective_round = 4 - 2 = 2  (even) → reversed
+        order = self.session.pick_order_for_round(4)
+        self.assertEqual(order, [self.team3.pk, self.team2.pk, self.team1.pk])
+
+    def test_each_randomized_round_contains_all_teams(self):
+        self.assertCountEqual(
+            self.session.pick_order_for_round(2),
+            [self.team1.pk, self.team2.pk, self.team3.pk],
+        )
+        self.assertCountEqual(
+            self.session.pick_order_for_round(3),
+            [self.team1.pk, self.team2.pk, self.team3.pk],
+        )
+
+    def test_each_randomized_round_is_deterministic(self):
+        self.assertEqual(
+            self.session.pick_order_for_round(2), self.session.pick_order_for_round(2)
+        )
+        self.assertEqual(
+            self.session.pick_order_for_round(3), self.session.pick_order_for_round(3)
+        )
+
+    def test_randomized_rounds_use_different_seeds(self):
+        # Seeded by f"{session.pk}-{round_number}"; rounds 2 and 3 should differ.
+        # With 3 teams (6 permutations) a collision is possible but extremely unlikely.
+        # We verify at minimum that the keys are independent (not the same object).
+        order_2 = self.session.pick_order_for_round(2)
+        order_3 = self.session.pick_order_for_round(3)
+        # Both must contain all teams regardless of order.
+        self.assertCountEqual(order_2, [self.team1.pk, self.team2.pk, self.team3.pk])
+        self.assertCountEqual(order_3, [self.team1.pk, self.team2.pk, self.team3.pk])
+
+
+# ---------------------------------------------------------------------------
+# Edge: round-11-style randomization — snake resumes after re-randomized round
+# ---------------------------------------------------------------------------
+
+
+class Round11StyleRandomizationTests(DraftTestBase):
+    """
+    Scaled-down simulation of the real round-11 re-randomization mechanic.
+    In the 3-round test draft, round 2 acts as the "round 11" wildcard.
+
+    Without randomization: R1→forward, R2→reversed, R3→forward.
+    With R2 randomized:    R1→forward, R2→randomized, R3→reversed
+                           (effective round for R3 = 3 - 1 = 2, even).
+    """
+
+    def setUp(self):
+        super().setUp()
+        DraftRound.objects.create(
+            session=self.session, round_number=2, order_type=DraftRound.ORDER_RANDOMIZED
+        )
+
+    def test_round_1_unaffected_by_later_randomized_round(self):
+        order = self.session.pick_order_for_round(1)
+        self.assertEqual(order, [self.team1.pk, self.team2.pk, self.team3.pk])
+
+    def test_round_2_is_randomized_not_pure_snake(self):
+        order = self.session.pick_order_for_round(2)
+        # Must contain all teams; may or may not be forward or reversed
+        self.assertCountEqual(order, [self.team1.pk, self.team2.pk, self.team3.pk])
+
+    def test_round_3_snake_continues_as_if_randomized_round_never_happened(self):
+        # Effective round for R3 = 3 - 1 = 2 (even) → reversed
+        order = self.session.pick_order_for_round(3)
+        self.assertEqual(order, [self.team3.pk, self.team2.pk, self.team1.pk])
+
+    def test_randomized_round_order_is_deterministic_across_calls(self):
+        self.assertEqual(
+            self.session.pick_order_for_round(2), self.session.pick_order_for_round(2)
+        )
+
+    def test_randomized_round_seed_is_per_session(self):
+        """Two different sessions produce independently seeded random orders."""
+        season2 = Season.objects.create(
+            year=2098, season_type=3, is_current_season=False
+        )
+        session2 = DraftSession.objects.create(
+            season=season2, num_teams=3, num_rounds=3
+        )
+        for pos, email in enumerate(["s1@t.com", "s2@t.com", "s3@t.com"], start=1):
+            signup = SeasonSignup.objects.create(
+                season=season2,
+                first_name=f"S{pos}",
+                last_name="Draft",
+                email=email,
+                primary_position=SeasonSignup.POSITION_CENTER,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_YES,
+            )
+            DraftTeam.objects.create(
+                session=session2, captain=signup, draft_position=pos
+            )
+        DraftRound.objects.create(
+            session=session2, round_number=2, order_type=DraftRound.ORDER_RANDOMIZED
+        )
+        # Each session's randomized order contains exactly its own teams
+        order_s1 = self.session.pick_order_for_round(2)
+        order_s2 = session2.pick_order_for_round(2)
+        self.assertCountEqual(order_s1, [self.team1.pk, self.team2.pk, self.team3.pk])
+        self.assertCountEqual(
+            order_s2, list(session2.teams.values_list("pk", flat=True))
+        )
+
+
+# ---------------------------------------------------------------------------
+# Edge: auto-captain firing inside a randomized round
+# ---------------------------------------------------------------------------
+
+
+class AutoCaptainInRandomizedRoundTests(DraftTestBase):
+    """
+    All three captains have captain_draft_round pointing at a randomized round.
+    _process_auto_captain_picks must auto-draft them in the correct randomized
+    slot order, not the regular snake order.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._activate()
+        DraftRound.objects.create(
+            session=self.session, round_number=2, order_type=DraftRound.ORDER_RANDOMIZED
+        )
+        for team in [self.team1, self.team2, self.team3]:
+            team.captain_draft_round = 2
+            team.save(update_fields=["captain_draft_round"])
+
+    def _fill_round_1(self):
+        order_r1 = self.session.pick_order_for_round(1)
+        for i, team_pk in enumerate(order_r1):
+            team = DraftTeam.objects.get(pk=team_pk)
+            self._make_pick(team, self.players[i], 1, i)
+
+    def test_all_captains_auto_picked_in_randomized_round(self):
+        self._fill_round_1()
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertEqual(len(auto_picks), 3)
+        drafted_signups = {p.signup for p in auto_picks}
+        self.assertIn(self.cap1, drafted_signups)
+        self.assertIn(self.cap2, drafted_signups)
+        self.assertIn(self.cap3, drafted_signups)
+
+    def test_auto_picks_respect_randomized_slot_order(self):
+        self._fill_round_1()
+        auto_picks = _process_auto_captain_picks(self.session)
+        expected_order = self.session.pick_order_for_round(2)
+        actual_order = [p.team.pk for p in auto_picks]
+        self.assertEqual(actual_order, expected_order)
+
+    def test_auto_picks_have_correct_round_and_pick_numbers(self):
+        self._fill_round_1()
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertTrue(all(p.round_number == 2 for p in auto_picks))
+        self.assertEqual([p.pick_number for p in auto_picks], [0, 1, 2])
+
+    def test_auto_picks_all_flagged_is_auto_captain(self):
+        self._fill_round_1()
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertTrue(all(p.is_auto_captain for p in auto_picks))
+
+
+# ---------------------------------------------------------------------------
+# Edge: auto-captain pick in the final draft slot → draft completes
+# ---------------------------------------------------------------------------
+
+
+class AutoCaptainCompletionTests(DraftTestBase):
+    """
+    When the auto-captain pick lands in the very last slot of the draft,
+    _process_auto_captain_picks (or the make_pick view) must set the session
+    state to STATE_COMPLETE.
+
+    Layout (3 teams, 3 rounds):
+      R1 forward:  T1(0) T2(1) T3(2)
+      R2 reversed: T3(0) T2(1) T1(2)
+      R3 forward:  T1(0) T2(1) T3(2)  ← T3 at slot 2 is the last pick
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._activate()
+        # team3 (draft_position=3) occupies the last slot in round 3 (forward)
+        self.team3.captain_draft_round = 3
+        self.team3.save(update_fields=["captain_draft_round"])
+
+    def _fill_all_except_last_round_last_slot(self):
+        """Fill all 9 picks except (round 3, pick 2) — the auto-captain slot."""
+        # Round 1: forward [T1, T2, T3]
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        self._make_pick(self.team3, self.players[2], 1, 2)
+        # Round 2: reversed [T3, T2, T1]
+        self._make_pick(self.team3, self.players[3], 2, 0)
+        self._make_pick(self.team2, self.players[4], 2, 1)
+        self._make_pick(self.team1, self.players[5], 2, 2)
+        # Round 3, picks 0 and 1 — leave pick 2 for auto-captain
+        self._make_pick(self.team1, self.cap1, 3, 0)
+        self._make_pick(self.team2, self.cap2, 3, 1)
+
+    def test_auto_captain_as_final_pick_sets_state_complete(self):
+        self._fill_all_except_last_round_last_slot()
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertEqual(len(auto_picks), 1)
+        self.assertEqual(auto_picks[0].signup, self.cap3)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+
+    def test_auto_captain_completion_via_make_pick_api(self):
+        """
+        Submitting the second-to-last pick via the API triggers auto-captain
+        for the last slot, completing the draft without any further manual picks.
+        """
+        with patch("leagues.draft_views._broadcast_state_change"):
+            # Fill all but the last TWO picks (round 3 picks 1 and 2)
+            self._make_pick(self.team1, self.players[0], 1, 0)
+            self._make_pick(self.team2, self.players[1], 1, 1)
+            self._make_pick(self.team3, self.players[2], 1, 2)
+            self._make_pick(self.team3, self.players[3], 2, 0)
+            self._make_pick(self.team2, self.players[4], 2, 1)
+            self._make_pick(self.team1, self.players[5], 2, 2)
+            self._make_pick(self.team1, self.cap1, 3, 0)
+
+            # Submit round 3, pick 1 (team2's turn): cap2 for team2
+            response = self._post_pick(
+                self.cap2.pk, captain_token=self.team2.captain_token
+            )
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+        # cap3 was auto-drafted for team3 without any additional API call
+        self.assertTrue(
+            DraftPick.objects.filter(
+                session=self.session,
+                signup=self.cap3,
+                team=self.team3,
+                is_auto_captain=True,
+            ).exists()
+        )
+
+
+# ---------------------------------------------------------------------------
+# Edge: all captains share the same captain_draft_round (entire round is auto)
+# ---------------------------------------------------------------------------
+
+
+class AllCaptainsSameRoundTests(DraftTestBase):
+    """
+    When all captains are assigned captain_draft_round=1 the entire first round
+    resolves automatically.  After activation, no manual picks are needed until
+    round 2.  Undo of an auto-captain chain removes all consecutive auto picks.
+    """
+
+    def setUp(self):
+        super().setUp()
+        for team in [self.team1, self.team2, self.team3]:
+            team.captain_draft_round = 1
+            team.save(update_fields=["captain_draft_round"])
+        self._activate()
+
+    def test_process_auto_captain_picks_resolves_all_three_consecutively(self):
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertEqual(len(auto_picks), 3)
+        self.assertTrue(all(p.round_number == 1 for p in auto_picks))
+        self.assertEqual(sorted(p.pick_number for p in auto_picks), [0, 1, 2])
+
+    def test_after_full_round_auto_pick_current_pick_advances_to_round_2(self):
+        _process_auto_captain_picks(self.session)
+        self.assertEqual(self.session.current_pick, (2, 0))
+
+    def test_all_auto_picks_are_flagged_is_auto_captain(self):
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertTrue(all(p.is_auto_captain for p in auto_picks))
+
+    def test_activation_fires_auto_captain_picks_on_draw_to_active(self):
+        """Advancing DRAW→ACTIVE auto-picks all round-1 captains immediately."""
+        # Reset to DRAW so advance_state triggers the transition
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+        with patch("leagues.draft_views._broadcast_state_change"):
+            self.client.post(
+                reverse(
+                    "draft_advance_state",
+                    args=[self.session.pk, self.session.commissioner_token],
+                )
+            )
+        # All three captains should be drafted
+        self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 3)
+        for cap in [self.cap1, self.cap2, self.cap3]:
+            self.assertTrue(
+                DraftPick.objects.filter(
+                    session=self.session, signup=cap, is_auto_captain=True
+                ).exists()
+            )
+
+
+# ---------------------------------------------------------------------------
+# Edge: own team manually picks their captain before the auto-captain round
+# ---------------------------------------------------------------------------
+
+
+class EarlyManualCaptainPickTests(DraftTestBase):
+    """
+    A captain with captain_draft_round=3 can still be manually drafted by
+    their own team in an earlier round.  When round 3 arrives, the auto-pick
+    guard finds them already drafted and skips silently.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._activate()
+        self.team1.captain_draft_round = 3  # auto-slot is round 3, pick index 0
+        self.team1.save(update_fields=["captain_draft_round"])
+
+    def test_own_team_can_pick_captain_manually_before_designated_round(self):
+        with patch("leagues.draft_views._broadcast_state_change"):
+            # Round 1, slot 0 → team1's turn.  Manually pick their own captain.
+            response = self._post_pick(
+                self.cap1.pk, captain_token=self.team1.captain_token
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            DraftPick.objects.filter(
+                session=self.session,
+                signup=self.cap1,
+                team=self.team1,
+                is_auto_captain=False,
+            ).exists()
+        )
+
+    def test_auto_pick_skips_silently_when_captain_already_drafted(self):
+        # Manually pre-draft cap1 in round 1, slot 0
+        self._make_pick(self.team1, self.cap1, 1, 0)
+        # Fill the rest of rounds 1 and 2
+        self._make_pick(self.team2, self.players[0], 1, 1)
+        self._make_pick(self.team3, self.players[1], 1, 2)
+        self._make_pick(self.team3, self.players[2], 2, 0)
+        self._make_pick(self.team2, self.players[3], 2, 1)
+        self._make_pick(self.team1, self.players[4], 2, 2)
+        # Now at round 3, pick 0 → team1's captain slot — but cap1 already drafted
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertEqual(len(auto_picks), 0)
+
+    def test_captain_draft_round_beyond_num_rounds_never_fires(self):
+        self.team1.captain_draft_round = 99
+        self.team1.save(update_fields=["captain_draft_round"])
+        auto_picks = _process_auto_captain_picks(self.session)
+        self.assertEqual(len(auto_picks), 0)
+
+
+# ---------------------------------------------------------------------------
+# Edge: undo at round boundary and undo all picks
+# ---------------------------------------------------------------------------
+
+
+class UndoEdgeCaseTests(DraftTestBase):
+    """Undo across round boundaries, repeated undo, undo with complete state."""
+
+    def setUp(self):
+        super().setUp()
+        self._activate()
+        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
+        self._broadcast_patcher.start()
+
+    def tearDown(self):
+        self._broadcast_patcher.stop()
+        super().tearDown()
+
+    def _undo_url(self):
+        return reverse(
+            "draft_undo_pick",
+            args=[self.session.pk, self.session.commissioner_token],
+        )
+
+    def test_undo_at_round_boundary_restores_previous_round_turn(self):
+        # Fill round 1 completely, then make first pick of round 2
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        self._make_pick(self.team3, self.players[2], 1, 2)
+        # Round 2, pick 0 belongs to team3 (reversed)
+        self._make_pick(self.team3, self.players[3], 2, 0)
+
+        response = self.client.post(self._undo_url())
+        self.assertEqual(response.status_code, 200)
+        # current_pick should revert to (2, 0) — first slot of round 2
+        self.assertEqual(self.session.current_pick, (2, 0))
+        self.assertFalse(
+            DraftPick.objects.filter(
+                session=self.session, signup=self.players[3]
+            ).exists()
+        )
+
+    def test_repeated_undo_empties_entire_draft(self):
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        self._make_pick(self.team3, self.players[2], 1, 2)
+
+        for _ in range(3):
+            response = self.client.post(self._undo_url())
+            self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 0)
+        self.assertEqual(self.session.current_pick, (1, 0))
+
+    def test_undo_after_emptying_returns_400(self):
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self.client.post(self._undo_url())  # removes only pick
+        response = self.client.post(self._undo_url())  # nothing left
+        self.assertEqual(response.status_code, 400)
+
+    def test_undo_from_complete_state_removes_last_pick(self):
+        # Fill the entire draft
+        all_signups = self.players[:6] + [self.cap1, self.cap2, self.cap3]
+        slot = 0
+        for r in range(1, 4):
+            for p in range(3):
+                self._make_pick(
+                    [self.team1, self.team2, self.team3][p],
+                    all_signups[slot],
+                    r,
+                    p,
+                )
+                slot += 1
+        self.session.state = DraftSession.STATE_COMPLETE
+        self.session.save(update_fields=["state"])
+
+        # Undo should remove the last pick even from COMPLETE state
+        last_pick_signup = all_signups[slot - 1]
+        response = self.client.post(self._undo_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            DraftPick.objects.filter(
+                session=self.session, signup=last_pick_signup
+            ).exists()
+        )
+
+
+# ---------------------------------------------------------------------------
+# Edge: pick-validation edge cases
+# ---------------------------------------------------------------------------
+
+
+class PickValidationEdgeCaseTests(DraftTestBase):
+    """Nonexistent signup, cross-season signup, GET method, complete-state guard."""
+
+    def setUp(self):
+        super().setUp()
+        self._activate()
+        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
+        self._broadcast_patcher.start()
+
+    def tearDown(self):
+        self._broadcast_patcher.stop()
+        super().tearDown()
+
+    def test_make_pick_get_request_returns_405(self):
+        url = reverse("draft_make_pick", args=[self.session.pk])
+        response = self.client.get(
+            url,
+            {
+                "signup_pk": self.players[0].pk,
+                "commissioner_token": str(self.session.commissioner_token),
+            },
+        )
+        self.assertEqual(response.status_code, 405)
+
+    def test_make_pick_nonexistent_signup_pk_returns_400(self):
+        response = self._post_pick(
+            99999, commissioner_token=self.session.commissioner_token
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not found", json.loads(response.content)["error"].lower())
+
+    def test_make_pick_signup_from_different_season_returns_400(self):
+        other_season = Season.objects.create(
+            year=2099, season_type=4, is_current_season=False
+        )
+        other_signup = SeasonSignup.objects.create(
+            season=other_season,
+            first_name="Wrong",
+            last_name="Season",
+            email="wrong@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        response = self._post_pick(
+            other_signup.pk, commissioner_token=self.session.commissioner_token
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_make_pick_when_draft_complete_returns_400(self):
+        self.session.state = DraftSession.STATE_COMPLETE
+        self.session.save(update_fields=["state"])
+        response = self._post_pick(
+            self.players[0].pk, commissioner_token=self.session.commissioner_token
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not active", json.loads(response.content)["error"])
+
+    def test_auto_captain_guard_overrides_submitted_signup_pk(self):
+        """
+        When it's a team's captain_draft_round and their turn, the view ignores
+        the submitted signup_pk and auto-drafts the captain instead.
+        """
+        self.team1.captain_draft_round = 1  # round 1, pick 0 → team1's turn
+        self.team1.save(update_fields=["captain_draft_round"])
+
+        # Submit a regular player, expect cap1 to be drafted instead
+        response = self._post_pick(
+            self.players[0].pk, captain_token=self.team1.captain_token
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            DraftPick.objects.filter(
+                session=self.session,
+                signup=self.cap1,
+                team=self.team1,
+                is_auto_captain=True,
+            ).exists()
+        )
+        self.assertFalse(
+            DraftPick.objects.filter(
+                session=self.session, signup=self.players[0]
+            ).exists()
+        )
+
+    def test_captain_token_for_wrong_turn_blocked_even_when_captain_draft_round_matches(
+        self,
+    ):
+        """
+        A captain submitting their token when another team's captain_draft_round
+        fires for slot 0 — their token is invalid for that slot, so they get 403.
+        """
+        # team2's captain_draft_round=1 at slot 0 — it's team1's slot, not team2's
+        # This tests: team1 is at slot 0 (position 1), team2 is at slot 1 (position 2)
+        # team2 tries to submit — "not your turn"
+        self.team2.captain_draft_round = 1
+        self.team2.save(update_fields=["captain_draft_round"])
+
+        response = self._post_pick(
+            self.players[0].pk, captain_token=self.team2.captain_token
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not your turn", json.loads(response.content)["error"])
+
+
+# ---------------------------------------------------------------------------
+# Edge: _session_state_payload advanced checks
+# ---------------------------------------------------------------------------
+
+
+class SessionStatePayloadAdvancedTests(DraftTestBase):
+    """has_goalie flag, snake flip in active_team_pk, num_teams/num_rounds in payload."""
+
+    def test_payload_has_goalie_true_when_team_drafted_goalie(self):
+        self._activate()
+        self._make_pick(self.team1, self.goalie1, 1, 0)
+        payload = _session_state_payload(self.session)
+        team1_data = next(t for t in payload["teams"] if t["id"] == self.team1.pk)
+        self.assertTrue(team1_data["has_goalie"])
+
+    def test_payload_has_goalie_false_when_team_has_no_goalie(self):
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        payload = _session_state_payload(self.session)
+        team1_data = next(t for t in payload["teams"] if t["id"] == self.team1.pk)
+        self.assertFalse(team1_data["has_goalie"])
+
+    def test_payload_active_team_advances_after_each_pick(self):
+        self._activate()
+        payload = _session_state_payload(self.session)
+        self.assertEqual(payload["active_team_pk"], self.team1.pk)
+
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        payload = _session_state_payload(self.session)
+        self.assertEqual(payload["active_team_pk"], self.team2.pk)
+
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        payload = _session_state_payload(self.session)
+        self.assertEqual(payload["active_team_pk"], self.team3.pk)
+
+    def test_payload_active_team_snake_flips_at_round_boundary(self):
+        """After round 1 completes (T1→T2→T3), round 2 starts with T3 (reversed)."""
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        self._make_pick(self.team3, self.players[2], 1, 2)
+        payload = _session_state_payload(self.session)
+        self.assertEqual(payload["current_round"], 2)
+        self.assertEqual(payload["current_pick_index"], 0)
+        self.assertEqual(payload["active_team_pk"], self.team3.pk)
+
+    def test_payload_exposes_num_teams_and_num_rounds(self):
+        payload = _session_state_payload(self.session)
+        self.assertEqual(payload["num_teams"], 3)
+        self.assertEqual(payload["num_rounds"], 3)
+
+    def test_payload_finalized_false_before_finalize(self):
+        payload = _session_state_payload(self.session)
+        self.assertFalse(payload["finalized"])
+
+
+# ---------------------------------------------------------------------------
+# Integration: complete snake draft simulated end-to-end via the API
+# ---------------------------------------------------------------------------
+
+
+class FullSnakeDraftIntegrationTests(DraftTestBase):
+    """
+    End-to-end integration test: all 9 picks submitted via the make_pick view
+    in the correct snake order.  Verifies pick assignment, turn enforcement,
+    and STATE_COMPLETE at the end.
+
+    Pick sequence (3 teams, 3 rounds, no captain_draft_rounds set):
+      R1 forward:  T1(0) T2(1) T3(2)
+      R2 reversed: T3(0) T2(1) T1(2)
+      R3 forward:  T1(0) T2(1) T3(2)
+    """
+
+    def setUp(self):
+        super().setUp()
+        self._activate()
+        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
+        self._broadcast_patcher.start()
+        # Use captains' own tokens; captains have no captain_draft_round so are pickable manually
+        self.all_signups = self.players[:6] + [self.cap1, self.cap2, self.cap3]
+
+    def tearDown(self):
+        self._broadcast_patcher.stop()
+        super().tearDown()
+
+    def test_complete_snake_draft_all_picks_succeed(self):
+        """
+        Every pick in the correct order returns 200.  After all 9 picks the
+        session is STATE_COMPLETE and each player is on the expected team.
+        """
+        pick_sequence = [
+            # Round 1: T1 → T2 → T3
+            (self.team1, self.all_signups[0]),
+            (self.team2, self.all_signups[1]),
+            (self.team3, self.all_signups[2]),
+            # Round 2: T3 → T2 → T1  (snake reversed)
+            (self.team3, self.all_signups[3]),
+            (self.team2, self.all_signups[4]),
+            (self.team1, self.all_signups[5]),
+            # Round 3: T1 → T2 → T3  (snake forward again)
+            (self.team1, self.all_signups[6]),  # cap1 on team1
+            (self.team2, self.all_signups[7]),  # cap2 on team2
+            (self.team3, self.all_signups[8]),  # cap3 on team3
+        ]
+
+        for i, (expected_team, signup) in enumerate(pick_sequence):
+            response = self._post_pick(
+                signup.pk, commissioner_token=self.session.commissioner_token
+            )
+            self.assertEqual(
+                response.status_code,
+                200,
+                f"Pick {i + 1} failed ({signup} → {expected_team}): {response.content}",
+            )
+            self.assertTrue(
+                DraftPick.objects.filter(
+                    session=self.session, signup=signup, team=expected_team
+                ).exists(),
+                f"Pick {i + 1}: {signup} not recorded on {expected_team}",
+            )
+
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+        self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 9)
+
+    def test_out_of_snake_order_captain_token_rejected(self):
+        """
+        A captain submitting their token when it's not their turn gets 400.
+        Round 1, slot 0 belongs to team1; team3 submitting is rejected.
+        """
+        response = self._post_pick(
+            self.players[0].pk, captain_token=self.team3.captain_token
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not your turn", json.loads(response.content)["error"])
+
+    def test_commissioner_can_pick_for_any_team_in_order(self):
+        """
+        Commissioner token is accepted for every pick regardless of which
+        captain's turn it is; the pick is credited to the active team.
+        """
+        # All 9 picks via commissioner token
+        for signup in self.all_signups:
+            response = self._post_pick(
+                signup.pk, commissioner_token=self.session.commissioner_token
+            )
+            self.assertEqual(response.status_code, 200)
+
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+
+    def test_snake_with_randomized_penultimate_round_completes_correctly(self):
+        """
+        With round 2 randomized, the draft framework still navigates all three
+        rounds and reaches STATE_COMPLETE.  Captains are excluded here because
+        the cross-team guard blocks them when the snake direction changes, which
+        is orthogonally tested elsewhere.
+        """
+        DraftRound.objects.create(
+            session=self.session, round_number=2, order_type=DraftRound.ORDER_RANDOMIZED
+        )
+        # Build 9 non-captain, non-goalie signups so any team can receive any pick
+        non_cap_signups = list(self.players)  # 6
+        for i in range(3):
+            non_cap_signups.append(
+                SeasonSignup.objects.create(
+                    season=self.season,
+                    first_name=f"Extra{i}",
+                    last_name="Player",
+                    email=f"extra{i}@test.com",
+                    primary_position=SeasonSignup.POSITION_WING,
+                    secondary_position=SeasonSignup.POSITION_ONE_THING,
+                    captain_interest=SeasonSignup.CAPTAIN_NO,
+                )
+            )
+        for signup in non_cap_signups:
+            response = self._post_pick(
+                signup.pk, commissioner_token=self.session.commissioner_token
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+        self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 9)

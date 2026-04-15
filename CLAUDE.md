@@ -122,6 +122,34 @@ This applies to:
 
 ---
 
+## Environment variables and credentials
+
+- **`RENDER_EXTERNAL_DATABASE_URL`** — production Postgres connection string, already exported in `~/.zshrc`. Use this directly; do not ask the user to fetch it from the Render dashboard.
+- **`RENDER_API_KEY`** and **`RENDER_POSTGRES_ID`** — also in `~/.zshrc` and `.env`.
+- **Python / venv** — the project venv is at `venv/bin/python`. Git commits require `PATH="$(pwd)/venv/bin:$PATH"` so pre-commit hooks can find `python`.
+- **Local DB** — `DB_NAME=dcstreethockey`, `DB_USER=dcstreethockey`, `DB_PASSWORD=dcstreethockey` (in `.env`).
+
+### Pushing local → production
+
+```bash
+# Backup local first
+./scripts/backup_db.sh
+
+# Dump local, wipe prod, restore
+LOCAL_DUMP="/tmp/local_push_$(date +%Y%m%d_%H%M%S).sql"
+pg_dump --no-acl --no-owner dcstreethockey > "$LOCAL_DUMP"
+psql "$RENDER_EXTERNAL_DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+psql "$RENDER_EXTERNAL_DATABASE_URL" < "$LOCAL_DUMP"
+```
+
+### Pulling production → local
+
+```bash
+./scripts/restore_prod_to_local.sh  # set PROD_DB_URL=$RENDER_EXTERNAL_DATABASE_URL
+```
+
+---
+
 ## Common gotchas
 
 - `Team` requires `team_color` and `is_active` — both have no default in the model, so always supply them in test fixtures.

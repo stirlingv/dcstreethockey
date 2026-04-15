@@ -57,7 +57,8 @@ def _get_wednesday_stats(player):
             "round_number", flat=True
         )
     )
-    adp = round(sum(past_picks) / len(past_picks), 1) if past_picks else None
+    adp_count = len(past_picks)
+    adp = round(sum(past_picks) / adp_count, 1) if adp_count else None
 
     if seasons_played == 0:
         return {
@@ -68,6 +69,7 @@ def _get_wednesday_stats(player):
             "points_per_season": 0,
             "gaa": None,
             "adp": adp,
+            "adp_count": adp_count,
         }
 
     agg = qs.aggregate(
@@ -100,6 +102,7 @@ def _get_wednesday_stats(player):
         "points_per_season": per_season(points),
         "gaa": gaa,
         "adp": adp,
+        "adp_count": adp_count,
     }
 
 

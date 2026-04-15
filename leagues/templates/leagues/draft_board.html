@@ -470,6 +470,10 @@
     font-weight: 600;
     color: #888;
   }
+  .pool-player .pname-adp .adp-count {
+    font-size: 0.68rem;
+    color: #bbb;
+  }
   .pool-player .pposition {
     font-size: 0.73rem;
     color: #888;
@@ -867,7 +871,7 @@
             <div class="tip-section">
               <span class="tip-label">ADP</span> (Average Draft Round) is the average round this player was selected in past Wednesday drafts. Lower = picked earlier = higher demand. <em style="color:#ccc;">&ndash;&ndash;</em> means no draft history yet.
             </div>
-            <div class="tip-note">Sort the list by ADP using the Sort buttons below.</div>
+            <div class="tip-note">Use the Sort buttons below to order players by ADP, points, goals, assists, or alphabetically. GAA applies only when viewing goalies.</div>
           </div>
         </span></h3>
         <input class="pool-search" type="text" id="pool-search" placeholder="Search players…" oninput="renderPool()">
@@ -881,10 +885,11 @@
         </div>
         <div class="pool-sort-row">
           <span class="sort-label">Sort:</span>
-          <button class="sort-btn active" id="sort-alpha" onclick="setSort('alpha')">A &rarr; Z</button>
-          <button class="sort-btn" id="sort-adp" onclick="setSort('adp')">ADP</button>
+          <button class="sort-btn" id="sort-alpha" onclick="setSort('alpha')">A &rarr; Z</button>
+          <button class="sort-btn active" id="sort-adp" onclick="setSort('adp')">ADP</button>
+          <button class="sort-btn" id="sort-pts" onclick="setSort('pts')">Pts</button>
           <button class="sort-btn" id="sort-goals" onclick="setSort('goals')">G</button>
-          <button class="sort-btn" id="sort-assists" onclick="setSort('assists')">A</button>
+          <button class="sort-btn" id="sort-assists" onclick="setSort('assists')">Ast</button>
           <button class="sort-btn" id="sort-gaa" onclick="setSort('gaa')">GAA</button>
         </div>
       </div>
@@ -969,7 +974,7 @@ const ROUND_TYPES = {
 let state = {{ initial_state|safe }};
 let pendingPickSignupId = null;
 let poolFilter = 'all';
-let poolSort = 'alpha';
+let poolSort = 'adp';
 // True if positions are already drawn (handles page reload after draw)
 let drawComplete = state.teams.length > 0 && state.teams.every(t => t.draft_position !== null);
 let editMode = false;
@@ -1185,6 +1190,11 @@ function renderPool() {
       const adpB = b.stats && b.stats.adp !== null ? b.stats.adp : 9999;
       if (adpA !== adpB) return adpA - adpB;
     }
+    if (poolSort === 'pts') {
+      const ptA = a.stats ? (a.stats.points_per_season ?? 0) : 0;
+      const ptB = b.stats ? (b.stats.points_per_season ?? 0) : 0;
+      if (ptA !== ptB) return ptB - ptA;
+    }
     if (poolSort === 'goals') {
       const gA = a.stats ? (a.stats.goals_per_season ?? 0) : 0;
       const gB = b.stats ? (b.stats.goals_per_season ?? 0) : 0;
@@ -1260,10 +1270,18 @@ function renderPool() {
     html += `<div class="pool-row-inner">`;
     html += `<div>`;
     // Name row — player name on left, ADP on right (always shown, "--" if unknown)
-    const adpVal = (p.stats && p.stats.adp !== null) ? p.stats.adp : '&ndash;&ndash;';
+    const adpNum = (p.stats && p.stats.adp !== null) ? p.stats.adp : null;
+    const adpCount = (p.stats && p.stats.adp_count) ? p.stats.adp_count : 0;
+    let adpDisplay;
+    if (adpNum !== null) {
+      const countLabel = adpCount === 1 ? '1 draft' : `${adpCount} drafts`;
+      adpDisplay = `<span class="adp-val">${adpNum}</span><span class="adp-count"> &middot; ${countLabel}</span>`;
+    } else {
+      adpDisplay = `<span class="adp-val">&ndash;&ndash;</span>`;
+    }
     html += `<div class="pname-row">` +
       `<span class="pname">${escHtml(p.full_name)}</span>` +
-      `<span class="pname-adp">ADP: <span class="adp-val">${adpVal}</span></span>` +
+      `<span class="pname-adp">ADP: ${adpDisplay}</span>` +
       `</div>`;
     // Position line — show primary; append secondary abbreviation if not "one thing only"
     const secAbbr = { Defense: 'D', Center: 'C', Wing: 'W', Goalie: 'G' }[p.secondary_position] || '';
