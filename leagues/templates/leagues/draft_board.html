@@ -807,7 +807,7 @@
     {% if session.state == 'setup' %}
       <button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>
     {% elif session.state == 'draw' %}
-      <button class="btn btn-primary" onclick="advanceState()" disabled>Start Draft</button>
+      <span style="color:#aaa;font-size:0.9rem;">Loading captain rounds…</span>
     {% elif session.state == 'active' %}
       <button class="btn btn-warning" onclick="advanceState()">Pause Draft</button>
       <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
@@ -993,7 +993,12 @@ const WS_MAX_DELAY = 30000;
 function handleWsMessage(e) {
   const msg = JSON.parse(e.data);
   if (msg.type === 'state_update') {
+    const prevState = state ? state.state : null;
     state = msg.state;
+    // Close the draw overlay on all clients when the draft goes active.
+    if (prevState === 'draw' && state.state === 'active') {
+      document.getElementById('draw-overlay').classList.remove('visible');
+    }
     if (msg.undone_pick) showToast(`Undone: ${msg.undone_pick.player_name} (R${msg.undone_pick.round} P${msg.undone_pick.pick})`);
     if (msg.pick) showToast(`${msg.pick.team_name} picks ${msg.pick.player.full_name}`);
     if (msg.randomized_round_reveal) showRoundRevealOverlay(msg.randomized_round_reveal);
@@ -1379,6 +1384,33 @@ function applyResponseState(data) {
 }
 
 function advanceState() {
+  // Before DRAW → ACTIVE: save any round values currently in the inputs,
+  // then advance. This lets "Start Draft" work without a separate "Save Rounds"
+  // click. The server enforces that all rounds must be set before going active.
+  if (state.state === 'draw') {
+    const inputs = document.querySelectorAll('.captain-round-input');
+    if (inputs.length) {
+      const rounds = {};
+      for (const inp of inputs) {
+        const val = inp.value.trim();
+        rounds[inp.dataset.teamPk] = val === '' ? null : parseInt(val, 10);
+      }
+      fetch(`/draft/${SESSION_PK}/captain-rounds/${COMMISSIONER_TOKEN}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rounds }),
+      }).then(r => r.json()).then(d => {
+        if (d.error) { showToast(d.error, true); return; }
+        applyResponseState(d);
+        _doAdvance();
+      }).catch(() => showToast('Network error — could not save rounds.', true));
+      return;
+    }
+  }
+  _doAdvance();
+}
+
+function _doAdvance() {
   fetch(`/draft/${SESSION_PK}/advance/${COMMISSIONER_TOKEN}/`, {
     method: 'POST',
     headers: { 'X-CSRFToken': getCsrf() },
@@ -1425,13 +1457,52 @@ function updateCommissionerButtons() {
   if (s === 'setup') {
     html = `<button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>`;
   } else if (s === 'draw') {
-    html = `<span style="color:#aaa;font-size:0.9rem;">Positions drawn — close the overlay to start the draft.</span>`;
+    const sorted = [...state.teams].sort((a, b) => (a.draft_position || 99) - (b.draft_position || 99));
+    const rows = sorted.map(t => {
+      const cur = t.captain_draft_round || '';
+      return `<tr>
+        <td style="padding:3px 8px;text-align:center;font-weight:600;">${t.draft_position || '?'}</td>
+        <td style="padding:3px 8px;">${t.captain_name}</td>
+        <td style="padding:3px 8px;">${t.team_name}</td>
+        <td style="padding:3px 8px;text-align:center;">
+          <input type="number" min="1" max="{{ session.num_rounds }}"
+            data-team-pk="${t.id}"
+            class="captain-round-input"
+            value="${cur}"
+            style="width:54px;padding:2px 4px;border:1px solid #555;border-radius:3px;background:#1a1a1a;color:#eee;text-align:center;">
+        </td>
+      </tr>`;
+    }).join('');
+    html = `
+      <div id="captain-rounds-panel" style="display:flex;flex-direction:column;gap:6px;width:100%;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-weight:600;color:#eee;">Set Captain Draft Rounds</span>
+          <span style="font-size:0.78rem;color:#aaa;">Enter the round each captain is auto-drafted onto their team (leave blank to skip).</span>
+          <button class="btn btn-primary" onclick="saveCaptainRounds()" style="padding:4px 14px;">Save Rounds</button>
+          <button class="btn btn-success" onclick="advanceState()" style="padding:4px 14px;">Start Draft</button>
+        </div>
+        <table style="border-collapse:collapse;font-size:0.82rem;color:#ccc;">
+          <thead><tr>
+            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Pick #</th>
+            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Captain</th>
+            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Team</th>
+            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Captain Round</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   } else if (s === 'active') {
     html = `<button class="btn btn-warning" onclick="advanceState()">Pause Draft</button>
             <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>`;
   } else if (s === 'paused') {
-    html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
-            <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>`;
+    if (editMode) {
+      html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
+              <button class="btn btn-warning" onclick="toggleEditMode()" style="margin-left:8px;">Done Editing</button>`;
+    } else {
+      html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
+              <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+              <button class="btn" onclick="toggleEditMode()" style="margin-left:8px;background:#555;color:#fff;">Edit Picks</button>`;
+    }
   } else if (s === 'complete') {
     if (editMode) {
       html = `<button class="btn btn-success" onclick="finalizeDraft()">Re-finalize &amp; Update Rosters</button>`
@@ -1473,6 +1544,25 @@ function finalizeDraft() {
 function toggleEditMode() {
   editMode = !editMode;
   render();
+}
+
+function saveCaptainRounds() {
+  const inputs = document.querySelectorAll('.captain-round-input');
+  const rounds = {};
+  for (const inp of inputs) {
+    const pk = inp.dataset.teamPk;
+    const val = inp.value.trim();
+    rounds[pk] = val === '' ? null : parseInt(val, 10);
+  }
+  fetch(`/draft/${SESSION_PK}/captain-rounds/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rounds }),
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showToast(d.error, true); return; }
+    showToast('Captain rounds saved.');
+    applyResponseState(d);
+  }).catch(() => showToast('Network error — could not save rounds.', true));
 }
 
 function resetDraft() {
@@ -1586,7 +1676,8 @@ function closeDraw() {
   drawMode = 'draw';
   document.getElementById('draw-overlay-title').textContent = 'Draft Position Draw';
   document.getElementById('draw-done-btn').textContent = 'Start Draft';
-  if (wasDrawMode && IS_COMMISSIONER) advanceState();
+  // Do not auto-advance — commissioner sets captain rounds first, then clicks Start Draft.
+  if (wasDrawMode && IS_COMMISSIONER) updateCommissionerButtons();
 }
 
 function showRoundRevealOverlay(data) {

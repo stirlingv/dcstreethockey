@@ -571,7 +571,20 @@ class Command(BaseCommand):
                 continue
 
             pick_number = captain_names.index(cap_name)
-            is_captain_pick = player == captain_players.get(cap_name)
+            matched_captain = captain_players.get(cap_name)
+            if matched_captain is not None:
+                is_captain_pick = player == matched_captain
+            else:
+                # Captain header wasn't resolved to a Player (ambiguous or
+                # first-name-only like "Jesse", "Mike E", "Kenny").
+                # Fall back: check whether the player's first name is a
+                # case-insensitive prefix match against the header token —
+                # catches "Kenny"→"Ken", "Mike E"→"Mike", "Jesse"→"Jesse".
+                cap_prefix = cap_name.strip().split()[0].lower()
+                p_first = player.first_name.strip().lower()
+                is_captain_pick = cap_prefix.startswith(p_first) or p_first.startswith(
+                    cap_prefix
+                )
             DraftPick.objects.create(
                 session=session,
                 team=team,

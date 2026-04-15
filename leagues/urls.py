@@ -18,6 +18,7 @@ from .draft_views import (
     finalize_draft,
     swap_pick,
     reset_draft,
+    set_captain_rounds,
 )
 
 urlpatterns = [
@@ -104,5 +105,10 @@ urlpatterns = [
         "draft/<int:session_pk>/reset/<uuid:token>/",
         reset_draft,
         name="draft_reset",
+    ),
+    path(
+        "draft/<int:session_pk>/captain-rounds/<uuid:token>/",
+        set_captain_rounds,
+        name="draft_set_captain_rounds",
     ),
 ]
