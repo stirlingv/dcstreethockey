@@ -43,11 +43,17 @@ class Command(BaseCommand):
             action="store_true",
             help="Print what would happen without writing to the database.",
         )
+        parser.add_argument(
+            "--create-players",
+            action="store_true",
+            help="Create Player records for signups that have no match.",
+        )
 
     def handle(self, *args, **options):
         season = self._get_season(options["season_id"])
         force = options["force"]
         dry_run = options["dry_run"]
+        create_players = options["create_players"]
 
         self.stdout.write(f"Season: {season} (pk={season.pk})")
         if dry_run:
@@ -110,6 +116,9 @@ class Command(BaseCommand):
                 )
             )
 
+        if create_players and results["new"]:
+            self._create_and_link_players(results["new"], dry_run)
+
     # -------------------------------------------------------------------------
 
     def _get_season(self, season_id):
@@ -157,6 +166,38 @@ class Command(BaseCommand):
     def _has_wednesday_history(self, player, wednesday_div):
         """True if the player has any Roster record in the Wednesday Draft League."""
         return player.roster_set.filter(team__division=wednesday_div).exists()
+
+    def _create_and_link_players(self, new_signups, dry_run):
+        """Create Player records for brand-new signups and link them."""
+        self.stdout.write(
+            f"\nCreating Player records for {len(new_signups)} new player(s):"
+        )
+        for signup in new_signups:
+            if dry_run:
+                self.stdout.write(
+                    f"  (dry run) would create: {signup.first_name} {signup.last_name} <{signup.email}>"
+                )
+                continue
+
+            player, created = Player.objects.get_or_create(
+                first_name=signup.first_name,
+                last_name=signup.last_name,
+                defaults={"email": signup.email, "is_active": True},
+            )
+            if created:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  created Player pk={player.pk}: {player.first_name} {player.last_name}"
+                    )
+                )
+            else:
+                self.stdout.write(
+                    f"  Player already exists pk={player.pk}: {player.first_name} {player.last_name} (linked)"
+                )
+
+            signup.linked_player = player
+            signup.is_returning = False
+            signup.save(update_fields=["linked_player", "is_returning"])
 
     def _print_report(self, results):
         if results["email"]:

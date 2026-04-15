@@ -53,3 +53,4 @@ debug_teams.html
 
 # Registration data / CSV exports (may contain PII)
 docs/*.csv
+backups/
