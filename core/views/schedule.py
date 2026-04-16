@@ -1,5 +1,5 @@
 import datetime
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from django.db.models import Case, F, IntegerField, Max, Q, Sum, When
 from django.db.models.functions import Coalesce, Lower
@@ -32,23 +32,33 @@ class MatchUpDetailView(ListView):
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
         context["date_of_week"] = self.kwargs.get("date", self._next_week.date)
-        matchups = MatchUp.objects.filter(week__date=context["date_of_week"]).order_by(
-            "time"
+        matchups = list(
+            MatchUp.objects.filter(week__date=context["date_of_week"])
+            .order_by("time")
+            .select_related("hometeam", "awayteam")
         )
+
+        # Batch-load all rosters for all teams in one query (instead of 2 per matchup)
+        team_ids = {match.hometeam_id for match in matchups} | {
+            match.awayteam_id for match in matchups
+        }
+        rosters_by_team = defaultdict(list)
+        for r in (
+            Roster.objects.filter(team_id__in=team_ids)
+            .select_related("player")
+            .order_by(
+                "player_number", Lower("player__last_name"), Lower("player__first_name")
+            )
+        ):
+            rosters_by_team[r.team_id].append(r)
+
         dmatchups = OrderedDict()
         for match in matchups:
-            dmatchups[match.id] = {}
-            dmatchups[match.id]["matchup"] = match
-            dmatchups[match.id]["hometeamroster"] = Roster.objects.filter(
-                team=match.hometeam
-            ).order_by(
-                "player_number", Lower("player__last_name"), Lower("player__first_name")
-            )
-            dmatchups[match.id]["awayteamroster"] = Roster.objects.filter(
-                team=match.awayteam
-            ).order_by(
-                "player_number", Lower("player__last_name"), Lower("player__first_name")
-            )
+            dmatchups[match.id] = {
+                "matchup": match,
+                "hometeamroster": rosters_by_team[match.hometeam_id],
+                "awayteamroster": rosters_by_team[match.awayteam_id],
+            }
 
         context["matchups"] = dmatchups
 
@@ -122,11 +132,9 @@ def get_matches_for_team(team):
 
 def get_detailed_matchups(matchups):
     result = OrderedDict()
-    for match in (
-        matchups.select_related("hometeam")
-        .select_related("awayteam")
-        .select_related("week")
-        .annotate(
+
+    matchup_list = list(
+        matchups.select_related("hometeam", "awayteam", "week").annotate(
             home_wins=Coalesce(Max("hometeam__team_stat__win"), 0),
             home_losses=Coalesce(Max("hometeam__team_stat__loss"), 0),
             home_ties=Coalesce(Max("hometeam__team_stat__tie"), 0),
@@ -138,27 +146,54 @@ def get_detailed_matchups(matchups):
             away_otl=Coalesce(Max("awayteam__team_stat__otl"), 0),
             away_ties=Coalesce(Max("awayteam__team_stat__tie"), 0),
         )
-    ):
-        if not result.get(str(match.week.date), False):
-            result[str(match.week.date)] = OrderedDict()
-        result[str(match.week.date)][str(match.id)] = {}
-        result[str(match.week.date)][str(match.id)]["match"] = match
-        relevant_stats = get_stats_for_matchup(match)
-        home_goalie_stats = get_goalies_for_matchup(match, home=True)
-        away_goalie_stats = get_goalies_for_matchup(match, home=False)
-        result[str(match.week.date)][str(match.id)]["stats"] = relevant_stats
-        result[str(match.week.date)][str(match.id)][
-            "home_goalie_stats"
-        ] = home_goalie_stats
-        result[str(match.week.date)][str(match.id)][
-            "away_goalie_stats"
-        ] = away_goalie_stats
+    )
+
+    if not matchup_list:
+        return result
+
+    # Batch-load all stats for every matchup in one query (instead of 3 per matchup)
+    all_stats = list(
+        Stat.objects.filter(matchup_id__in=[m.id for m in matchup_list]).select_related(
+            "player", "team"
+        )
+    )
+
+    matchup_lookup = {m.id: m for m in matchup_list}
+    scorers = defaultdict(list)
+    home_goalie_stats = defaultdict(list)
+    away_goalie_stats = defaultdict(list)
+
+    for stat in all_stats:
+        mid = stat.matchup_id
+        if (stat.goals or 0) + (stat.assists or 0) > 0:
+            scorers[mid].append(stat)
+        elif stat.team_id == matchup_lookup[mid].hometeam_id:
+            home_goalie_stats[mid].append(stat)
+        else:
+            away_goalie_stats[mid].append(stat)
+
+    for mid in scorers:
+        scorers[mid].sort(key=lambda s: (-(s.goals or 0), -(s.assists or 0)))
+
+    for match in matchup_list:
+        date_str = str(match.week.date)
+        if date_str not in result:
+            result[date_str] = OrderedDict()
+        result[date_str][str(match.id)] = {
+            "match": match,
+            "stats": scorers[match.id],
+            "home_goalie_stats": home_goalie_stats[match.id],
+            "away_goalie_stats": away_goalie_stats[match.id],
+        }
+
     return result
 
 
 def get_schedule_for_matchups(matchups):
     schedule = OrderedDict()
-    for match in matchups.annotate(
+    for match in matchups.select_related(
+        "week", "hometeam", "awayteam__division"
+    ).annotate(
         home_wins=Coalesce(Max("hometeam__team_stat__win"), 0),
         home_losses=Coalesce(Max("hometeam__team_stat__loss"), 0),
         home_ties=Coalesce(Max("hometeam__team_stat__tie"), 0),

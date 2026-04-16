@@ -37,9 +37,15 @@ from leagues.models import (
 #   - standings view runs ~3 queries per team (tiebreaker checks via Python loop)
 #   - goalie_status_board runs additional queries per matchup for roster goalie lookups
 # ---------------------------------------------------------------------------
-STANDINGS_QUERY_CEILING = 50  # ~3 q/team; see N+1 note above
-SCORES_ALL_DIVISIONS_QUERY_CEILING = 35
-SCORES_ONE_DIVISION_QUERY_CEILING = 25
+STANDINGS_QUERY_CEILING = (
+    35  # select_related('team') eliminated per-row FK hits; tiebreaker N+1 remains
+)
+SCORES_ALL_DIVISIONS_QUERY_CEILING = (
+    20  # batch stat loading + select_related reduced from 35
+)
+SCORES_ONE_DIVISION_QUERY_CEILING = (
+    20  # batch stat loading + select_related reduced from 25
+)
 PLAYER_STATS_QUERY_CEILING = 25
 GOALIE_BOARD_QUERY_CEILING = 40  # roster goalie lookup per matchup; see N+1 note
 # Max additional queries allowed per extra team added to standings

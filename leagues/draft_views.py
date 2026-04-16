@@ -1100,6 +1100,54 @@ def set_captain_rounds(request, session_pk, token):
 
 
 # ---------------------------------------------------------------------------
+# Captain: email-team data
+# ---------------------------------------------------------------------------
+
+
+def email_team_data(request, session_pk, token):
+    """
+    Return the captain's team roster with player emails so the client can
+    build a mailto: link.  Only accessible via the captain's private token.
+    Draft must be complete.
+    """
+    captain_team = get_object_or_404(
+        DraftTeam, session_id=session_pk, captain_token=token
+    )
+    session = captain_team.session
+
+    if session.state != DraftSession.STATE_COMPLETE:
+        return JsonResponse(
+            {"error": "Team email is only available after the draft is complete."},
+            status=400,
+        )
+
+    picks = captain_team.draft_picks.select_related("signup").order_by(
+        "round_number", "pick_number"
+    )
+
+    roster = []
+    for pick in picks:
+        s = pick.signup
+        roster.append(
+            {
+                "full_name": s.full_name,
+                "email": s.email,
+                "primary_position": s.primary_position,
+                "is_captain": s.pk == captain_team.captain_id,
+            }
+        )
+
+    return JsonResponse(
+        {
+            "team_name": captain_team.team_name,
+            "season_name": str(session.season),
+            "captain_name": captain_team.captain.full_name,
+            "roster": roster,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Commissioner: reset draft back to pre-draw setup
 # ---------------------------------------------------------------------------
 

@@ -81,6 +81,7 @@ class TeamStatDetailView(ListView):
         d1_team_stat_list = list(
             Team_Stat.objects.filter(team__is_active=True)
             .filter(division=1)
+            .select_related("team")
             .annotate(
                 total_points=Coalesce(
                     (Sum("win") * 3) + (Sum("otw") * 2) + Sum("tie") + Sum("otl"), 0
@@ -101,6 +102,7 @@ class TeamStatDetailView(ListView):
         d2_team_stat_list = list(
             Team_Stat.objects.filter(team__is_active=True)
             .filter(division=2)
+            .select_related("team")
             .annotate(
                 total_points=Coalesce(
                     (Sum("win") * 3) + (Sum("otw") * 2) + Sum("tie") + Sum("otl"), 0
@@ -121,6 +123,7 @@ class TeamStatDetailView(ListView):
         draft_team_stat_list = list(
             Team_Stat.objects.filter(team__is_active=True)
             .filter(division=3)
+            .select_related("team")
             .annotate(
                 total_points=Coalesce(
                     (Sum("win") * 3) + (Sum("otw") * 2) + Sum("tie") + Sum("otl"), 0
@@ -142,6 +145,7 @@ class TeamStatDetailView(ListView):
         monday_a_team_stat_list = list(
             Team_Stat.objects.filter(team__is_active=True)
             .filter(division=4)
+            .select_related("team")
             .annotate(
                 total_points=Coalesce(
                     (Sum("win") * 3) + (Sum("otw") * 2) + Sum("tie") + Sum("otl"), 0
@@ -162,6 +166,7 @@ class TeamStatDetailView(ListView):
         monday_b_team_stat_list = list(
             Team_Stat.objects.filter(team__is_active=True)
             .filter(division=5)
+            .select_related("team")
             .annotate(
                 total_points=Coalesce(
                     (Sum("win") * 3) + (Sum("otw") * 2) + Sum("tie") + Sum("otl"), 0

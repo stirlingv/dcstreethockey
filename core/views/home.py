@@ -17,6 +17,7 @@ def home(request):
     )
     one_row = (
         MatchUp.objects.filter(week__date__range=(today, next_week))
+        .select_related("week")
         .order_by("week__date")
         .distinct("week__date")
     )

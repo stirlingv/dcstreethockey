@@ -19,6 +19,7 @@ from .draft_views import (
     swap_pick,
     reset_draft,
     set_captain_rounds,
+    email_team_data,
 )
 
 urlpatterns = [
@@ -110,5 +111,10 @@ urlpatterns = [
         "draft/<int:session_pk>/captain-rounds/<uuid:token>/",
         set_captain_rounds,
         name="draft_set_captain_rounds",
+    ),
+    path(
+        "draft/<int:session_pk>/my-team/<uuid:token>/",
+        email_team_data,
+        name="draft_email_team",
     ),
 ]

@@ -13,7 +13,7 @@ Coverage:
 
 import datetime
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -141,6 +141,15 @@ class DraftTestBase(TestCase):
         )
 
         self.client = Client()
+
+        # Suppress WebSocket broadcasts in all tests — async_to_sync spawns a
+        # new event loop thread per call, which makes the suite very slow.
+        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
+        self._broadcast_patcher.start()
+
+    def tearDown(self):
+        self._broadcast_patcher.stop()
+        super().tearDown()
 
     # ------------------------------------------------------------------
     # Helpers
@@ -466,22 +475,6 @@ class DrawPositionsViewTests(DraftTestBase):
         super().setUp()
         # Reset positions so draw tests start clean
         self.session.teams.update(draft_position=None)
-        # Mock channel layer used inside draw_positions
-        mock_layer = MagicMock()
-        self._layer_patcher = patch(
-            "channels.layers.get_channel_layer", return_value=mock_layer
-        )
-        self._async_patcher = patch(
-            "asgiref.sync.async_to_sync",
-            side_effect=lambda f: (lambda *a, **kw: None),
-        )
-        self._layer_patcher.start()
-        self._async_patcher.start()
-
-    def tearDown(self):
-        self._layer_patcher.stop()
-        self._async_patcher.stop()
-        super().tearDown()
 
     def _draw_url(self):
         return reverse(
@@ -532,15 +525,6 @@ class DrawPositionsViewTests(DraftTestBase):
 
 
 class AdvanceStateViewTests(DraftTestBase):
-    def setUp(self):
-        super().setUp()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
-
     def _advance_url(self):
         return reverse(
             "draft_advance_state",
@@ -634,12 +618,6 @@ class MakePickViewTests(DraftTestBase):
     def setUp(self):
         super().setUp()
         self._activate()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def test_captain_makes_valid_pick(self):
         # Round 1, slot 0 → team1's turn
@@ -851,12 +829,6 @@ class UndoPickViewTests(DraftTestBase):
     def setUp(self):
         super().setUp()
         self._activate()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def _undo_url(self):
         return reverse(
@@ -907,12 +879,6 @@ class SwapPickViewTests(DraftTestBase):
     def setUp(self):
         super().setUp()
         self._complete()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def _swap_url(self):
         return reverse(
@@ -1012,12 +978,6 @@ class ResetDraftViewTests(DraftTestBase):
     def setUp(self):
         super().setUp()
         self._activate()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def _reset_url(self):
         return reverse(
@@ -1074,12 +1034,6 @@ class SetCaptainRoundsViewTests(DraftTestBase):
         # Put session in DRAW state (positions already drawn by DraftTestBase)
         self.session.state = DraftSession.STATE_DRAW
         self.session.save(update_fields=["state"])
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def _url(self):
         return reverse(
@@ -1478,20 +1432,17 @@ class AutoCaptainCompletionTests(DraftTestBase):
         Submitting the second-to-last pick via the API triggers auto-captain
         for the last slot, completing the draft without any further manual picks.
         """
-        with patch("leagues.draft_views._broadcast_state_change"):
-            # Fill all but the last TWO picks (round 3 picks 1 and 2)
-            self._make_pick(self.team1, self.players[0], 1, 0)
-            self._make_pick(self.team2, self.players[1], 1, 1)
-            self._make_pick(self.team3, self.players[2], 1, 2)
-            self._make_pick(self.team3, self.players[3], 2, 0)
-            self._make_pick(self.team2, self.players[4], 2, 1)
-            self._make_pick(self.team1, self.players[5], 2, 2)
-            self._make_pick(self.team1, self.cap1, 3, 0)
+        # Fill all but the last TWO picks (round 3 picks 1 and 2)
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        self._make_pick(self.team3, self.players[2], 1, 2)
+        self._make_pick(self.team3, self.players[3], 2, 0)
+        self._make_pick(self.team2, self.players[4], 2, 1)
+        self._make_pick(self.team1, self.players[5], 2, 2)
+        self._make_pick(self.team1, self.cap1, 3, 0)
 
-            # Submit round 3, pick 1 (team2's turn): cap2 for team2
-            response = self._post_pick(
-                self.cap2.pk, captain_token=self.team2.captain_token
-            )
+        # Submit round 3, pick 1 (team2's turn): cap2 for team2
+        response = self._post_pick(self.cap2.pk, captain_token=self.team2.captain_token)
         self.assertEqual(response.status_code, 200)
         self.session.refresh_from_db()
         self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
@@ -1544,13 +1495,12 @@ class AllCaptainsSameRoundTests(DraftTestBase):
         # Reset to DRAW so advance_state triggers the transition
         self.session.state = DraftSession.STATE_DRAW
         self.session.save(update_fields=["state"])
-        with patch("leagues.draft_views._broadcast_state_change"):
-            self.client.post(
-                reverse(
-                    "draft_advance_state",
-                    args=[self.session.pk, self.session.commissioner_token],
-                )
+        self.client.post(
+            reverse(
+                "draft_advance_state",
+                args=[self.session.pk, self.session.commissioner_token],
             )
+        )
         # All three captains should be drafted
         self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 3)
         for cap in [self.cap1, self.cap2, self.cap3]:
@@ -1580,11 +1530,8 @@ class EarlyManualCaptainPickTests(DraftTestBase):
         self.team1.save(update_fields=["captain_draft_round"])
 
     def test_own_team_can_pick_captain_manually_before_designated_round(self):
-        with patch("leagues.draft_views._broadcast_state_change"):
-            # Round 1, slot 0 → team1's turn.  Manually pick their own captain.
-            response = self._post_pick(
-                self.cap1.pk, captain_token=self.team1.captain_token
-            )
+        # Round 1, slot 0 → team1's turn.  Manually pick their own captain.
+        response = self._post_pick(self.cap1.pk, captain_token=self.team1.captain_token)
         self.assertEqual(response.status_code, 200)
         self.assertTrue(
             DraftPick.objects.filter(
@@ -1626,12 +1573,6 @@ class UndoEdgeCaseTests(DraftTestBase):
     def setUp(self):
         super().setUp()
         self._activate()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def _undo_url(self):
         return reverse(
@@ -1713,12 +1654,6 @@ class PickValidationEdgeCaseTests(DraftTestBase):
     def setUp(self):
         super().setUp()
         self._activate()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def test_make_pick_get_request_returns_405(self):
         url = reverse("draft_make_pick", args=[self.session.pk])
@@ -1888,14 +1823,8 @@ class FullSnakeDraftIntegrationTests(DraftTestBase):
     def setUp(self):
         super().setUp()
         self._activate()
-        self._broadcast_patcher = patch("leagues.draft_views._broadcast_state_change")
-        self._broadcast_patcher.start()
         # Use captains' own tokens; captains have no captain_draft_round so are pickable manually
         self.all_signups = self.players[:6] + [self.cap1, self.cap2, self.cap3]
-
-    def tearDown(self):
-        self._broadcast_patcher.stop()
-        super().tearDown()
 
     def test_complete_snake_draft_all_picks_succeed(self):
         """
@@ -1996,3 +1925,86 @@ class FullSnakeDraftIntegrationTests(DraftTestBase):
         self.session.refresh_from_db()
         self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
         self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 9)
+
+
+# ---------------------------------------------------------------------------
+# Captain: email team data endpoint
+# ---------------------------------------------------------------------------
+
+
+class EmailTeamDataViewTests(DraftTestBase):
+    def _url(self, team=None):
+        t = team or self.team1
+        return reverse("draft_email_team", args=[self.session.pk, t.captain_token])
+
+    def _fill_team1_picks(self):
+        """Give team1 one pick so the roster is non-empty."""
+        return self._make_pick(self.team1, self.players[0], 1, 0)
+
+    def test_returns_200_when_draft_complete(self):
+        self._complete()
+        self._fill_team1_picks()
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+    def test_400_when_draft_not_complete(self):
+        self._activate()
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 400)
+        data = json.loads(resp.content)
+        self.assertIn("error", data)
+
+    def test_400_when_draft_in_setup(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 400)
+
+    def test_404_with_wrong_token(self):
+        import uuid
+
+        self._complete()
+        bad_url = reverse("draft_email_team", args=[self.session.pk, uuid.uuid4()])
+        resp = self.client.get(bad_url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_returns_team_name_and_season(self):
+        self._complete()
+        self._fill_team1_picks()
+        resp = self.client.get(self._url())
+        data = json.loads(resp.content)
+        self.assertIn("team_name", data)
+        self.assertIn("season_name", data)
+        self.assertIn("captain_name", data)
+
+    def test_roster_contains_pick_with_email(self):
+        self._complete()
+        self._fill_team1_picks()
+        resp = self.client.get(self._url())
+        data = json.loads(resp.content)
+        self.assertIn("roster", data)
+        self.assertTrue(len(data["roster"]) > 0)
+        first = data["roster"][0]
+        self.assertIn("full_name", first)
+        self.assertIn("email", first)
+        self.assertIn("primary_position", first)
+        self.assertIn("is_captain", first)
+
+    def test_captain_is_flagged_in_roster(self):
+        # Captain's auto-pick
+        self._complete()
+        self._make_pick(self.team1, self.cap1, 2, 0, auto=True)
+        resp = self.client.get(self._url())
+        data = json.loads(resp.content)
+        captain_entries = [p for p in data["roster"] if p["is_captain"]]
+        self.assertEqual(len(captain_entries), 1)
+        self.assertEqual(captain_entries[0]["full_name"], self.cap1.full_name)
+
+    def test_other_team_token_returns_own_roster(self):
+        """Each captain's token only exposes their own team."""
+        self._complete()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        resp2 = self.client.get(self._url(team=self.team2))
+        data = json.loads(resp2.content)
+        names = [p["full_name"] for p in data["roster"]]
+        self.assertIn(self.players[1].full_name, names)
+        self.assertNotIn(self.players[0].full_name, names)

@@ -135,14 +135,13 @@ if "test" in sys.argv or "testserver" in sys.argv:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            # path to collab sqlite3 database file
-            "NAME": "",
-            "USER": "",  # leave empty
-            "PASSWORD": "",  # leave empty
-            "HOST": "",  # leave empty
-            "PORT": "",  # leave empty
+            "NAME": ":memory:",
         },
     }
+elif os.environ.get("DATABASE_URL"):
+    import dj_database_url
+
+    DATABASES = {"default": dj_database_url.config(conn_max_age=600)}
 elif os.environ.get("RUN_DOCKER", False):
     DATABASES = {
         "default": {

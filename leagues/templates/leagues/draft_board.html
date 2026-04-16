@@ -231,6 +231,21 @@
     color: #856404;
     margin-right: 4px;
   }
+  .captain-complete-bar {
+    background: #d4edda;
+    border-bottom: 1px solid #28a745;
+    padding: 8px 20px;
+    display: none;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .captain-complete-bar .bar-label {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #155724;
+    margin-right: 4px;
+  }
   .btn {
     padding: 6px 14px;
     border-radius: 4px;
@@ -822,6 +837,19 @@
 </div>
 {% endif %}
 
+{% if is_captain %}
+<div class="captain-complete-bar" id="captain-complete-bar">
+  <span class="bar-label">&#10003; DRAFT COMPLETE</span>
+  <button class="btn btn-primary" onclick="emailMyTeam()" style="font-size:0.85rem;">
+    &#9993; Email My Team
+  </button>
+  <button class="btn btn-outline-secondary" onclick="copyTeamEmails()" style="font-size:0.85rem;">
+    &#128203; Copy Emails
+  </button>
+  <span style="font-size:0.78rem;color:#155724;">Send your roster to all teammates so everyone has each other's contact info.</span>
+</div>
+{% endif %}
+
 <div class="draft-shell">
 
   <!-- Main board -->
@@ -1040,6 +1068,13 @@ function render() {
   if (sidebarView === 'team') renderTeamPanel();
   if (IS_COMMISSIONER) updateCommissionerButtons();
   if (IS_COMMISSIONER) triggerPendingAutoPick();
+  if (IS_CAPTAIN) updateCaptainCompleteBar();
+}
+
+function updateCaptainCompleteBar() {
+  const bar = document.getElementById('captain-complete-bar');
+  if (!bar) return;
+  bar.style.display = (state && state.state === 'complete') ? 'flex' : 'none';
 }
 
 // When the commissioner board loads (or receives a state update) while the
@@ -1565,6 +1600,57 @@ function saveCaptainRounds() {
   }).catch(() => showToast('Network error — could not save rounds.', true));
 }
 
+function fetchTeamData() {
+  return fetch(`/draft/${SESSION_PK}/my-team/${CAPTAIN_TOKEN}/`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { showToast(d.error, true); return null; }
+      return d;
+    })
+    .catch(() => { showToast('Network error — could not load team data.', true); return null; });
+}
+
+function emailMyTeam() {
+  fetchTeamData().then(d => {
+    if (!d) return;
+
+    const emails = d.roster.map(p => p.email).filter(Boolean);
+    const subject = encodeURIComponent(`${d.season_name} – ${d.team_name}`);
+
+    // Build a plain-text roster body
+    const byPos = {};
+    for (const p of d.roster) {
+      const pos = p.primary_position || 'Other';
+      if (!byPos[pos]) byPos[pos] = [];
+      byPos[pos].push(p.full_name + (p.is_captain ? ' (Captain)' : ''));
+    }
+    const posOrder = ['Goalie', 'Defense', 'Center', 'Wing'];
+    let bodyLines = [`Hi team! Here's your ${d.team_name} roster for ${d.season_name}:\n`];
+    for (const pos of posOrder) {
+      if (byPos[pos] && byPos[pos].length) {
+        bodyLines.push(`${pos}:`);
+        for (const name of byPos[pos]) bodyLines.push(`  ${name}`);
+        bodyLines.push('');
+      }
+    }
+    bodyLines.push('See you on the floor!');
+    const body = encodeURIComponent(bodyLines.join('\n'));
+
+    const mailto = `mailto:${emails.join(',')}?subject=${subject}&body=${body}`;
+    window.location.href = mailto;
+  });
+}
+
+function copyTeamEmails() {
+  fetchTeamData().then(d => {
+    if (!d) return;
+    const emails = d.roster.map(p => p.email).filter(Boolean).join(', ');
+    navigator.clipboard.writeText(emails)
+      .then(() => showToast('Emails copied to clipboard!'))
+      .catch(() => showToast('Could not copy — check browser permissions.', true));
+  });
+}
+
 function resetDraft() {
   const confirmed = confirm(
     'Reset the draft?\n\n' +
@@ -1830,6 +1916,18 @@ function renderTeamPanel() {
   }
   sumHtml += '</div>';
   html += sumHtml;
+
+  // Show "Email My Team" button for captains viewing their own team after draft completes
+  if (IS_CAPTAIN && teamViewPk === CAPTAIN_TEAM_PK && state.state === 'complete') {
+    html += `<div style="padding:10px 0 4px;display:flex;gap:6px;">
+      <button class="btn btn-primary" onclick="emailMyTeam()" style="flex:1;font-size:0.85rem;padding:7px 12px;">
+        &#9993; Email My Team
+      </button>
+      <button class="btn btn-outline-secondary" onclick="copyTeamEmails()" style="flex:1;font-size:0.85rem;padding:7px 12px;">
+        &#128203; Copy Emails
+      </button>
+    </div>`;
+  }
 
   body.innerHTML = html;
 }
