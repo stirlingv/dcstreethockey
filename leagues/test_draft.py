@@ -36,6 +36,7 @@ from leagues.models import (
 )
 from leagues.draft_views import (
     _get_champion_data_for_sessions,
+    _get_session_champion,
     _process_auto_captain_picks,
     _session_state_payload,
 )
@@ -2401,3 +2402,94 @@ class DraftChampionDataTests(TestCase):
         self.assertNotContains(
             resp, "Alice Smith"
         )  # captain NOT shown (no DraftTeam link)
+
+
+# ---------------------------------------------------------------------------
+# Champion banner on draft board page
+# ---------------------------------------------------------------------------
+
+
+class DraftBoardChampionBannerTests(DraftChampionDataTests):
+    """
+    Tests that the champion banner is rendered on the draft board page
+    (spectator, commissioner, captain views) for completed sessions.
+    Inherits setUp from DraftChampionDataTests which creates a COMPLETE
+    session with a clear championship winner (Alpha Team / Alice Smith).
+    """
+
+    def _spectator_url(self):
+        return reverse("draft_board_spectator", args=[self.session.pk])
+
+    def _commissioner_url(self):
+        return reverse(
+            "draft_board_commissioner",
+            args=[self.session.pk, self.session.commissioner_token],
+        )
+
+    def _captain_url(self):
+        return reverse(
+            "draft_board_captain",
+            args=[self.session.pk, self.dt1.captain_token],
+        )
+
+    def test_spectator_champion_in_context(self):
+        resp = self.client.get(self._spectator_url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context["champion"])
+        self.assertEqual(resp.context["champion"]["team"], self.team1)
+
+    def test_spectator_champion_banner_rendered(self):
+        resp = self.client.get(self._spectator_url())
+        self.assertContains(resp, "Season Champions")
+        self.assertContains(resp, "Alpha Team")
+        self.assertContains(resp, "Alice Smith")
+
+    def test_spectator_regular_season_record_in_banner(self):
+        resp = self.client.get(self._spectator_url())
+        self.assertContains(resp, "Regular Season")
+        self.assertContains(resp, "8-2")
+
+    def test_spectator_playoff_record_in_banner(self):
+        resp = self.client.get(self._spectator_url())
+        self.assertContains(resp, "Playoffs")
+        self.assertContains(resp, "1-0")
+
+    def test_commissioner_champion_in_context(self):
+        resp = self.client.get(self._commissioner_url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context["champion"])
+
+    def test_commissioner_champion_banner_rendered(self):
+        resp = self.client.get(self._commissioner_url())
+        self.assertContains(resp, "Season Champions")
+        self.assertContains(resp, "Alpha Team")
+
+    def test_captain_champion_in_context(self):
+        resp = self.client.get(self._captain_url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context["champion"])
+
+    def test_captain_champion_banner_rendered(self):
+        resp = self.client.get(self._captain_url())
+        self.assertContains(resp, "Season Champions")
+        self.assertContains(resp, "Alpha Team")
+
+    def test_no_champion_banner_for_non_complete_session(self):
+        """Active/paused sessions should not show a champion banner."""
+        self.session.state = DraftSession.STATE_ACTIVE
+        self.session.save()
+        resp = self.client.get(self._spectator_url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context["champion"])
+        self.assertNotContains(resp, "Season Champions")
+
+    def test_get_session_champion_wrapper(self):
+        """_get_session_champion returns the same data as the batch helper."""
+        champ = _get_session_champion(self.session)
+        self.assertIsNotNone(champ)
+        self.assertEqual(champ["team"], self.team1)
+
+    def test_get_session_champion_none_for_non_complete(self):
+        self.session.state = DraftSession.STATE_ACTIVE
+        self.session.save()
+        self.assertIsNone(_get_session_champion(self.session))

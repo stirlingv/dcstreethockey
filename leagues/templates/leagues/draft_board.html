@@ -904,6 +904,76 @@
       padding: 12px 16px;
     }
   }
+
+  /* ---- Champion banner (complete sessions) ---- */
+  .champ-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #1a1600;
+    border: 1px solid #7a5900;
+    border-left: 4px solid #b7860b;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+  }
+
+  .champ-banner-trophy {
+    font-size: 2rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .champ-banner-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .champ-banner-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #b7860b;
+    margin-bottom: 3px;
+  }
+
+  .champ-banner-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #f5c842;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .champ-banner-captain {
+    font-size: 0.82rem;
+    color: #aaa;
+    margin-top: 2px;
+  }
+
+  .champ-banner-record {
+    font-size: 0.82rem;
+    color: #ccc;
+    margin-top: 4px;
+  }
+
+  .champ-banner-record .rec-label {
+    font-weight: 600;
+    color: #b7860b;
+  }
+
+  @media (max-width: 600px) {
+    .champ-banner {
+      padding: 12px 14px;
+      gap: 10px;
+    }
+    .champ-banner-name {
+      white-space: normal;
+      font-size: 1rem;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -982,6 +1052,30 @@
         </a>
       </span>
     </div>
+
+    {% if champion %}
+    <div class="champ-banner">
+      <div class="champ-banner-trophy">&#127942;</div>
+      <div class="champ-banner-info">
+        <div class="champ-banner-label">Season Champions</div>
+        <div class="champ-banner-name">{{ champion.team.team_name }}</div>
+        {% if champion.draft_team %}
+        <div class="champ-banner-captain">Captain: {{ champion.draft_team.captain.full_name }}</div>
+        {% endif %}
+        <div class="champ-banner-record">
+          {% if champion.team_stat %}
+            <span class="rec-label">Regular Season:</span>
+            {{ champion.team_stat.win|add:champion.team_stat.otw }}-{{ champion.team_stat.loss|add:champion.team_stat.otl }}{% if champion.team_stat.tie %}-{{ champion.team_stat.tie }}{% endif %}
+          {% endif %}
+          {% if champion.playoff_wins or champion.playoff_losses %}
+            {% if champion.team_stat %}&nbsp;&middot;&nbsp;{% endif %}
+            <span class="rec-label">Playoffs:</span>
+            {{ champion.playoff_wins }}-{{ champion.playoff_losses }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <div id="board-container"></div>
   </div>

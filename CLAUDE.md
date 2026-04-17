@@ -102,6 +102,18 @@ Tests live in `core/tests/test_schedule_views.py`.
 
 ---
 
+## User-friendly and intuitive design — required for all enhancements
+
+Every feature and UI change must be immediately understandable to a non-technical user with no training. Clarity and simplicity are non-negotiable.
+
+- **Zero learning curve**: users should know what to do without instructions. Use plain, familiar language for labels and actions (e.g. "View Draft Board" not "Open Session").
+- **Progressive disclosure**: show the most important information first; hide advanced or rarely-needed controls until needed. Don't crowd the primary UI with edge-case options.
+- **Consistent patterns**: match the visual language and interaction patterns already used on the site. New UI elements should feel like they belong.
+- **Clear feedback**: every user action must produce visible feedback — button states, success/error messages, loading indicators where appropriate.
+- **Accessible defaults**: meaningful contrast ratios, readable font sizes (≥ 14px body copy), and clear focus states for keyboard navigation.
+
+---
+
 ## Mobile-friendly UI — required for all changes
 
 Every UI change must work well on both desktop and mobile devices. This is not optional polish — it is a hard requirement for all templates, pages, and interactive features.

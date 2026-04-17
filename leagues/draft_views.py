@@ -425,6 +425,7 @@ def draft_board_spectator(request, session_pk):
         "initial_state": initial_state,
         "is_captain": False,
         "is_commissioner": False,
+        "champion": _get_session_champion(session),
     }
     return render(request, "leagues/draft_board.html", context)
 
@@ -465,6 +466,7 @@ def draft_board_commissioner(request, session_pk, token):
         "is_commissioner": True,
         "commissioner_token": str(token),
         "all_players_json": all_players_json,
+        "champion": _get_session_champion(session),
     }
     return render(request, "leagues/draft_board.html", context)
 
@@ -494,6 +496,7 @@ def draft_board_captain(request, session_pk, token):
         "captain_team_pk": team.pk,
         "captain_token": str(token),
         "captain_name": team.captain.full_name,
+        "champion": _get_session_champion(session),
     }
     return render(request, "leagues/draft_board.html", context)
 
@@ -1564,6 +1567,15 @@ def _get_champion_data_for_sessions(sessions):
             "playoff_losses": po["losses"],
         }
     return result
+
+
+def _get_session_champion(session):
+    """
+    Return champion data for a single DraftSession, or None if not available.
+    Thin wrapper around the batch helper for single-session use.
+    """
+    data = _get_champion_data_for_sessions([session])
+    return data.get(session.pk)
 
 
 def draft_sessions_list(request):
