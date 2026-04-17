@@ -102,6 +102,19 @@ Tests live in `core/tests/test_schedule_views.py`.
 
 ---
 
+## Mobile-friendly UI — required for all changes
+
+Every UI change must work well on both desktop and mobile devices. This is not optional polish — it is a hard requirement for all templates, pages, and interactive features.
+
+- Use responsive layouts (flexbox/CSS grid) that reflow naturally at narrow widths.
+- Touch targets (buttons, links) must be at least 44px tall on mobile.
+- Text must be readable without zooming (minimum ~14px font size in body copy).
+- Avoid fixed widths that overflow on small screens; use `min-width` with `overflow: auto` for tables/grids that cannot reflow.
+- Test at ≤ 600px viewport width for phone-sized screens and at ≥ 1024px for desktop.
+- Use `@media (max-width: 767px)` as the primary breakpoint for mobile overrides.
+
+---
+
 ## Terminology — floor hockey, not ice hockey
 
 DC Street Hockey is a **floor hockey** league. It plays just like ice hockey — same positions, same rules — except players run instead of skate, and a ball is used instead of a puck. Use the correct vocabulary everywhere: code, comments, templates, and test fixtures.

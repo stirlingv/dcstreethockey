@@ -19,12 +19,14 @@ from .models import (
     DraftSession,
     DraftTeam,
     Division,
+    MatchUp,
     Player,
     Roster,
     Season,
     SeasonSignup,
     Stat,
     Team,
+    Team_Stat,
 )
 
 
@@ -1431,16 +1433,155 @@ def draft_results_download(request, session_pk):
 # ---------------------------------------------------------------------------
 
 
+_DRAFT_DIVISION = 3  # Wednesday Draft League
+
+
+def _get_champion_data_for_sessions(sessions):
+    """
+    Batch-fetch championship info for all provided DraftSession objects.
+
+    Returns a dict keyed by session.pk:
+        {
+            'team': Team,
+            'draft_team': DraftTeam | None,
+            'team_stat': Team_Stat | None,
+            'playoff_wins': int,
+            'playoff_losses': int,
+        }
+
+    Only completed sessions that have a finalized championship matchup with a
+    clear winner (non-tied goal count) are included in the result.
+    Runs at most 6 queries regardless of how many sessions are provided.
+    """
+    complete = [s for s in sessions if s.state == DraftSession.STATE_COMPLETE]
+    if not complete:
+        return {}
+
+    season_ids = [s.season_id for s in complete]
+    session_by_season_id = {s.season_id: s for s in complete}
+
+    # 1. Championship matchup for each draft season
+    champ_matchups = list(
+        MatchUp.objects.filter(
+            is_championship=True,
+            hometeam__division__division=_DRAFT_DIVISION,
+            hometeam__season_id__in=season_ids,
+        ).select_related("hometeam", "awayteam")
+    )
+    if not champ_matchups:
+        return {}
+
+    champ_ids = [m.id for m in champ_matchups]
+
+    # 2. Goal counts per team per championship matchup
+    goal_rows = (
+        Stat.objects.filter(matchup_id__in=champ_ids)
+        .values("matchup_id", "team_id")
+        .annotate(goals=Sum("goals"))
+    )
+    goals = {}  # (matchup_id, team_id) -> goals
+    for row in goal_rows:
+        goals[(row["matchup_id"], row["team_id"])] = row["goals"]
+
+    # 3. Determine winner per session
+    winner_by_session_pk = {}  # session.pk -> Team
+    for m in champ_matchups:
+        season_id = m.hometeam.season_id
+        session = session_by_season_id.get(season_id)
+        if not session:
+            continue
+        home_g = goals.get((m.id, m.hometeam_id), 0)
+        away_g = goals.get((m.id, m.awayteam_id), 0)
+        if home_g > away_g:
+            winner_by_session_pk[session.pk] = m.hometeam
+        elif away_g > home_g:
+            winner_by_session_pk[session.pk] = m.awayteam
+        # tied championship → skip (won't happen in a real league)
+
+    if not winner_by_session_pk:
+        return {}
+
+    winner_team_ids = [t.id for t in winner_by_session_pk.values()]
+
+    # 4. DraftTeam records for the winners (links captain name + draft team name)
+    draft_teams = {
+        dt.league_team_id: dt
+        for dt in DraftTeam.objects.filter(
+            league_team_id__in=winner_team_ids
+        ).select_related("captain")
+    }
+
+    # 5. Regular-season Team_Stat records
+    team_stats = {
+        ts.team_id: ts for ts in Team_Stat.objects.filter(team_id__in=winner_team_ids)
+    }
+
+    # 6. Playoff records — all postseason matchups for winning teams
+    playoff_matchup_rows = list(
+        MatchUp.objects.filter(
+            Q(hometeam_id__in=winner_team_ids) | Q(awayteam_id__in=winner_team_ids),
+            is_postseason=True,
+        ).values("id", "hometeam_id", "awayteam_id")
+    )
+
+    playoff_records = {}  # team_id -> {'wins': int, 'losses': int}
+    if playoff_matchup_rows:
+        playoff_ids = [r["id"] for r in playoff_matchup_rows]
+        po_goals = {}
+        for row in (
+            Stat.objects.filter(matchup_id__in=playoff_ids)
+            .values("matchup_id", "team_id")
+            .annotate(goals=Sum("goals"))
+        ):
+            po_goals[(row["matchup_id"], row["team_id"])] = row["goals"]
+
+        for m in playoff_matchup_rows:
+            for team_id in winner_team_ids:
+                if team_id not in (m["hometeam_id"], m["awayteam_id"]):
+                    continue
+                opp_id = (
+                    m["awayteam_id"]
+                    if m["hometeam_id"] == team_id
+                    else m["hometeam_id"]
+                )
+                mine = po_goals.get((m["id"], team_id), 0)
+                theirs = po_goals.get((m["id"], opp_id), 0)
+                rec = playoff_records.setdefault(team_id, {"wins": 0, "losses": 0})
+                if mine > theirs:
+                    rec["wins"] += 1
+                elif theirs > mine:
+                    rec["losses"] += 1
+
+    # Assemble final result
+    result = {}
+    for session_pk, champion_team in winner_by_session_pk.items():
+        po = playoff_records.get(champion_team.id, {"wins": 0, "losses": 0})
+        result[session_pk] = {
+            "team": champion_team,
+            "draft_team": draft_teams.get(champion_team.id),
+            "team_stat": team_stats.get(champion_team.id),
+            "playoff_wins": po["wins"],
+            "playoff_losses": po["losses"],
+        }
+    return result
+
+
 def draft_sessions_list(request):
     """
     Public listing of all draft sessions, newest first.
     SETUP-state sessions are hidden — the draft becomes visible to fans
     once the commissioner advances to the draw phase.
     """
-    sessions = (
+    sessions = list(
         DraftSession.objects.select_related("season")
         .exclude(state=DraftSession.STATE_SETUP)
         .annotate(pick_count=Count("picks"))
         .order_by("-season__year", "-season__season_type")
     )
-    return render(request, "leagues/draft_archive.html", {"sessions": sessions})
+    champion_data = _get_champion_data_for_sessions(sessions)
+    sessions_with_champ = [(s, champion_data.get(s.pk)) for s in sessions]
+    return render(
+        request,
+        "leagues/draft_archive.html",
+        {"sessions_with_champ": sessions_with_champ},
+    )

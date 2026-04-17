@@ -19,14 +19,26 @@ from django.test import TestCase, Client
 from django.urls import reverse
 
 from leagues.models import (
+    Division,
     DraftPick,
     DraftRound,
     DraftSession,
     DraftTeam,
+    MatchUp,
+    Player,
+    Roster,
     Season,
     SeasonSignup,
+    Stat,
+    Team,
+    Team_Stat,
+    Week,
 )
-from leagues.draft_views import _process_auto_captain_picks, _session_state_payload
+from leagues.draft_views import (
+    _get_champion_data_for_sessions,
+    _process_auto_captain_picks,
+    _session_state_payload,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -2190,3 +2202,202 @@ class DraftSessionsListTests(DraftTestBase):
         resp = self.client.get(reverse("draft_sessions_list"))
         content = resp.content.decode()
         self.assertLess(content.index("2030"), content.index("2020"))
+
+
+# ---------------------------------------------------------------------------
+# _get_champion_data_for_sessions + archive champion display
+# ---------------------------------------------------------------------------
+
+
+class DraftChampionDataTests(TestCase):
+    """
+    Tests for _get_champion_data_for_sessions and the champion section
+    rendered on the draft archive page.
+    """
+
+    def _make_player_stat(self, team, matchup, goals):
+        player = Player.objects.create(first_name=f"P{team.id}", last_name="Test")
+        Roster.objects.create(player=player, team=team, position1=1, is_captain=False)
+        Stat.objects.create(
+            player=player, team=team, matchup=matchup, goals=goals, assists=0
+        )
+        return player
+
+    def setUp(self):
+        self.client = Client()
+        self.season = Season.objects.create(
+            year=2025, season_type=4, is_current_season=False
+        )
+        self.draft_div = Division.objects.create(division=3)
+
+        self.session = DraftSession.objects.create(
+            season=self.season,
+            num_teams=2,
+            num_rounds=3,
+            state=DraftSession.STATE_COMPLETE,
+            signups_open=False,
+        )
+
+        # Real league teams (created during finalization)
+        self.team1 = Team.objects.create(
+            team_name="Alpha Team",
+            team_color="Red",
+            division=self.draft_div,
+            season=self.season,
+            is_active=True,
+        )
+        self.team2 = Team.objects.create(
+            team_name="Beta Team",
+            team_color="Blue",
+            division=self.draft_div,
+            season=self.season,
+            is_active=True,
+        )
+
+        # Captain signups
+        self.cap1 = SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Alice",
+            last_name="Smith",
+            email="alice@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_YES,
+        )
+        self.cap2 = SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Bob",
+            last_name="Jones",
+            email="bob@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_YES,
+        )
+
+        # DraftTeams linked to real league teams
+        self.dt1 = DraftTeam.objects.create(
+            session=self.session,
+            captain=self.cap1,
+            draft_position=1,
+            league_team=self.team1,
+        )
+        self.dt2 = DraftTeam.objects.create(
+            session=self.session,
+            captain=self.cap2,
+            draft_position=2,
+            league_team=self.team2,
+        )
+
+        # Week + championship matchup (team1 wins 3-1)
+        self.week = Week.objects.create(
+            division=self.draft_div,
+            season=self.season,
+            date=datetime.date(2025, 3, 15),
+        )
+        self.champ_matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            hometeam=self.team1,
+            awayteam=self.team2,
+            is_postseason=True,
+            is_championship=True,
+        )
+        self._make_player_stat(self.team1, self.champ_matchup, goals=3)
+        self._make_player_stat(self.team2, self.champ_matchup, goals=1)
+
+        # Regular-season record for the champion
+        Team_Stat.objects.create(
+            division=self.draft_div,
+            season=self.season,
+            team=self.team1,
+            win=8,
+            otw=0,
+            loss=2,
+            otl=0,
+            tie=0,
+            goals_for=30,
+            goals_against=15,
+        )
+
+    # --- _get_champion_data_for_sessions unit tests ---
+
+    def test_champion_identified(self):
+        result = _get_champion_data_for_sessions([self.session])
+        self.assertIn(self.session.pk, result)
+        self.assertEqual(result[self.session.pk]["team"], self.team1)
+
+    def test_champion_draft_team_linked(self):
+        result = _get_champion_data_for_sessions([self.session])
+        self.assertEqual(result[self.session.pk]["draft_team"], self.dt1)
+
+    def test_champion_team_stat_present(self):
+        result = _get_champion_data_for_sessions([self.session])
+        ts = result[self.session.pk]["team_stat"]
+        self.assertIsNotNone(ts)
+        self.assertEqual(ts.win, 8)
+        self.assertEqual(ts.loss, 2)
+
+    def test_playoff_wins_and_losses_counted(self):
+        result = _get_champion_data_for_sessions([self.session])
+        self.assertEqual(result[self.session.pk]["playoff_wins"], 1)
+        self.assertEqual(result[self.session.pk]["playoff_losses"], 0)
+
+    def test_non_complete_session_excluded(self):
+        self.session.state = DraftSession.STATE_ACTIVE
+        self.session.save()
+        result = _get_champion_data_for_sessions([self.session])
+        self.assertEqual(result, {})
+
+    def test_no_championship_matchup_returns_empty(self):
+        self.champ_matchup.is_championship = False
+        self.champ_matchup.save()
+        result = _get_champion_data_for_sessions([self.session])
+        self.assertEqual(result, {})
+
+    def test_tied_championship_excluded(self):
+        """A tied championship game should not produce a champion."""
+        # Reset goals to 2-2 tie
+        Stat.objects.filter(matchup=self.champ_matchup).update(goals=2)
+        result = _get_champion_data_for_sessions([self.session])
+        self.assertEqual(result, {})
+
+    def test_empty_sessions_list(self):
+        self.assertEqual(_get_champion_data_for_sessions([]), {})
+
+    # --- Archive page rendering tests ---
+
+    def test_champion_team_name_shown(self):
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Alpha Team")
+
+    def test_champion_captain_shown(self):
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(resp, "Alice Smith")
+
+    def test_regular_season_record_shown(self):
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(resp, "Regular Season")
+        # 8 wins + 0 OTW = 8, 2 losses + 0 OTL = 2 → "8-2"
+        self.assertContains(resp, "8-2")
+
+    def test_playoff_record_shown(self):
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(resp, "Playoffs")
+        self.assertContains(resp, "1-0")
+
+    def test_champion_shown_without_draft_team_link(self):
+        """
+        If DraftTeams have no league_team, the champion team name is still shown
+        (determined from the championship matchup) but the captain line is absent.
+        """
+        self.dt1.league_team = None
+        self.dt1.save()
+        self.dt2.league_team = None
+        self.dt2.save()
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Alpha Team")  # team name from MatchUp still shown
+        self.assertNotContains(
+            resp, "Alice Smith"
+        )  # captain NOT shown (no DraftTeam link)
