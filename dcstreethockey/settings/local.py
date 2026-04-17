@@ -13,3 +13,10 @@ SECURE_SSL_REDIRECT = False
 DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_URL = "/media/"
+
+# Debug toolbar is off by default (it adds significant per-request overhead).
+# To enable it for a session: SHOW_DEBUG_TOOLBAR=1 python manage.py runserver
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": lambda request: os.environ.get("SHOW_DEBUG_TOOLBAR")
+    == "1",
+}

@@ -108,12 +108,102 @@ def _get_wednesday_stats(player):
     }
 
 
-def _signup_payload(signup):
+def _batch_wednesday_stats(player_ids):
+    """
+    Batch version of _get_wednesday_stats.
+    Returns {player_id: stats_dict} for all given player IDs in 2 queries,
+    regardless of how many players are passed.
+    """
+    player_ids = [p for p in player_ids if p is not None]
+    if not player_ids:
+        return {}
+
+    WED_DIVISION = 3
+
+    # Query 1: per-player season counts + aggregated stats + row count fallback
+    agg_rows = {
+        row["player_id"]: row
+        for row in Stat.objects.filter(
+            player_id__in=player_ids,
+            team__division__division=WED_DIVISION,
+        )
+        .values("player_id")
+        .annotate(
+            seasons=Count("team__season", distinct=True),
+            goals=Sum("goals"),
+            assists=Sum("assists"),
+            goals_against=Sum("goals_against"),
+            matchup_games=Count("matchup", distinct=True),
+            stat_rows=Count("id"),
+        )
+    }
+
+    # Query 2: ADP — average round drafted across all past sessions
+    adp_raw: dict = {}
+    for pid, rnd in DraftPick.objects.filter(
+        signup__linked_player_id__in=player_ids
+    ).values_list("signup__linked_player_id", "round_number"):
+        adp_raw.setdefault(pid, []).append(rnd)
+
+    result = {}
+    for pid in player_ids:
+        past_picks = adp_raw.get(pid, [])
+        adp_count = len(past_picks)
+        adp = round(sum(past_picks) / adp_count, 1) if adp_count else None
+
+        agg = agg_rows.get(pid)
+        if not agg or not agg["seasons"]:
+            result[pid] = {
+                "is_new": True,
+                "seasons": 0,
+                "goals_per_season": 0,
+                "assists_per_season": 0,
+                "points_per_season": 0,
+                "gaa": None,
+                "adp": adp,
+                "adp_count": adp_count,
+            }
+            continue
+
+        seasons = agg["seasons"]
+        goals = agg["goals"] or 0
+        assists = agg["assists"] or 0
+        goals_against = agg["goals_against"] or 0
+        # Prefer distinct matchup count; fall back to row count for legacy seed data
+        games = agg["matchup_games"] or agg["stat_rows"] or 0
+        points = goals + assists
+        gaa = round(goals_against / games, 2) if games > 0 else None
+
+        def per_season(n, s=seasons):
+            return round(n / s, 1)
+
+        result[pid] = {
+            "is_new": False,
+            "seasons": seasons,
+            "goals_per_season": per_season(goals),
+            "assists_per_season": per_season(assists),
+            "points_per_season": per_season(points),
+            "gaa": gaa,
+            "adp": adp,
+            "adp_count": adp_count,
+        }
+    return result
+
+
+def _signup_payload(signup, stats_cache=None):
     """
     Serialise a SeasonSignup to a dict safe for JSON / template context.
     Includes historical stats if a linked_player exists.
+    Pass stats_cache (from _batch_wednesday_stats) to avoid per-player queries.
     """
-    stats = _get_wednesday_stats(signup.linked_player)
+    if stats_cache is not None:
+        stats = (
+            stats_cache.get(signup.linked_player_id)
+            if signup.linked_player_id
+            else None
+        )
+    else:
+        stats = _get_wednesday_stats(signup.linked_player)
     return {
         "id": signup.pk,
         "full_name": signup.full_name,
@@ -128,9 +218,12 @@ def _signup_payload(signup):
     }
 
 
-def _session_state_payload(session):
+def _session_state_payload(session, stats_cache=None):
     """
     Full snapshot of the current draft state for broadcasting / page load.
+
+    Pass a pre-built stats_cache (from _batch_wednesday_stats) to avoid
+    recomputing it when the caller already has one (e.g. the commissioner view).
     """
     teams = list(
         session.teams.select_related("captain")
@@ -144,9 +237,17 @@ def _session_state_payload(session):
 
     captain_signup_ids = set(session.teams.values_list("captain_id", flat=True))
 
+    all_signups = list(
+        session.season.signups.select_related("linked_player").order_by("last_name")
+    )
+
+    if stats_cache is None:
+        player_ids = [s.linked_player_id for s in all_signups if s.linked_player_id]
+        stats_cache = _batch_wednesday_stats(player_ids)
+
     available = [
-        _signup_payload(s)
-        for s in session.season.signups.order_by("last_name")
+        _signup_payload(s, stats_cache)
+        for s in all_signups
         if s.pk not in drafted_signup_ids and s.pk not in captain_signup_ids
     ]
 
@@ -156,7 +257,7 @@ def _session_state_payload(session):
         # A goalie-captain counts even before their auto-pick round fires.
         has_goalie = team.captain.is_goalie
         for pick in team.draft_picks.all():
-            payload = _signup_payload(pick.signup)
+            payload = _signup_payload(pick.signup, stats_cache)
             payload["is_captain_pick"] = pick.is_auto_captain
             payload["pick_id"] = pick.pk
             picks_by_round[pick.round_number] = payload
@@ -338,13 +439,20 @@ def draft_board_commissioner(request, session_pk, token):
     """
     session = get_object_or_404(DraftSession, pk=session_pk, commissioner_token=token)
     rounds = list(session.rounds.order_by("round_number"))
-    initial_state = json.dumps(_session_state_payload(session))
 
+    # Build stats cache once; share across state payload and all_players_json
+    all_signups = list(
+        session.season.signups.select_related("linked_player").order_by(
+            "last_name", "first_name"
+        )
+    )
+    stats_cache = _batch_wednesday_stats(
+        [s.linked_player_id for s in all_signups if s.linked_player_id]
+    )
+
+    initial_state = json.dumps(_session_state_payload(session, stats_cache=stats_cache))
     all_players_json = json.dumps(
-        [
-            _signup_payload(s)
-            for s in session.season.signups.order_by("last_name", "first_name")
-        ]
+        [_signup_payload(s, stats_cache) for s in all_signups]
     )
 
     context = {

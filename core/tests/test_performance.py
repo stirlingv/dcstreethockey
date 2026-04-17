@@ -48,6 +48,7 @@ SCORES_ONE_DIVISION_QUERY_CEILING = (
 )
 PLAYER_STATS_QUERY_CEILING = 25
 GOALIE_BOARD_QUERY_CEILING = 40  # roster goalie lookup per matchup; see N+1 note
+DRAFT_BOARD_QUERY_CEILING = 20  # batch stats: reduced from ~414 (3 queries per player)
 # Max additional queries allowed per extra team added to standings
 STANDINGS_QUERIES_PER_TEAM_BUDGET = 5
 
@@ -304,5 +305,94 @@ class GoalieBoardQueryCountTest(TestCase):
             msg=(
                 f"Goalie board ran {len(ctx.captured_queries)} queries with 6 matchups "
                 f"(ceiling: {GOALIE_BOARD_QUERY_CEILING})."
+            ),
+        )
+
+
+class DraftBoardQueryCountTest(TestCase):
+    """
+    _session_state_payload must not scale queries with number of players.
+    Before the batch-stats fix this ran ~3 queries per player (414 for 104 picks).
+    After the fix: flat ~10 queries regardless of draft size.
+    """
+
+    def setUp(self):
+        from leagues.models import DraftSession, DraftTeam, DraftPick, SeasonSignup
+        import uuid
+
+        self.season = Season.objects.create(
+            year=2030, season_type=4, is_current_season=False
+        )
+        self.session = DraftSession.objects.create(
+            season=self.season,
+            num_teams=3,
+            num_rounds=3,
+            state=DraftSession.STATE_ACTIVE,
+            signups_open=False,
+        )
+
+        # 3 captains
+        caps = []
+        for i in range(3):
+            s = SeasonSignup.objects.create(
+                season=self.season,
+                first_name=f"Cap{i}",
+                last_name=f"Last{i}",
+                email=f"cap{i}@test.com",
+                primary_position=SeasonSignup.POSITION_CENTER,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_YES,
+            )
+            caps.append(s)
+
+        self.teams = []
+        for i, cap in enumerate(caps):
+            t = DraftTeam.objects.create(
+                session=self.session, captain=cap, draft_position=i + 1
+            )
+            self.teams.append(t)
+
+        # 9 regular players (3 rounds × 3 teams)
+        self.players = []
+        for i in range(9):
+            s = SeasonSignup.objects.create(
+                season=self.season,
+                first_name=f"Player{i}",
+                last_name=f"P{i}",
+                email=f"p{i}@test.com",
+                primary_position=SeasonSignup.POSITION_WING,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_NO,
+            )
+            self.players.append(s)
+
+        # Fill all pick slots
+        pick_num = 0
+        for round_num in range(1, 4):
+            for team_idx, team in enumerate(self.teams):
+                player = self.players[pick_num]
+                DraftPick.objects.create(
+                    session=self.session,
+                    team=team,
+                    signup=player,
+                    round_number=round_num,
+                    pick_number=pick_num,
+                )
+                pick_num += 1
+
+        self.client = Client()
+
+    def test_spectator_view_query_count(self):
+        from leagues.draft_views import _session_state_payload
+
+        with CaptureQueriesContext(connection) as ctx:
+            _session_state_payload(self.session)
+        self.assertLessEqual(
+            len(ctx),
+            DRAFT_BOARD_QUERY_CEILING,
+            msg=(
+                f"_session_state_payload ran {len(ctx)} queries "
+                f"(ceiling: {DRAFT_BOARD_QUERY_CEILING}). "
+                "Check for N+1 regressions in stats or pick loading."
             ),
         )
