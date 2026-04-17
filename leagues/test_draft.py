@@ -2112,3 +2112,81 @@ class DraftResultsDownloadTests(DraftTestBase):
     def test_invalid_session_pk_returns_404(self):
         resp = self.client.get(reverse("draft_results_download", args=[99999]))
         self.assertEqual(resp.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# draft_sessions_list
+# ---------------------------------------------------------------------------
+
+
+class DraftSessionsListTests(DraftTestBase):
+    """Tests for the public draft archive listing page."""
+
+    def test_empty_list_returns_200(self):
+        # Default session is SETUP — should be excluded; page still renders.
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_setup_session_excluded(self):
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertNotContains(resp, str(self.session.season))
+
+    def test_complete_session_shown(self):
+        self.session.state = DraftSession.STATE_COMPLETE
+        self.session.save()
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, str(self.session.season))
+
+    def test_active_session_shown_with_watch_live(self):
+        self.session.state = DraftSession.STATE_ACTIVE
+        self.session.save()
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(resp, "Watch Live")
+
+    def test_paused_session_shown_with_watch_draft(self):
+        self.session.state = DraftSession.STATE_PAUSED
+        self.session.save()
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(resp, "Watch Draft")
+
+    def test_download_links_absent_without_picks(self):
+        self.session.state = DraftSession.STATE_COMPLETE
+        self.session.save()
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertNotContains(resp, "format=csv")
+
+    def test_download_links_present_with_picks(self):
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self.session.state = DraftSession.STATE_COMPLETE
+        self.session.save()
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(resp, "format=csv")
+        self.assertContains(resp, "format=xlsx")
+
+    def test_newest_season_first(self):
+        """Newer season year must appear before older one."""
+        old_season = Season.objects.create(
+            year=2020, season_type=4, is_current_season=False
+        )
+        DraftSession.objects.create(
+            season=old_season,
+            num_teams=3,
+            num_rounds=3,
+            state=DraftSession.STATE_COMPLETE,
+            signups_open=False,
+        )
+        new_season = Season.objects.create(
+            year=2030, season_type=1, is_current_season=False
+        )
+        DraftSession.objects.create(
+            season=new_season,
+            num_teams=3,
+            num_rounds=3,
+            state=DraftSession.STATE_COMPLETE,
+            signups_open=False,
+        )
+        resp = self.client.get(reverse("draft_sessions_list"))
+        content = resp.content.decode()
+        self.assertLess(content.index("2030"), content.index("2020"))

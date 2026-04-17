@@ -1,0 +1,218 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Draft League – DC Street Hockey{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ---- Archive page layout ---- */
+  .draft-archive {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 8px 0 40px;
+  }
+
+  /* ---- Session cards ---- */
+  .da-card {
+    background: #fff;
+    border: 1px solid #dde3ea;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px;
+    transition: box-shadow 0.15s;
+  }
+  .da-card:hover {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  }
+  .da-card.da-live {
+    border-left: 4px solid #c82333;
+  }
+
+  .da-card-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .da-season {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 6px;
+  }
+
+  .da-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: #666;
+  }
+
+  /* State badges — same palette as draft board */
+  .da-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 3px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+  }
+  .da-badge-active  { background: #d4edda; color: #155724; }
+  .da-badge-draw    { background: #f0e6ff; color: #4a0080; }
+  .da-badge-paused  { background: #fff3cd; color: #856404; }
+  .da-badge-complete{ background: #cce5ff; color: #004085; }
+
+  /* Live dot for active/draw sessions */
+  .da-live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: #c82333;
+    border-radius: 50%;
+    margin-right: 5px;
+    animation: da-pulse 1.4s ease-in-out infinite;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+  }
+  @keyframes da-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.75); }
+  }
+
+  .da-teams-picks {
+    color: #888;
+  }
+
+  /* Action buttons */
+  .da-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  .da-btn {
+    display: inline-block;
+    text-decoration: none;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 8px 16px;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+  }
+  .da-btn-primary {
+    background: #2B6CB0;
+    color: #fff;
+    border: none;
+  }
+  .da-btn-primary:hover { background: #245a9e; color: #fff; }
+  .da-btn-live {
+    background: #c82333;
+    color: #fff;
+    border: none;
+  }
+  .da-btn-live:hover { background: #a71d2a; color: #fff; }
+  .da-btn-secondary {
+    background: #fff;
+    color: #555;
+    border: 1px solid #ccc;
+  }
+  .da-btn-secondary:hover { background: #f5f5f5; color: #333; }
+
+  /* Empty state */
+  .da-empty {
+    text-align: center;
+    color: #999;
+    padding: 60px 0;
+    font-size: 1rem;
+  }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    .da-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .da-actions {
+      width: 100%;
+    }
+    .da-btn {
+      flex: 1;
+      text-align: center;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-wrapper">
+  <div id="content">
+    <div class="container">
+      <div class="title">Wednesday Draft League</div>
+
+      <div class="draft-archive">
+        {% if sessions %}
+          {% for session in sessions %}
+          <div class="da-card {% if session.state == 'active' or session.state == 'draw' %}da-live{% endif %}">
+
+            <div class="da-card-main">
+              <div class="da-season">{{ session.season }} Wednesday Draft</div>
+              <div class="da-meta">
+                <span class="da-badge da-badge-{{ session.state }}">
+                  {% if session.state == 'active' or session.state == 'draw' %}
+                    <span class="da-live-dot"></span>Live
+                  {% elif session.state == 'paused' %}Paused
+                  {% elif session.state == 'complete' %}Complete
+                  {% else %}{{ session.state }}
+                  {% endif %}
+                </span>
+                <span class="da-teams-picks">
+                  {{ session.num_teams }} teams
+                  {% if session.pick_count %}
+                    &middot; {{ session.pick_count }} picks
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+
+            <div class="da-actions">
+              <a href="{% url 'draft_board_spectator' session.pk %}"
+                 class="da-btn {% if session.state == 'active' or session.state == 'draw' %}da-btn-live{% else %}da-btn-primary{% endif %}">
+                {% if session.state == 'active' or session.state == 'draw' %}
+                  Watch Live
+                {% elif session.state == 'paused' %}
+                  Watch Draft
+                {% else %}
+                  View Draft Board
+                {% endif %}
+              </a>
+              {% if session.pick_count %}
+              <a href="{% url 'draft_results_download' session.pk %}?format=csv"
+                 class="da-btn da-btn-secondary">CSV</a>
+              <a href="{% url 'draft_results_download' session.pk %}?format=xlsx"
+                 class="da-btn da-btn-secondary">Excel</a>
+              {% endif %}
+            </div>
+
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="da-empty">No draft sessions yet — check back soon.</div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

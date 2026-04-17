@@ -1424,3 +1424,23 @@ def draft_results_download(request, session_pk):
     writer.writerow(_DOWNLOAD_HEADERS)
     writer.writerows(rows)
     return response
+
+
+# ---------------------------------------------------------------------------
+# Public draft archive (listing of all past/current draft sessions)
+# ---------------------------------------------------------------------------
+
+
+def draft_sessions_list(request):
+    """
+    Public listing of all draft sessions, newest first.
+    SETUP-state sessions are hidden — the draft becomes visible to fans
+    once the commissioner advances to the draw phase.
+    """
+    sessions = (
+        DraftSession.objects.select_related("season")
+        .exclude(state=DraftSession.STATE_SETUP)
+        .annotate(pick_count=Count("picks"))
+        .order_by("-season__year", "-season__season_type")
+    )
+    return render(request, "leagues/draft_archive.html", {"sessions": sessions})

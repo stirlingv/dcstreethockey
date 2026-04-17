@@ -21,6 +21,7 @@ from .draft_views import (
     set_captain_rounds,
     email_team_data,
     draft_results_download,
+    draft_sessions_list,
 )
 
 urlpatterns = [
@@ -122,5 +123,13 @@ urlpatterns = [
         "draft/<int:session_pk>/download/",
         draft_results_download,
         name="draft_results_download",
+    ),
+    # -----------------------------------------------------------------------
+    # Wednesday Draft League – Public archive
+    # -----------------------------------------------------------------------
+    path(
+        "draft/",
+        draft_sessions_list,
+        name="draft_sessions_list",
     ),
 ]
