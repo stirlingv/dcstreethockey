@@ -1,10 +1,20 @@
 # context_processors.py
-from leagues.models import HomePage  # Adjust the import to your specific model location
+from django.core.cache import cache
+
+from leagues.models import HomePage
+
+_HOMEPAGE_LOGO_CACHE_KEY = "homepage_logo_ctx"
+_HOMEPAGE_LOGO_TTL = 60 * 5  # 5 minutes — logo changes rarely
 
 
 def homepage_logo(request):
-    try:
-        homepage = HomePage.objects.first()
-        return {"homepage_logo": homepage.logo if homepage else None}
-    except HomePage.DoesNotExist:
-        return {"homepage_logo": None}
+    result = cache.get(_HOMEPAGE_LOGO_CACHE_KEY)
+    if result is None:
+        try:
+            homepage = HomePage.objects.first()
+            logo = homepage.logo if homepage else None
+        except HomePage.DoesNotExist:
+            logo = None
+        result = {"homepage_logo": logo}
+        cache.set(_HOMEPAGE_LOGO_CACHE_KEY, result, _HOMEPAGE_LOGO_TTL)
+    return result

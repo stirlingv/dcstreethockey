@@ -1,10 +1,12 @@
 import datetime
 from unittest.mock import patch, MagicMock
 
+from django.core.cache import cache
 from django.test import TestCase, Client
 from django.urls import reverse
 
 from leagues.models import Division, Season, Week
+from core.context_processors import _CANCELLED_GAMES_CACHE_KEY
 
 
 class CancellationBannerContextTest(TestCase):
@@ -17,6 +19,9 @@ class CancellationBannerContextTest(TestCase):
     """
 
     def setUp(self):
+        # Each test creates different Week state, so clear the context-processor
+        # cache to ensure cancelled_games reflects the current DB.
+        cache.delete(_CANCELLED_GAMES_CACHE_KEY)
         self.client = Client()
         self.season = Season.objects.create(
             year=datetime.datetime.now().year, season_type=1, is_current_season=True
@@ -153,6 +158,7 @@ class CancellationBannerTemplateTest(TestCase):
     """
 
     def setUp(self):
+        cache.delete(_CANCELLED_GAMES_CACHE_KEY)
         self.client = Client()
         self.season = Season.objects.create(
             year=datetime.datetime.now().year, season_type=1, is_current_season=True
