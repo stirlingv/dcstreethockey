@@ -2008,3 +2008,107 @@ class EmailTeamDataViewTests(DraftTestBase):
         names = [p["full_name"] for p in data["roster"]]
         self.assertIn(self.players[1].full_name, names)
         self.assertNotIn(self.players[0].full_name, names)
+
+
+# ---------------------------------------------------------------------------
+# draft_results_download
+# ---------------------------------------------------------------------------
+
+
+class DraftResultsDownloadTests(DraftTestBase):
+    """Tests for the public CSV/XLSX draft results download endpoint."""
+
+    def _url(self, fmt=None):
+        url = reverse("draft_results_download", args=[self.session.pk])
+        if fmt:
+            url += f"?format={fmt}"
+        return url
+
+    def _setup_picks(self):
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+        self._make_pick(self.team3, self.players[2], 1, 2)
+
+    def test_no_picks_returns_404(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 404)
+
+    def test_csv_default_format(self):
+        self._setup_picks()
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv")
+        self.assertIn("draft_results_", resp["Content-Disposition"])
+        self.assertIn(".csv", resp["Content-Disposition"])
+
+    def test_csv_explicit_format_param(self):
+        self._setup_picks()
+        resp = self.client.get(self._url("csv"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv")
+
+    def test_csv_contains_headers(self):
+        self._setup_picks()
+        resp = self.client.get(self._url("csv"))
+        content = resp.content.decode()
+        self.assertIn("Round", content)
+        self.assertIn("Team", content)
+        self.assertIn("Player", content)
+        self.assertIn("Position", content)
+
+    def test_csv_contains_pick_data(self):
+        self._setup_picks()
+        resp = self.client.get(self._url("csv"))
+        content = resp.content.decode()
+        self.assertIn(self.players[0].full_name, content)
+        self.assertIn(self.players[1].full_name, content)
+        self.assertIn(self.players[2].full_name, content)
+
+    def test_csv_row_count_matches_picks(self):
+        self._setup_picks()
+        resp = self.client.get(self._url("csv"))
+        lines = [l for l in resp.content.decode().splitlines() if l.strip()]
+        # 1 header + 3 picks
+        self.assertEqual(len(lines), 4)
+
+    def test_xlsx_format(self):
+        self._setup_picks()
+        resp = self.client.get(self._url("xlsx"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn(".xlsx", resp["Content-Disposition"])
+
+    def test_xlsx_is_valid_workbook(self):
+        from openpyxl import load_workbook
+        import io
+
+        self._setup_picks()
+        resp = self.client.get(self._url("xlsx"))
+        wb = load_workbook(io.BytesIO(resp.content))
+        ws = wb.active
+        # Header row
+        headers = [cell.value for cell in ws[1]]
+        self.assertIn("Round", headers)
+        self.assertIn("Player", headers)
+        # 3 data rows + 1 header
+        self.assertEqual(ws.max_row, 4)
+
+    def test_unknown_format_falls_back_to_csv(self):
+        self._setup_picks()
+        resp = self.client.get(self._url("json"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv")
+
+    def test_no_auth_required(self):
+        """Download endpoint is public — no login needed."""
+        self._setup_picks()
+        resp = self.client.get(self._url("csv"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_invalid_session_pk_returns_404(self):
+        resp = self.client.get(reverse("draft_results_download", args=[99999]))
+        self.assertEqual(resp.status_code, 404)

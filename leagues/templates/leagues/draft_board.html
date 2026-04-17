@@ -869,6 +869,18 @@
       &nbsp;
       <span class="connection-dot" id="conn-dot"></span>
       <span id="conn-label" style="font-size:0.78rem;color:#999;">connecting…</span>
+      <span id="download-btns" style="margin-left:auto;display:none;">
+        <a href="{% url 'draft_results_download' session.pk %}?format=csv"
+           class="btn btn-sm btn-outline-secondary"
+           style="font-size:0.78rem;padding:2px 8px;margin-right:4px;">
+          &#11015; CSV
+        </a>
+        <a href="{% url 'draft_results_download' session.pk %}?format=xlsx"
+           class="btn btn-sm btn-outline-secondary"
+           style="font-size:0.78rem;padding:2px 8px;">
+          &#11015; Excel
+        </a>
+      </span>
     </div>
 
     <div id="board-container"></div>
@@ -1114,6 +1126,13 @@ function updateStatusBadge() {
     paused: 'Paused', complete: 'Complete'
   }[state.state] || state.state;
   badge.className = `state-badge ${state.state}`;
+
+  // Show download buttons once any picks have been made
+  const hasPicksSomewhere = state.teams && state.teams.some(
+    t => t.picks && Object.keys(t.picks).length > 0
+  );
+  const dlBtns = document.getElementById('download-btns');
+  if (dlBtns) dlBtns.style.display = hasPicksSomewhere ? 'inline-flex' : 'none';
 }
 
 function renderBoard() {

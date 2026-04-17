@@ -23,6 +23,7 @@ h11==0.16.0
 idna==3.7
 jmespath==0.10.0
 numpy==2.2.0
+openpyxl==3.1.5
 oauthlib==3.2.2
 packaging==24.0
 pillow==12.1.1

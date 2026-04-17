@@ -2,11 +2,13 @@
 Views for the Wednesday Draft League signup and real-time draft board.
 """
 
+import csv
+import io
 import json
 import random
 
 from django.db.models import Case, Count, Q, Sum, Value, When
-from django.http import JsonResponse, Http404
+from django.http import HttpResponse, JsonResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -1181,3 +1183,136 @@ def reset_draft(request, session_pk, token):
 
     _broadcast_state_change(session)
     return JsonResponse({"success": True, "state": _session_state_payload(session)})
+
+
+# ---------------------------------------------------------------------------
+# Draft results download (CSV / XLSX)
+# ---------------------------------------------------------------------------
+
+_DOWNLOAD_HEADERS = [
+    "Round",
+    "Pick #",
+    "Team",
+    "Captain",
+    "Player",
+    "Position",
+    "Goals/Season",
+    "Assists/Season",
+    "Points/Season",
+    "GAA",
+    "ADP",
+]
+
+
+def _draft_results_rows(session):
+    """
+    Return list of rows for the draft results table.
+    One row per pick, ordered by round then pick number.
+    """
+    picks = (
+        DraftPick.objects.filter(session=session)
+        .select_related("team__captain", "signup__linked_player")
+        .order_by("round_number", "pick_number")
+    )
+
+    rows = []
+    for pick in picks:
+        stats = _get_wednesday_stats(pick.signup.linked_player)
+        rows.append(
+            [
+                pick.round_number,
+                pick.pick_number,
+                pick.team.team_name,
+                pick.team.captain.full_name,
+                pick.signup.full_name,
+                pick.signup.get_primary_position_display(),
+                stats["goals_per_season"]
+                if stats and not pick.signup.is_goalie
+                else "",
+                stats["assists_per_season"]
+                if stats and not pick.signup.is_goalie
+                else "",
+                stats["points_per_season"]
+                if stats and not pick.signup.is_goalie
+                else "",
+                stats["gaa"] if stats and pick.signup.is_goalie else "",
+                stats["adp"] if stats else "",
+            ]
+        )
+    return rows
+
+
+def draft_results_download(request, session_pk):
+    """
+    Public download of the draft results as CSV or XLSX.
+    Query param: ?format=xlsx  (default: csv)
+    Only available once picks exist.
+    """
+    session = get_object_or_404(DraftSession, pk=session_pk)
+
+    if not DraftPick.objects.filter(session=session).exists():
+        return HttpResponse("No picks have been made yet.", status=404)
+
+    fmt = request.GET.get("format", "csv").lower()
+    rows = _draft_results_rows(session)
+    season_label = str(session.season).replace(" ", "_")
+    filename_base = f"draft_results_{season_label}"
+
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Draft Results"
+
+        # Header row
+        ws.append(_DOWNLOAD_HEADERS)
+        header_fill = PatternFill("solid", fgColor="2B6CB0")
+        header_font = Font(bold=True, color="FFFFFF")
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center")
+
+        # Data rows — alternate shading by team block
+        prev_team = None
+        shade = False
+        shading_fills = [
+            PatternFill("solid", fgColor="EBF4FF"),
+            PatternFill("solid", fgColor="FFFFFF"),
+        ]
+        for row in rows:
+            ws.append(row)
+            team_name = row[2]
+            if team_name != prev_team:
+                shade = not shade
+                prev_team = team_name
+            fill = shading_fills[0] if shade else shading_fills[1]
+            for cell in ws[ws.max_row]:
+                cell.fill = fill
+
+        # Column widths
+        col_widths = [7, 7, 22, 20, 22, 12, 13, 15, 14, 8, 8]
+        for col_idx, width in enumerate(col_widths, start=1):
+            ws.column_dimensions[
+                ws.cell(row=1, column=col_idx).column_letter
+            ].width = width
+
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename_base}.xlsx"'
+        return response
+
+    # Default: CSV
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename_base}.csv"'
+    writer = csv.writer(response)
+    writer.writerow(_DOWNLOAD_HEADERS)
+    writer.writerows(rows)
+    return response
