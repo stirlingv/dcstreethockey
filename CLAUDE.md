@@ -156,21 +156,20 @@ This applies to:
 
 ### Pushing local → production
 
-```bash
-# Backup local first
-./scripts/backup_db.sh
+**This is destructive and rare.** Use only when you intentionally want to overwrite production data (e.g. after a data migration or seeding exercise that you fully tested locally).
 
-# Dump local, wipe prod, restore
-LOCAL_DUMP="/tmp/local_push_$(date +%Y%m%d_%H%M%S).sql"
-pg_dump --no-acl --no-owner dcstreethockey > "$LOCAL_DUMP"
-psql "$RENDER_EXTERNAL_DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-psql "$RENDER_EXTERNAL_DATABASE_URL" < "$LOCAL_DUMP"
+```bash
+./scripts/push_local_to_render.sh --confirm
 ```
+
+The script requires `--confirm` AND an interactive confirmation phrase. **Never run the underlying `psql` commands directly** — always go through this script so the safeguards are enforced.
 
 ### Pulling production → local
 
+This happens automatically at the start of each Claude Code session (at most once per 24 hours via the `UserPromptSubmit` hook). To trigger it manually:
+
 ```bash
-./scripts/restore_prod_to_local.sh  # set PROD_DB_URL=$RENDER_EXTERNAL_DATABASE_URL
+db_migration_scripts/sync_render_to_local.sh
 ```
 
 ---

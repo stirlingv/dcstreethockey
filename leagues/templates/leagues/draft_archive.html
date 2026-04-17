@@ -31,6 +31,9 @@
   .da-card.da-live {
     border-left: 4px solid #c82333;
   }
+  .da-card.da-current-card {
+    border-left: 4px solid #28a745;
+  }
   .da-card.da-champion-card {
     border-left: 4px solid #b7860b;
   }
@@ -70,6 +73,7 @@
   .da-badge-draw    { background: #f0e6ff; color: #4a0080; }
   .da-badge-paused  { background: #fff3cd; color: #856404; }
   .da-badge-complete{ background: #cce5ff; color: #004085; }
+  .da-badge-current { background: #d4edda; color: #155724; }
 
   /* Live dot for active/draw sessions */
   .da-live-dot {
@@ -220,6 +224,7 @@
           {% for session, champ in sessions_with_champ %}
           <div class="da-card
             {% if session.state == 'active' or session.state == 'draw' %}da-live
+            {% elif forloop.first and session.state == 'complete' %}da-current-card
             {% elif champ %}da-champion-card{% endif %}">
 
             <div class="da-card-main">
@@ -227,9 +232,13 @@
               <!-- Season header row -->
               <div class="da-season">{{ session.season }} Wednesday Draft</div>
               <div class="da-meta">
-                <span class="da-badge da-badge-{{ session.state }}">
+                <span class="da-badge
+                  {% if session.state == 'active' or session.state == 'draw' %}da-badge-active
+                  {% elif forloop.first and session.state == 'complete' %}da-badge-current
+                  {% else %}da-badge-{{ session.state }}{% endif %}">
                   {% if session.state == 'active' or session.state == 'draw' %}
                     <span class="da-live-dot"></span>Live
+                  {% elif forloop.first and session.state == 'complete' %}Current Season
                   {% elif session.state == 'paused' %}Paused
                   {% elif session.state == 'complete' %}Complete
                   {% else %}{{ session.state }}
