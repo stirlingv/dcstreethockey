@@ -47,6 +47,10 @@
   .role-captain      { background: #d4edda; color: #155724; border: 1px solid #28a745; }
   .role-spectator    { background: #e9ecef; color: #495057; border: 1px solid #ced4da; }
   .draft-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
     font-size: 0.82rem;
     color: #666;
     margin-bottom: 16px;
@@ -451,99 +455,86 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
-  .pool-player.goalie-locked .pname::after {
+  .pool-player.goalie-locked .pr-name::after {
     content: " — team has a goalie";
     font-weight: 400;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: #888;
     font-style: italic;
   }
-  .pool-player .pname-row {
+
+  /* ---- Compact player row: name line + optional stats line ---- */
+  .pool-player { padding: 5px 12px; }
+
+  /* Name line: badge · name · ADP · pick-cta */
+  .pr-row {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .pool-player .pname {
-    font-weight: 600;
-    color: #222;
-    font-size: 0.88rem;
+    align-items: center;
+    gap: 6px;
     line-height: 1.3;
+  }
+  /* Colour-coded position pill — instant scannability */
+  .pr-pos {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    letter-spacing: 0;
+  }
+  .pr-pos.pos-c { background: #c0632a; }   /* Center  — orange  */
+  .pr-pos.pos-w { background: #2d7d3a; }   /* Wing    — green   */
+  .pr-pos.pos-d { background: #2558a3; }   /* Defense — blue    */
+  .pr-pos.pos-g { background: #2a9d8f; }   /* Goalie  — teal    */
+  .pr-name {
     flex: 1 1 0;
-    min-width: 0;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: #222;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
   }
-  .pool-player .pname-adp {
-    font-size: 0.72rem;
-    color: #aaa;
+  .pr-adp {
+    font-size: 0.7rem;
+    color: #bbb;
     white-space: nowrap;
     flex-shrink: 0;
   }
-  .pool-player .pname-adp .adp-val {
-    font-weight: 600;
-    color: #888;
-  }
-  .pool-player .pname-adp .adp-count {
-    font-size: 0.68rem;
-    color: #bbb;
-  }
-  .pool-player .pposition {
-    font-size: 0.73rem;
-    color: #888;
-    margin-top: 1px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .psecondary {
-    color: #bbb;
-    font-size: 0.7rem;
-  }
-  .pool-player .pstats {
-    font-size: 0.76rem;
-    color: #555;
-    margin-top: 2px;
-  }
-  .pool-player .pstats .sval {
-    font-weight: 700;
-    color: #222;
-  }
-  .pool-player .pstats .slbl {
-    color: #999;
-    font-size: 0.7rem;
-  }
-  .pool-player .pstats .sdot {
-    color: #ccc;
-    margin: 0 4px;
-  }
-  .pool-player .pstats .sper {
-    color: #aaa;
-    font-size: 0.68rem;
-    font-style: italic;
-  }
-  .pool-player .pmeta .badge {
-    display: inline-block;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-  }
-  .badge-goalie { background: #2a9d8f; color: #fff; }
-  .pool-row-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .pick-cta {
+  .pr-adp .adp-v { font-weight: 600; color: #999; }
+  .pr-pick {
     flex-shrink: 0;
     font-size: 0.78rem;
     font-weight: 700;
     color: #1565c0;
     white-space: nowrap;
+    padding-left: 2px;
+  }
+
+  /* Stats line: tightly under the name, indented to align with name */
+  .pr-stats {
+    padding-left: 24px;   /* align with name (badge 18px + gap 6px) */
+    font-size: 0.71rem;
+    color: #888;
+    line-height: 1.2;
+    margin-top: 1px;
+  }
+  .pr-stats .sv { font-weight: 700; color: #444; }
+  .pr-stats .sl { color: #bbb; }
+  .pr-stats .sd { color: #ddd; margin: 0 3px; }
+  .pr-new {
+    padding-left: 24px;
+    font-size: 0.68rem;
+    color: #bbb;
+    font-style: italic;
+    line-height: 1.2;
+    margin-top: 1px;
   }
 
   /* Draw phase overlay */
@@ -810,6 +801,109 @@
     font-style: italic;
     font-size: 0.85rem;
   }
+
+  /* ---- Mobile view tabs (board ↔ players) ---- */
+  .mobile-tabs {
+    display: none;
+    flex-shrink: 0;
+    background: #fff;
+    border-bottom: 2px solid #eee;
+  }
+  .mobile-tab {
+    flex: 1;
+    padding: 11px 4px;
+    text-align: center;
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #999;
+    cursor: pointer;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+  }
+  .mobile-tab.active { color: #8b1a1a; border-bottom-color: #8b1a1a; }
+
+  /* ---- Responsive: mobile layout ---- */
+  @media (max-width: 767px) {
+    /* Show the board/players toggle tabs */
+    .mobile-tabs { display: flex; }
+
+    /* Stack draft shell panels vertically; let page scroll */
+    .draft-shell {
+      height: auto;
+      min-height: 0;
+      overflow: visible;
+      flex-direction: column;
+    }
+    .draft-main {
+      min-height: calc(100vh - 130px);
+      overflow: auto;
+      padding: 10px 12px;
+    }
+    .player-pool {
+      width: 100%;
+      flex: none;
+      height: auto;
+      overflow: visible;
+      border-left: none;
+      border-top: 1px solid #ddd;
+    }
+    #pool-view, #team-panel.visible {
+      overflow: visible;
+      flex: none;
+    }
+    .pool-list {
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+
+    /* Hidden mobile panel takes no space */
+    .mobile-panel-hidden { display: none !important; }
+
+    /* Compact board grid cells */
+    .board-table td {
+      padding: 4px 6px;
+      min-width: 80px;
+    }
+    .board-table th {
+      padding: 6px 6px;
+      font-size: 0.75rem;
+    }
+    .board-table th.round-header,
+    .board-table td.round-label {
+      width: 36px;
+      min-width: unset;
+    }
+    .pick-cell .pick-stats { font-size: 0.65rem; }
+
+    /* Larger tap targets in the player pool */
+    .pool-player { padding: 8px 12px; }
+    .pr-pos { width: 20px; height: 20px; font-size: 0.65rem; }
+    .filter-btn  { padding: 5px 10px; font-size: 0.78rem; }
+    .sort-btn    { padding: 4px 9px;  font-size: 0.76rem; }
+
+    /* Download buttons wrap to their own line */
+    #download-btns { margin-left: 0; flex-basis: 100%; }
+
+    /* Commissioner bar: tighter horizontal padding */
+    .commissioner-bar { padding: 8px 12px; gap: 8px; }
+
+    /* Pick-confirm modal: bigger tap targets */
+    .pick-modal-actions .btn {
+      padding: 10px 22px;
+      font-size: 0.95rem;
+      min-width: 80px;
+    }
+
+    /* "Your turn" banner: larger text */
+    .your-turn-notice {
+      font-size: 0.95rem;
+      padding: 12px 16px;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -849,6 +943,12 @@
   <span style="font-size:0.78rem;color:#155724;">Send your roster to all teammates so everyone has each other's contact info.</span>
 </div>
 {% endif %}
+
+<!-- Mobile-only tabs to switch between the board grid and the player pool -->
+<div class="mobile-tabs">
+  <button class="mobile-tab active" id="mobile-tab-board"   onclick="setMobilePanel('board')">Draft Board</button>
+  <button class="mobile-tab"        id="mobile-tab-players" onclick="setMobilePanel('players')">Players</button>
+</div>
 
 <div class="draft-shell">
 
@@ -1021,6 +1121,39 @@ let editMode = false;
 let sidebarView = 'pool';
 let teamViewPk = CAPTAIN_TEAM_PK;
 let drawMode = 'draw'; // 'draw' | 'round_reveal'
+// Mobile panel: 'board' shows the draft grid; 'players' shows the player pool sidebar
+let mobilePanelView = 'board';
+
+// ============================================================
+// Mobile panel switching (board ↔ players)
+// ============================================================
+function _applyMobilePanel() {
+  const isMobile = window.innerWidth <= 767;
+  const main = document.querySelector('.draft-main');
+  const pool = document.querySelector('.player-pool');
+  const tabBoard   = document.getElementById('mobile-tab-board');
+  const tabPlayers = document.getElementById('mobile-tab-players');
+  if (isMobile) {
+    main.classList.toggle('mobile-panel-hidden', mobilePanelView !== 'board');
+    pool.classList.toggle('mobile-panel-hidden', mobilePanelView !== 'players');
+  } else {
+    main.classList.remove('mobile-panel-hidden');
+    pool.classList.remove('mobile-panel-hidden');
+  }
+  if (tabBoard)   tabBoard.classList.toggle('active',   mobilePanelView === 'board');
+  if (tabPlayers) tabPlayers.classList.toggle('active', mobilePanelView === 'players');
+}
+
+function setMobilePanel(v) {
+  mobilePanelView = v;
+  _applyMobilePanel();
+  if (v === 'players') {
+    if (sidebarView === 'pool') renderPool();
+    else renderTeamPanel();
+  }
+}
+
+window.addEventListener('resize', _applyMobilePanel);
 
 // ============================================================
 // WebSocket — with auto-reconnect
@@ -1077,6 +1210,7 @@ function render() {
   renderBoard();
   renderPool();
   updateStatusBadge();
+  _applyMobilePanel();
   if (sidebarView === 'team') renderTeamPanel();
   if (IS_COMMISSIONER) updateCommissionerButtons();
   if (IS_COMMISSIONER) triggerPendingAutoPick();
@@ -1282,6 +1416,13 @@ function renderPool() {
 
   const isMyTurn = IS_CAPTAIN && state.active_team_pk === CAPTAIN_TEAM_PK && state.state === 'active' && !isMyAutoRound;
 
+  // On mobile, flip to the players panel automatically when it's the captain's turn
+  if (isMyTurn && window.innerWidth <= 767 && mobilePanelView !== 'players') {
+    mobilePanelView = 'players';
+    _applyMobilePanel();
+    showToast("Your pick is up!");
+  }
+
   // Auto-switch to pool when the captain's turn comes up while viewing a team
   if (isMyTurn && sidebarView === 'team') {
     setSidebarView('pool');
@@ -1325,50 +1466,38 @@ function renderPool() {
       goalieBlocked ? 'goalie-locked' : '',
     ].filter(Boolean).join(' ');
 
-    html += `<li class="${classes}" onclick="${pickable ? `requestPick(${p.id}, '${escAttr(p.full_name)}')` : ''}">`;
-    html += `<div class="pool-row-inner">`;
-    html += `<div>`;
-    // Name row — player name on left, ADP on right (always shown, "--" if unknown)
+    const { pillCls, pillAbbr } = posPill(p);
     const adpNum = (p.stats && p.stats.adp !== null) ? p.stats.adp : null;
-    const adpCount = (p.stats && p.stats.adp_count) ? p.stats.adp_count : 0;
-    let adpDisplay;
-    if (adpNum !== null) {
-      const countLabel = adpCount === 1 ? '1 draft' : `${adpCount} drafts`;
-      adpDisplay = `<span class="adp-val">${adpNum}</span><span class="adp-count"> &middot; ${countLabel}</span>`;
-    } else {
-      adpDisplay = `<span class="adp-val">&ndash;&ndash;</span>`;
-    }
-    html += `<div class="pname-row">` +
-      `<span class="pname">${escHtml(p.full_name)}</span>` +
-      `<span class="pname-adp">ADP: ${adpDisplay}</span>` +
-      `</div>`;
-    // Position line — show primary; append secondary abbreviation if not "one thing only"
-    const secAbbr = { Defense: 'D', Center: 'C', Wing: 'W', Goalie: 'G' }[p.secondary_position] || '';
-    if (p.is_goalie) {
-      const secSuffix = secAbbr ? ` <span class="psecondary">/ ${secAbbr}</span>` : '';
-      html += `<div class="pposition"><span class="badge badge-goalie">GOALIE</span>${secSuffix}</div>`;
-    } else {
-      const secSuffix = secAbbr ? ` <span class="psecondary">/ ${secAbbr}</span>` : '';
-      html += `<div class="pposition">${escHtml(p.primary_position)}${secSuffix}</div>`;
-    }
-    // Stats line — omitted entirely when no history exists
-    if (p.stats && !p.stats.is_new) {
+    const adpHtml = adpNum !== null
+      ? `ADP <span class="adp-v">${adpNum}</span>`
+      : `ADP <span class="adp-v">&ndash;&ndash;</span>`;
+
+    html += `<li class="${classes}" onclick="${pickable ? `requestPick(${p.id}, '${escAttr(p.full_name)}')` : ''}">`;
+    // Name line: position pill · name · ADP · pick CTA
+    html += `<div class="pr-row">` +
+      `<span class="pr-pos ${pillCls}">${pillAbbr}</span>` +
+      `<span class="pr-name">${escHtml(p.full_name)}</span>` +
+      `<span class="pr-adp">${adpHtml}</span>`;
+    if (pickable) html += `<span class="pr-pick">Pick &rarr;</span>`;
+    html += `</div>`;
+    // Stats line (optional second line)
+    if (p.stats && p.stats.is_new) {
+      html += `<div class="pr-new">New to league</div>`;
+    } else if (p.stats) {
       if (p.is_goalie && p.stats.gaa !== null) {
-        html += `<div class="pstats"><span class="sval">${p.stats.gaa}</span><span class="slbl"> GAA</span></div>`;
+        html += `<div class="pr-stats"><span class="sv">${p.stats.gaa}</span><span class="sl"> GAA</span></div>`;
       } else if (!p.is_goalie) {
-        html += `<div class="pstats">` +
-          `<span class="sval">${p.stats.goals_per_season}</span><span class="slbl">G</span>` +
-          `<span class="sdot">&middot;</span>` +
-          `<span class="sval">${p.stats.assists_per_season}</span><span class="slbl">A</span>` +
-          `<span class="sdot">&middot;</span>` +
-          `<span class="sval">${p.stats.points_per_season}</span><span class="slbl">Pts</span>` +
-          `<span class="sper">&nbsp;/szn</span>` +
+        html += `<div class="pr-stats">` +
+          `<span class="sv">${p.stats.goals_per_season}</span><span class="sl">G</span>` +
+          `<span class="sd">&middot;</span>` +
+          `<span class="sv">${p.stats.assists_per_season}</span><span class="sl">A</span>` +
+          `<span class="sd">&middot;</span>` +
+          `<span class="sv">${p.stats.points_per_season}</span><span class="sl">P</span>` +
+          `<span style="color:#ccc;font-size:0.65rem;"> /szn</span>` +
           `</div>`;
       }
     }
-    html += `</div>`; // close inner left div
-    if (pickable) html += `<span class="pick-cta">Pick &rarr;</span>`;
-    html += `</div></li>`; // close pool-row-inner + li
+    html += `</li>`;
   }
   document.getElementById('pool-list').innerHTML = html || '<li style="padding:16px;color:#999;text-align:center;">No players available</li>';
 }
@@ -1849,6 +1978,12 @@ function escAttr(s) {
 }
 function posAbbr(pos) {
   return { Center: 'C', Wing: 'W', Defense: 'D' }[pos] || '';
+}
+function posPill(p) {
+  if (p.is_goalie) return { pillCls: 'pos-g', pillAbbr: 'G' };
+  const map = { Defense: ['pos-d', 'D'], Center: ['pos-c', 'C'], Wing: ['pos-w', 'W'] };
+  const r = map[p.primary_position];
+  return r ? { pillCls: r[0], pillAbbr: r[1] } : { pillCls: 'pos-c', pillAbbr: '?' };
 }
 
 // ============================================================
