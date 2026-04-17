@@ -411,6 +411,40 @@ class DraftSignupViewTests(DraftTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "email address is already signed up")
 
+    def test_signup_links_player_by_email_when_name_differs(self):
+        """Email-matched Player is linked even when the signup name doesn't match exactly."""
+        player = Player.objects.create(
+            first_name="Michael",
+            last_name="Smith",
+            email="mike@example.com",
+            is_active=True,
+        )
+        data = self._valid_post_data(first="Mike", last="Smith")
+        data["email"] = "mike@example.com"
+        self.client.post(self._signup_url(), data)
+        signup = SeasonSignup.objects.get(season=self.season, email="mike@example.com")
+        self.assertEqual(signup.linked_player, player)
+
+    def test_signup_links_player_by_name_before_email(self):
+        """Exact name match takes precedence over email match."""
+        name_player = Player.objects.create(
+            first_name="Mike",
+            last_name="Jones",
+            email="other@example.com",
+            is_active=True,
+        )
+        Player.objects.create(
+            first_name="Somebody",
+            last_name="Else",
+            email="mike@example.com",
+            is_active=True,
+        )
+        data = self._valid_post_data(first="Mike", last="Jones")
+        data["email"] = "mike@example.com"
+        self.client.post(self._signup_url(), data)
+        signup = SeasonSignup.objects.get(season=self.season, email="mike@example.com")
+        self.assertEqual(signup.linked_player, name_player)
+
     def test_signups_closed_shows_closed_page(self):
         self.session.signups_open = False
         self.session.save(update_fields=["signups_open"])
