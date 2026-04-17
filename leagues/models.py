@@ -703,6 +703,52 @@ class DraftPick(models.Model):
         )
 
 
+class DraftChatMessage(models.Model):
+    """A chat message posted during a draft session."""
+
+    SENDER_COMMISSIONER = "commissioner"
+    SENDER_CAPTAIN = "captain"
+    SENDER_SPECTATOR = "spectator"
+    SENDER_SYSTEM = "system"
+    SENDER_TYPE_CHOICES = [
+        (SENDER_COMMISSIONER, "Commissioner"),
+        (SENDER_CAPTAIN, "Captain"),
+        (SENDER_SPECTATOR, "Spectator"),
+        (SENDER_SYSTEM, "System"),
+    ]
+
+    session = models.ForeignKey(
+        DraftSession, on_delete=models.CASCADE, related_name="chat_messages"
+    )
+    sender_name = models.CharField(max_length=50)
+    sender_type = models.CharField(max_length=20, choices=SENDER_TYPE_CHOICES)
+    body = models.CharField(max_length=500)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    deleted = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["sent_at"]
+
+    def __str__(self):
+        return f"[{self.sender_name}] {self.body[:60]}"
+
+
+class DraftChatReaction(models.Model):
+    """An emoji reaction from one participant on a chat message."""
+
+    message = models.ForeignKey(
+        DraftChatMessage, on_delete=models.CASCADE, related_name="reactions"
+    )
+    emoji = models.CharField(max_length=10)
+    sender_name = models.CharField(max_length=50)
+
+    class Meta:
+        unique_together = [("message", "emoji", "sender_name")]
+
+    def __str__(self):
+        return f"{self.sender_name} reacted {self.emoji} to message {self.message_id}"
+
+
 class HomePage(models.Model):
     logo = models.ImageField(upload_to="homepage", null=True)
     announcement = models.CharField(max_length=1000, null=True, blank=True)
