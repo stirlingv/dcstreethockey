@@ -716,6 +716,240 @@
   #team-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
   #team-panel.visible { display: flex; }
 
+  /* ---- Chat panel ---- */
+  #chat-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  #chat-panel.visible { display: flex; }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .chat-msg {
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    position: relative;
+    max-width: 100%;
+    word-break: break-word;
+  }
+  .chat-msg:hover .chat-delete-btn { opacity: 1; }
+  .chat-msg:hover .chat-react-btn { opacity: 1; }
+
+  .chat-msg.system {
+    background: #f0f0f0;
+    color: #777;
+    font-style: italic;
+    font-size: 0.76rem;
+    text-align: center;
+    padding: 3px 6px;
+    border-radius: 4px;
+  }
+  .chat-msg.commissioner { background: #fff8e1; }
+  .chat-msg.captain      { background: #f0fff4; }
+  .chat-msg.spectator    { background: #f8f9fa; }
+
+  .chat-sender {
+    font-weight: 700;
+    font-size: 0.74rem;
+    color: #555;
+    margin-bottom: 1px;
+  }
+  .chat-sender.commissioner { color: #856404; }
+  .chat-sender.captain      { color: #155724; }
+  .chat-sender.spectator    { color: #495057; }
+
+  .chat-body { color: #222; }
+
+  .chat-msg-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    gap: 3px;
+  }
+  .chat-react-btn, .chat-delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    line-height: 1.4;
+  }
+  .chat-react-btn:hover  { background: #e9ecef; opacity: 1; }
+  .chat-delete-btn:hover { background: #f8d7da; opacity: 1; }
+
+  /* Reaction row below a message */
+  .chat-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 3px;
+  }
+  .reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: #edf2ff;
+    border: 1px solid #c5d3f7;
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.12s;
+    user-select: none;
+  }
+  .reaction-pill:hover { background: #dce8ff; }
+  .reaction-pill.mine  { background: #d0e8ff; border-color: #7aacee; font-weight: 700; }
+  .reaction-pill .r-count { color: #555; font-size: 0.72rem; }
+
+  /* Emoji picker popover */
+  .emoji-picker {
+    position: absolute;
+    right: 4px;
+    top: 28px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    padding: 6px 8px;
+    display: flex;
+    gap: 4px;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  .emoji-btn {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.1s;
+    line-height: 1.3;
+  }
+  .emoji-btn:hover { background: #f0f0f0; }
+
+  /* Chat input area */
+  .chat-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid #eee;
+    flex-shrink: 0;
+  }
+  .chat-input {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 16px;
+    padding: 7px 12px;
+    font-size: 0.82rem;
+    outline: none;
+    resize: none;
+    min-height: 36px;
+    max-height: 80px;
+    line-height: 1.4;
+    font-family: inherit;
+    overflow-y: auto;
+  }
+  .chat-input:focus { border-color: #8b1a1a; }
+  .chat-send-btn {
+    background: #8b1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+  .chat-send-btn:hover { background: #a02020; }
+  .chat-send-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+  /* Spectator name prompt overlay */
+  .chat-name-prompt {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.97);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px 20px;
+    z-index: 100;
+    text-align: center;
+  }
+  .chat-name-prompt.visible { display: flex; }
+  .chat-name-prompt p {
+    font-size: 0.9rem;
+    color: #555;
+    margin: 0;
+  }
+  .chat-name-input {
+    width: 100%;
+    max-width: 240px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    outline: none;
+    text-align: center;
+  }
+  .chat-name-input:focus { border-color: #8b1a1a; }
+  .chat-name-submit {
+    background: #8b1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 22px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    min-height: 44px;
+    min-width: 100px;
+  }
+  .chat-name-submit:hover { background: #a02020; }
+
+  /* Unread badge on Chat tab */
+  .chat-unread-badge {
+    display: inline-block;
+    background: #c82333;
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 1px 5px;
+    margin-left: 3px;
+    vertical-align: middle;
+    line-height: 1.4;
+  }
+
+  /* Mobile: chat panel stacks like pool */
+  @media (max-width: 767px) {
+    #chat-panel.visible {
+      overflow: visible;
+      flex: none;
+    }
+    .chat-messages {
+      max-height: 55vh;
+      overflow-y: auto;
+    }
+  }
+
   .team-selector-row {
     padding: 8px 12px;
     border-bottom: 1px solid #eee;
@@ -851,7 +1085,7 @@
       border-left: none;
       border-top: 1px solid #ddd;
     }
-    #pool-view, #team-panel.visible {
+    #pool-view, #team-panel.visible, #chat-panel {
       overflow: visible;
       flex: none;
     }
@@ -974,6 +1208,7 @@
 <div class="mobile-tabs">
   <button class="mobile-tab active" id="mobile-tab-board"   onclick="setMobilePanel('board')">Draft Board</button>
   <button class="mobile-tab"        id="mobile-tab-players" onclick="setMobilePanel('players')">Players</button>
+  <button class="mobile-tab"        id="mobile-tab-chat"    onclick="setMobilePanel('chat')">Chat<span id="chat-unread-mobile" class="chat-unread-badge" style="display:none"></span></button>
 </div>
 
 <div class="draft-shell">
@@ -1019,6 +1254,7 @@
     <div class="sidebar-tabs">
       <button class="sidebar-tab active" id="tab-pool" onclick="setSidebarView('pool')">Available</button>
       <button class="sidebar-tab" id="tab-team" onclick="setSidebarView('team')">{% if is_captain %}My Team{% else %}Teams{% endif %}</button>
+      <button class="sidebar-tab" id="tab-chat" onclick="setSidebarView('chat')">Chat<span id="chat-unread-desktop" class="chat-unread-badge" style="display:none"></span></button>
     </div>
 
     <!-- Pool view -->
@@ -1076,6 +1312,29 @@
         <select id="team-selector" onchange="setTeamView(parseInt(this.value))"></select>
       </div>
       <div id="team-panel-body"></div>
+    </div>
+
+    <!-- Chat panel -->
+    <div id="chat-panel" style="position:relative;">
+      <!-- Spectator name prompt — shown before a spectator can type -->
+      <div class="chat-name-prompt" id="chat-name-prompt">
+        <p><strong>What should we call you?</strong><br>Pick a display name for the chat.</p>
+        <input class="chat-name-input" id="chat-name-input" type="text" maxlength="30"
+               placeholder="Your name…" autocomplete="off"
+               onkeydown="if(event.key==='Enter'){submitChatName();}">
+        <button class="chat-name-submit" onclick="submitChatName()">Join Chat</button>
+      </div>
+
+      <div class="chat-messages" id="chat-messages"></div>
+
+      <div class="chat-input-row">
+        <textarea class="chat-input" id="chat-input" rows="1"
+                  placeholder="Say something…" maxlength="500"
+                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"
+                  oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px';"
+                  onfocus="onChatInputFocus()"></textarea>
+        <button class="chat-send-btn" id="chat-send-btn" onclick="sendChat()" title="Send">&#9658;</button>
+      </div>
     </div>
 
   </div>
@@ -1148,11 +1407,11 @@ let editMode = false;
 let sidebarView = 'pool';
 let teamViewPk = CAPTAIN_TEAM_PK;
 let drawMode = 'draw'; // 'draw' | 'round_reveal'
-// Mobile panel: 'board' shows the draft grid; 'players' shows the player pool sidebar
+// Mobile panel: 'board' | 'players' | 'chat'
 let mobilePanelView = 'board';
 
 // ============================================================
-// Mobile panel switching (board ↔ players)
+// Mobile panel switching (board / players / chat)
 // ============================================================
 function _applyMobilePanel() {
   const isMobile = window.innerWidth <= 767;
@@ -1160,15 +1419,17 @@ function _applyMobilePanel() {
   const pool = document.querySelector('.player-pool');
   const tabBoard   = document.getElementById('mobile-tab-board');
   const tabPlayers = document.getElementById('mobile-tab-players');
+  const tabChat    = document.getElementById('mobile-tab-chat');
   if (isMobile) {
     main.classList.toggle('mobile-panel-hidden', mobilePanelView !== 'board');
-    pool.classList.toggle('mobile-panel-hidden', mobilePanelView !== 'players');
+    pool.classList.toggle('mobile-panel-hidden', mobilePanelView !== 'players' && mobilePanelView !== 'chat');
   } else {
     main.classList.remove('mobile-panel-hidden');
     pool.classList.remove('mobile-panel-hidden');
   }
   if (tabBoard)   tabBoard.classList.toggle('active',   mobilePanelView === 'board');
   if (tabPlayers) tabPlayers.classList.toggle('active', mobilePanelView === 'players');
+  if (tabChat)    tabChat.classList.toggle('active',    mobilePanelView === 'chat');
 }
 
 function setMobilePanel(v) {
@@ -1176,7 +1437,9 @@ function setMobilePanel(v) {
   _applyMobilePanel();
   if (v === 'players') {
     if (sidebarView === 'pool') renderPool();
-    else renderTeamPanel();
+    else if (sidebarView === 'team') renderTeamPanel();
+  } else if (v === 'chat') {
+    setSidebarView('chat');
   }
 }
 
@@ -1185,10 +1448,21 @@ window.addEventListener('resize', _applyMobilePanel);
 // ============================================================
 // WebSocket — with auto-reconnect
 // ============================================================
-const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const wsUrl = `${wsProto}://${window.location.host}/ws/draft/${SESSION_PK}/`;
+function buildWsUrl() {
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const base = `${proto}://${window.location.host}/ws/draft/${SESSION_PK}/`;
+  {% if is_commissioner %}
+  return base + `?role=commissioner&token={{ commissioner_token }}`;
+  {% elif is_captain %}
+  return base + `?role=captain&token={{ captain_token }}`;
+  {% else %}
+  const name = sessionStorage.getItem('draft_chat_name_{{ session.pk }}');
+  return base + (name ? `?display_name=${encodeURIComponent(name)}` : '');
+  {% endif %}
+}
 let wsReconnectDelay = 2000;
 const WS_MAX_DELAY = 30000;
+let _ws = null;
 
 function handleWsMessage(e) {
   const msg = JSON.parse(e.data);
@@ -1208,25 +1482,197 @@ function handleWsMessage(e) {
       drawOverlayShown = true;
       showDrawOverlay(msg.reveal_order);
     }
+  } else if (msg.type === 'chat_history') {
+    chatMessages = msg.messages;
+    renderChat();
+  } else if (msg.type === 'chat_message') {
+    chatMessages.push(msg.message);
+    renderChat();
+    if (sidebarView !== 'chat' && mobilePanelView !== 'chat') {
+      chatUnread++;
+      updateChatUnreadBadge();
+    }
+  } else if (msg.type === 'chat_reaction') {
+    const m = chatMessages.find(m => m.id === msg.message_id);
+    if (m) { m.reactions = msg.reactions; renderChat(); }
+  } else if (msg.type === 'chat_delete') {
+    chatMessages = chatMessages.filter(m => m.id !== msg.message_id);
+    renderChat();
   }
 }
 
 function connectWs() {
-  const ws = new WebSocket(wsUrl);
-  ws.onopen = () => {
+  _ws = new WebSocket(buildWsUrl());
+  _ws.onopen = () => {
     wsReconnectDelay = 2000;
     document.getElementById('conn-dot').classList.add('connected');
     document.getElementById('conn-label').textContent = 'Live';
   };
-  ws.onclose = () => {
+  _ws.onclose = () => {
     document.getElementById('conn-dot').classList.remove('connected');
     document.getElementById('conn-label').textContent = 'Reconnecting…';
     setTimeout(connectWs, wsReconnectDelay);
     wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_MAX_DELAY);
   };
-  ws.onmessage = handleWsMessage;
+  _ws.onmessage = handleWsMessage;
 }
 connectWs();
+
+// ============================================================
+// Chat
+// ============================================================
+let chatMessages = [];
+let chatUnread = 0;
+const CHAT_EMOJIS = ['👍', '👎', '😂', '🔥', '😤', '🎯', '👏', '🤙'];
+
+// My display name — set at connect time for commissioner/captain,
+// or from sessionStorage / name prompt for spectators.
+{% if is_commissioner %}
+const CHAT_MY_NAME = 'Commissioner';
+{% elif is_captain %}
+const CHAT_MY_NAME = '{{ captain_name|escapejs }}';
+{% else %}
+let CHAT_MY_NAME = sessionStorage.getItem('draft_chat_name_{{ session.pk }}') || null;
+{% endif %}
+
+function onChatInputFocus() {
+  {% if not is_commissioner and not is_captain %}
+  if (!CHAT_MY_NAME) showChatNamePrompt();
+  {% endif %}
+}
+
+function showChatNamePrompt() {
+  document.getElementById('chat-name-prompt').classList.add('visible');
+  setTimeout(() => document.getElementById('chat-name-input').focus(), 50);
+}
+
+function submitChatName() {
+  const input = document.getElementById('chat-name-input');
+  const name = input.value.trim().slice(0, 30);
+  if (!name) { input.focus(); return; }
+  sessionStorage.setItem('draft_chat_name_{{ session.pk }}', name);
+  // eslint-disable-next-line no-global-assign
+  CHAT_MY_NAME = name;
+  document.getElementById('chat-name-prompt').classList.remove('visible');
+  // Reconnect so the server knows our display name.
+  if (_ws) _ws.close();
+}
+
+function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const body = inp.value.trim();
+  if (!body || !_ws || _ws.readyState !== WebSocket.OPEN) return;
+  {% if not is_commissioner and not is_captain %}
+  if (!CHAT_MY_NAME) { showChatNamePrompt(); return; }
+  {% endif %}
+  _ws.send(JSON.stringify({ type: 'chat_message', body }));
+  inp.value = '';
+  inp.style.height = 'auto';
+}
+
+function sendReaction(messageId, emoji) {
+  if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
+  _ws.send(JSON.stringify({ type: 'chat_reaction', message_id: messageId, emoji }));
+  closeEmojiPicker();
+}
+
+function deleteMessage(messageId) {
+  if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
+  _ws.send(JSON.stringify({ type: 'delete_message', message_id: messageId }));
+}
+
+let _emojiPickerMsgId = null;
+function openEmojiPicker(msgId, btn) {
+  closeEmojiPicker();
+  _emojiPickerMsgId = msgId;
+  const picker = document.createElement('div');
+  picker.className = 'emoji-picker';
+  picker.id = 'emoji-picker-popup';
+  for (const em of CHAT_EMOJIS) {
+    const b = document.createElement('button');
+    b.className = 'emoji-btn';
+    b.textContent = em;
+    b.onclick = (e) => { e.stopPropagation(); sendReaction(msgId, em); };
+    picker.appendChild(b);
+  }
+  // Position relative to the message row
+  const row = btn.closest('.chat-msg');
+  row.style.position = 'relative';
+  row.appendChild(picker);
+}
+
+function closeEmojiPicker() {
+  const p = document.getElementById('emoji-picker-popup');
+  if (p) p.remove();
+  _emojiPickerMsgId = null;
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#emoji-picker-popup') && !e.target.closest('.chat-react-btn')) {
+    closeEmojiPicker();
+  }
+});
+
+function escHtmlChat(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderChat() {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+
+  let html = '';
+  for (const m of chatMessages) {
+    if (m.sender_type === 'system') {
+      html += `<div class="chat-msg system">${escHtmlChat(m.body)}</div>`;
+      continue;
+    }
+    const isMe = m.sender_name === CHAT_MY_NAME;
+    html += `<div class="chat-msg ${escHtmlChat(m.sender_type)}" data-msg-id="${m.id}">`;
+    html += `<div class="chat-sender ${escHtmlChat(m.sender_type)}">${escHtmlChat(m.sender_name)}</div>`;
+    html += `<div class="chat-body">${escHtmlChat(m.body)}</div>`;
+
+    // Reaction pills
+    if (Object.keys(m.reactions || {}).length) {
+      html += '<div class="chat-reactions">';
+      for (const [emoji, senders] of Object.entries(m.reactions)) {
+        const mine = senders.includes(CHAT_MY_NAME);
+        html += `<span class="reaction-pill${mine?' mine':''}" onclick="sendReaction(${m.id},'${emoji}')">` +
+                `${emoji}<span class="r-count">${senders.length}</span></span>`;
+      }
+      html += '</div>';
+    }
+
+    // Action buttons (always rendered, shown on hover via CSS)
+    html += '<div class="chat-msg-actions">';
+    html += `<button class="chat-react-btn" title="React" onclick="openEmojiPicker(${m.id},this)">&#128512;</button>`;
+    {% if is_commissioner %}
+    html += `<button class="chat-delete-btn" title="Delete" onclick="deleteMessage(${m.id})">&#10005;</button>`;
+    {% endif %}
+    html += '</div>';
+
+    html += '</div>';
+  }
+  container.innerHTML = html;
+
+  if (wasAtBottom) scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
+  const c = document.getElementById('chat-messages');
+  if (c) c.scrollTop = c.scrollHeight;
+}
+
+function updateChatUnreadBadge() {
+  const count = chatUnread > 0 ? String(chatUnread > 9 ? '9+' : chatUnread) : '';
+  ['chat-unread-desktop', 'chat-unread-mobile'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = count;
+    el.style.display = count ? 'inline-block' : 'none';
+  });
+}
 
 // ============================================================
 // Render
@@ -2029,12 +2475,17 @@ function setSidebarView(v) {
   sidebarView = v;
   document.getElementById('tab-pool').classList.toggle('active', v === 'pool');
   document.getElementById('tab-team').classList.toggle('active', v === 'team');
-  const poolView = document.getElementById('pool-view');
-  const teamPanel = document.getElementById('team-panel');
-  poolView.style.display = v === 'pool' ? 'flex' : 'none';
-  teamPanel.style.display = v === 'team' ? 'flex' : 'none';
+  document.getElementById('tab-chat').classList.toggle('active', v === 'chat');
+  document.getElementById('pool-view').style.display  = v === 'pool'  ? 'flex' : 'none';
+  document.getElementById('team-panel').style.display = v === 'team'  ? 'flex' : 'none';
+  document.getElementById('chat-panel').style.display = v === 'chat'  ? 'flex' : 'none';
   if (v === 'pool') renderPool();
   if (v === 'team') renderTeamPanel();
+  if (v === 'chat') {
+    chatUnread = 0;
+    updateChatUnreadBadge();
+    scrollChatToBottom();
+  }
 }
 
 function setTeamView(pk) {

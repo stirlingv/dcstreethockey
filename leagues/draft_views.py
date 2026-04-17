@@ -1002,6 +1002,32 @@ def _broadcast_state_change(session, extra=None, prev_round=None):
     group_name = f"draft_{session.pk}"
     async_to_sync(channel_layer.group_send)(group_name, payload)
 
+    # Broadcast a system chat message for each pick so the chat log
+    # automatically records every selection without commissioner effort.
+    if extra and "pick" in extra:
+        pick = extra["pick"]
+        from leagues.models import DraftChatMessage
+        from leagues.consumers import _serialize_message
+
+        body = (
+            f"\U0001f3d2 {pick['team_name']} drafted "
+            f"{pick['player']['full_name']} — "
+            f"Round {pick['round']}, Pick {pick['pick_number']}"
+        )
+        chat_msg = DraftChatMessage.objects.create(
+            session=session,
+            sender_name="Draft",
+            sender_type=DraftChatMessage.SENDER_SYSTEM,
+            body=body,
+        )
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "draft.chat_message",
+                "message": _serialize_message(chat_msg),
+            },
+        )
+
 
 # ---------------------------------------------------------------------------
 # Commissioner: finalize draft → create Team and Roster records
@@ -1314,6 +1340,9 @@ def reset_draft(request, session_pk, token):
     with transaction.atomic():
         # Remove all picks — these must not count towards ADP
         DraftPick.objects.filter(session=session).delete()
+
+        # Clear chat history — reset returns session to a clean slate
+        session.chat_messages.all().delete()
 
         # Clear draft positions and any league_team links on every team slot
         session.teams.update(draft_position=None, league_team=None)
