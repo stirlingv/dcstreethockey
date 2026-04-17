@@ -390,11 +390,14 @@ def draft_signup(request, season_pk):
             error = "Please answer the captain interest question."
 
         if not error:
-            # Try to link to an existing Player record
+            # Try to link to an existing Player record — first by name, then by
+            # email as a fallback (handles nicknames like Mike vs. Michael).
             linked_player = Player.objects.filter(
                 first_name__iexact=first_name,
                 last_name__iexact=last_name,
             ).first()
+            if linked_player is None and email:
+                linked_player = Player.objects.filter(email__iexact=email).first()
 
             existing_email = SeasonSignup.objects.filter(
                 season=season,
@@ -1093,10 +1096,19 @@ def finalize_draft(request, session_pk, token):
                 if signup.linked_player:
                     player = signup.linked_player
                 else:
-                    player, _ = Player.objects.get_or_create(
-                        first_name=signup.first_name,
-                        last_name=signup.last_name,
-                    )
+                    # Try email before falling back to get_or_create by name,
+                    # so a nickname mismatch (Mike vs. Michael) doesn't create
+                    # a duplicate Player record.
+                    player = None
+                    if signup.email:
+                        player = Player.objects.filter(
+                            email__iexact=signup.email
+                        ).first()
+                    if player is None:
+                        player, _ = Player.objects.get_or_create(
+                            first_name=signup.first_name,
+                            last_name=signup.last_name,
+                        )
                     signup.linked_player = player
                     signup.save(update_fields=["linked_player"])
 
