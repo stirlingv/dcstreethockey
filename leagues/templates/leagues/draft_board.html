@@ -2092,6 +2092,10 @@ function triggerDraw() {
     headers: { 'X-CSRFToken': getCsrf() },
   }).then(r => r.json()).then(d => {
     if (d.error) { showToast(d.error, true); return; }
+    // Apply the state immediately from the HTTP response so that
+    // updateCommissionerButtons() in closeDraw() always sees state='draw',
+    // regardless of WebSocket message delivery timing.
+    applyResponseState(d);
     if (d.reveal_order && !drawOverlayShown) {
       drawOverlayShown = true;
       showDrawOverlay(d.reveal_order);

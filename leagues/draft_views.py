@@ -624,7 +624,9 @@ def draw_positions(request, session_pk, token):
         },
     )
 
-    return JsonResponse({"reveal_order": reveal_order})
+    return JsonResponse(
+        {"reveal_order": reveal_order, "state": _session_state_payload(session)}
+    )
 
 
 # ---------------------------------------------------------------------------
