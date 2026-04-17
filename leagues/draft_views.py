@@ -228,7 +228,7 @@ def _session_state_payload(session, stats_cache=None):
     recomputing it when the caller already has one (e.g. the commissioner view).
     """
     teams = list(
-        session.teams.select_related("captain")
+        session.teams.select_related("captain", "league_team")
         .prefetch_related("draft_picks__signup")
         .order_by("draft_position", "pk")
     )
@@ -253,6 +253,16 @@ def _session_state_payload(session, stats_cache=None):
         if s.pk not in drafted_signup_ids and s.pk not in captain_signup_ids
     ]
 
+    # Batch-fetch regular-season records for any finalized teams
+    league_team_ids = [t.league_team_id for t in teams if t.league_team_id]
+    if league_team_ids:
+        _team_stats_map = {
+            ts.team_id: ts
+            for ts in Team_Stat.objects.filter(team_id__in=league_team_ids)
+        }
+    else:
+        _team_stats_map = {}
+
     teams_data = []
     for team in teams:
         picks_by_round = {}
@@ -265,10 +275,24 @@ def _session_state_payload(session, stats_cache=None):
             picks_by_round[pick.round_number] = payload
             if payload["is_goalie"]:
                 has_goalie = True
+
+        ts = _team_stats_map.get(team.league_team_id) if team.league_team_id else None
+        if ts:
+            w = ts.win + ts.otw
+            l = ts.loss + ts.otl
+            record = f"{w}-{l}" + (f"-{ts.tie}" if ts.tie else "")
+        else:
+            record = None
+
         teams_data.append(
             {
                 "id": team.pk,
                 "team_name": team.team_name,
+                "display_name": team.league_team.team_name
+                if team.league_team_id
+                else team.team_name,
+                "league_team_id": team.league_team_id,
+                "record": record,
                 "captain_name": team.captain.full_name,
                 "captain_signup_id": team.captain_id,
                 "draft_position": team.draft_position,
@@ -419,13 +443,15 @@ def draft_board_spectator(request, session_pk):
     rounds = list(session.rounds.order_by("round_number"))
     initial_state = json.dumps(_session_state_payload(session))
 
+    champion = _get_session_champion(session)
     context = {
         "session": session,
         "rounds": rounds,
         "initial_state": initial_state,
         "is_captain": False,
         "is_commissioner": False,
-        "champion": _get_session_champion(session),
+        "champion": champion,
+        "champion_league_team_id": champion["team"].id if champion else None,
     }
     return render(request, "leagues/draft_board.html", context)
 
@@ -458,6 +484,7 @@ def draft_board_commissioner(request, session_pk, token):
         [_signup_payload(s, stats_cache) for s in all_signups]
     )
 
+    champion = _get_session_champion(session)
     context = {
         "session": session,
         "rounds": rounds,
@@ -466,7 +493,8 @@ def draft_board_commissioner(request, session_pk, token):
         "is_commissioner": True,
         "commissioner_token": str(token),
         "all_players_json": all_players_json,
-        "champion": _get_session_champion(session),
+        "champion": champion,
+        "champion_league_team_id": champion["team"].id if champion else None,
     }
     return render(request, "leagues/draft_board.html", context)
 
@@ -487,6 +515,7 @@ def draft_board_captain(request, session_pk, token):
     rounds = list(session.rounds.order_by("round_number"))
     initial_state = json.dumps(_session_state_payload(session))
 
+    champion = _get_session_champion(session)
     context = {
         "session": session,
         "rounds": rounds,
@@ -496,7 +525,8 @@ def draft_board_captain(request, session_pk, token):
         "captain_team_pk": team.pk,
         "captain_token": str(token),
         "captain_name": team.captain.full_name,
-        "champion": _get_session_champion(session),
+        "champion": champion,
+        "champion_league_team_id": champion["team"].id if champion else None,
     }
     return render(request, "leagues/draft_board.html", context)
 

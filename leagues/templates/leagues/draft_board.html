@@ -905,74 +905,30 @@
     }
   }
 
-  /* ---- Champion banner (complete sessions) ---- */
-  .champ-banner {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    background: #1a1600;
-    border: 1px solid #7a5900;
-    border-left: 4px solid #b7860b;
-    border-radius: 6px;
-    padding: 14px 18px;
-    margin-bottom: 18px;
+  /* ---- Champion column ---- */
+  .board-table th.champion-col-header {
+    border-bottom: 3px solid #b7860b;
   }
-
-  .champ-banner-trophy {
-    font-size: 2rem;
-    line-height: 1;
-    flex-shrink: 0;
+  .board-table th.champion-col-header .team-record {
+    color: rgba(255, 255, 255, 0.6);
   }
-
-  .champ-banner-info {
-    min-width: 0;
-    flex: 1;
+  .champion-trophy {
+    font-style: normal;
   }
-
-  .champ-banner-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #b7860b;
-    margin-bottom: 3px;
-  }
-
-  .champ-banner-name {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #f5c842;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .champ-banner-captain {
-    font-size: 0.82rem;
-    color: #aaa;
+  /* Record shown under team name in column header */
+  .team-record {
+    font-size: 0.69rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.55);
     margin-top: 2px;
+    white-space: nowrap;
   }
-
-  .champ-banner-record {
-    font-size: 0.82rem;
-    color: #ccc;
-    margin-top: 4px;
+  /* Champion column data cells — subtle warm tint */
+  td.champion-col {
+    background-color: #fffef5;
   }
-
-  .champ-banner-record .rec-label {
-    font-weight: 600;
-    color: #b7860b;
-  }
-
-  @media (max-width: 600px) {
-    .champ-banner {
-      padding: 12px 14px;
-      gap: 10px;
-    }
-    .champ-banner-name {
-      white-space: normal;
-      font-size: 1rem;
-    }
+  td.champion-col.randomized-round {
+    background-color: #fdf9e8;
   }
 </style>
 {% endblock %}
@@ -1052,30 +1008,6 @@
         </a>
       </span>
     </div>
-
-    {% if champion %}
-    <div class="champ-banner">
-      <div class="champ-banner-trophy">&#127942;</div>
-      <div class="champ-banner-info">
-        <div class="champ-banner-label">Season Champions</div>
-        <div class="champ-banner-name">{{ champion.team.team_name }}</div>
-        {% if champion.draft_team %}
-        <div class="champ-banner-captain">Captain: {{ champion.draft_team.captain.full_name }}</div>
-        {% endif %}
-        <div class="champ-banner-record">
-          {% if champion.team_stat %}
-            <span class="rec-label">Regular Season:</span>
-            {{ champion.team_stat.win|add:champion.team_stat.otw }}-{{ champion.team_stat.loss|add:champion.team_stat.otl }}{% if champion.team_stat.tie %}-{{ champion.team_stat.tie }}{% endif %}
-          {% endif %}
-          {% if champion.playoff_wins or champion.playoff_losses %}
-            {% if champion.team_stat %}&nbsp;&middot;&nbsp;{% endif %}
-            <span class="rec-label">Playoffs:</span>
-            {{ champion.playoff_wins }}-{{ champion.playoff_losses }}
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    {% endif %}
 
     <div id="board-container"></div>
   </div>
@@ -1196,6 +1128,7 @@ const IS_COMMISSIONER = {{ is_commissioner|yesno:"true,false" }};
 const CAPTAIN_TEAM_PK = {% if captain_team_pk %}{{ captain_team_pk }}{% else %}null{% endif %};
 const CAPTAIN_TOKEN   = "{% if captain_token %}{{ captain_token }}{% endif %}";
 const COMMISSIONER_TOKEN = "{% if commissioner_token %}{{ commissioner_token }}{% endif %}";
+const CHAMPION_LEAGUE_TEAM_ID = {% if champion_league_team_id %}{{ champion_league_team_id }}{% else %}null{% endif %};
 {% if is_commissioner %}
 const ALL_PLAYERS = {{ all_players_json|safe }};
 {% endif %}
@@ -1375,7 +1308,14 @@ function renderBoard() {
   for (let i = 0; i < teams.length; i++) {
     const t = teams[i];
     if (positionsDrawn) {
-      html += `<th>${escHtml(t.team_name)}</th>`;
+      const isChamp = CHAMPION_LEAGUE_TEAM_ID !== null && t.league_team_id === CHAMPION_LEAGUE_TEAM_ID;
+      const thClass = isChamp ? ' class="champion-col-header"' : '';
+      let th = `<th${thClass}>`;
+      if (isChamp) th += `<span class="champion-trophy">&#127942;</span> `;
+      th += escHtml(t.display_name || t.team_name);
+      if (t.record) th += `<div class="team-record">${escHtml(t.record)}</div>`;
+      th += `</th>`;
+      html += th;
     } else {
       html += `<th style="color:rgba(255,255,255,0.5);font-style:italic;">Team ${i + 1}</th>`;
     }
@@ -1397,12 +1337,14 @@ function renderBoard() {
       // A "pending captain slot" is an unfilled round designated as this team's captain round
       const isCaptainSlotPending = !pick && team.captain_draft_round === r;
 
+      const isChampCol = CHAMPION_LEAGUE_TEAM_ID !== null && team.league_team_id === CHAMPION_LEAGUE_TEAM_ID;
       const cellClass = [
         isRandom ? 'randomized-round' : '',
         isMyTurn ? 'my-turn-cell' : (isActiveSlot && state.state === 'active' ? 'active-pick-cell' : ''),
         isGoaliePick && !isCaptainPick ? 'goalie-pick' : '',
         isCaptainPick ? 'captain-pick' : '',
         isCaptainSlotPending ? 'captain-slot-pending' : '',
+        isChampCol ? 'champion-col' : '',
       ].filter(Boolean).join(' ');
 
       const cellEditMode = editMode && IS_COMMISSIONER && pick;

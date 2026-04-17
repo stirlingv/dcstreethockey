@@ -2405,14 +2405,16 @@ class DraftChampionDataTests(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Champion banner on draft board page
+# Champion column on draft board page
 # ---------------------------------------------------------------------------
 
 
-class DraftBoardChampionBannerTests(DraftChampionDataTests):
+class DraftBoardChampionTests(DraftChampionDataTests):
     """
-    Tests that the champion banner is rendered on the draft board page
+    Tests that the champion column is highlighted on the draft board page
     (spectator, commissioner, captain views) for completed sessions.
+    The champion is identified by the champion-col-header CSS class and
+    trophy icon in the table header; no separate banner div is rendered.
     Inherits setUp from DraftChampionDataTests which creates a COMPLETE
     session with a clear championship winner (Alpha Team / Alice Smith).
     """
@@ -2438,50 +2440,65 @@ class DraftBoardChampionBannerTests(DraftChampionDataTests):
         self.assertIsNotNone(resp.context["champion"])
         self.assertEqual(resp.context["champion"]["team"], self.team1)
 
-    def test_spectator_champion_banner_rendered(self):
+    def test_spectator_champion_league_team_id_in_context(self):
         resp = self.client.get(self._spectator_url())
-        self.assertContains(resp, "Season Champions")
-        self.assertContains(resp, "Alpha Team")
-        self.assertContains(resp, "Alice Smith")
+        self.assertEqual(resp.context["champion_league_team_id"], self.team1.id)
 
-    def test_spectator_regular_season_record_in_banner(self):
+    def test_spectator_champion_league_team_id_js_constant(self):
+        """The CHAMPION_LEAGUE_TEAM_ID JS constant is rendered with the team's pk."""
         resp = self.client.get(self._spectator_url())
-        self.assertContains(resp, "Regular Season")
-        self.assertContains(resp, "8-2")
+        self.assertContains(resp, f"CHAMPION_LEAGUE_TEAM_ID = {self.team1.id}")
 
-    def test_spectator_playoff_record_in_banner(self):
+    def test_spectator_team_name_from_league_team(self):
+        """display_name uses the real league team name, not the draft team name."""
         resp = self.client.get(self._spectator_url())
-        self.assertContains(resp, "Playoffs")
-        self.assertContains(resp, "1-0")
+        import json
+
+        state = json.loads(resp.context["initial_state"])
+        team_names = [t["display_name"] for t in state["teams"]]
+        self.assertIn("Alpha Team", team_names)
+        self.assertIn("Beta Team", team_names)
+        # DraftTeam default names should not be used when league_team is set
+        self.assertNotIn("Alice's Team", team_names)
+
+    def test_spectator_record_in_state(self):
+        """Regular-season record is included in the state payload per team."""
+        resp = self.client.get(self._spectator_url())
+        import json
+
+        state = json.loads(resp.context["initial_state"])
+        champ_team = next(
+            t for t in state["teams"] if t["display_name"] == "Alpha Team"
+        )
+        self.assertEqual(champ_team["record"], "8-2")
 
     def test_commissioner_champion_in_context(self):
         resp = self.client.get(self._commissioner_url())
         self.assertEqual(resp.status_code, 200)
         self.assertIsNotNone(resp.context["champion"])
 
-    def test_commissioner_champion_banner_rendered(self):
+    def test_commissioner_champion_league_team_id_in_context(self):
         resp = self.client.get(self._commissioner_url())
-        self.assertContains(resp, "Season Champions")
-        self.assertContains(resp, "Alpha Team")
+        self.assertEqual(resp.context["champion_league_team_id"], self.team1.id)
 
     def test_captain_champion_in_context(self):
         resp = self.client.get(self._captain_url())
         self.assertEqual(resp.status_code, 200)
         self.assertIsNotNone(resp.context["champion"])
 
-    def test_captain_champion_banner_rendered(self):
+    def test_captain_champion_league_team_id_in_context(self):
         resp = self.client.get(self._captain_url())
-        self.assertContains(resp, "Season Champions")
-        self.assertContains(resp, "Alpha Team")
+        self.assertEqual(resp.context["champion_league_team_id"], self.team1.id)
 
-    def test_no_champion_banner_for_non_complete_session(self):
-        """Active/paused sessions should not show a champion banner."""
+    def test_no_champion_for_non_complete_session(self):
+        """Active/paused sessions have no champion context."""
         self.session.state = DraftSession.STATE_ACTIVE
         self.session.save()
         resp = self.client.get(self._spectator_url())
         self.assertEqual(resp.status_code, 200)
         self.assertIsNone(resp.context["champion"])
-        self.assertNotContains(resp, "Season Champions")
+        self.assertIsNone(resp.context["champion_league_team_id"])
+        self.assertContains(resp, "CHAMPION_LEAGUE_TEAM_ID = null")
 
     def test_get_session_champion_wrapper(self):
         """_get_session_champion returns the same data as the batch helper."""
@@ -2493,3 +2510,23 @@ class DraftBoardChampionBannerTests(DraftChampionDataTests):
         self.session.state = DraftSession.STATE_ACTIVE
         self.session.save()
         self.assertIsNone(_get_session_champion(self.session))
+
+    def test_league_team_id_in_state_payload(self):
+        """Each team in the state payload includes its league_team_id."""
+        resp = self.client.get(self._spectator_url())
+        import json
+
+        state = json.loads(resp.context["initial_state"])
+        for t in state["teams"]:
+            self.assertIn("league_team_id", t)
+
+    def test_fallback_to_draft_team_name_when_no_league_team(self):
+        """When league_team is not set, display_name falls back to DraftTeam.team_name."""
+        self.dt1.league_team = None
+        self.dt1.save()
+        resp = self.client.get(self._spectator_url())
+        import json
+
+        state = json.loads(resp.context["initial_state"])
+        t1_data = next(t for t in state["teams"] if t["id"] == self.dt1.pk)
+        self.assertEqual(t1_data["display_name"], self.dt1.team_name)
