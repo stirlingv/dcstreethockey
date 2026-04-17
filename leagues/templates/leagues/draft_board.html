@@ -1554,17 +1554,24 @@ function submitChatName() {
   // eslint-disable-next-line no-global-assign
   CHAT_MY_NAME = name;
   document.getElementById('chat-name-prompt').classList.remove('visible');
-  // Reconnect so the server knows our display name.
-  if (_ws) _ws.close();
+  // Reconnect immediately so the server knows our display name.
+  // Null out onclose first so the backoff handler doesn't fire a second time.
+  if (_ws) { _ws.onclose = null; _ws.close(); }
+  wsReconnectDelay = 2000;
+  connectWs();
 }
 
 function sendChat() {
   const inp = document.getElementById('chat-input');
   const body = inp.value.trim();
-  if (!body || !_ws || _ws.readyState !== WebSocket.OPEN) return;
+  if (!body) return;
   {% if not is_commissioner and not is_captain %}
   if (!CHAT_MY_NAME) { showChatNamePrompt(); return; }
   {% endif %}
+  if (!_ws || _ws.readyState !== WebSocket.OPEN) {
+    showToast('Not connected — please try again in a moment', true);
+    return;
+  }
   _ws.send(JSON.stringify({ type: 'chat_message', body }));
   inp.value = '';
   inp.style.height = 'auto';
