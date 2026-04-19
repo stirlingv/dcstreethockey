@@ -17,20 +17,32 @@
                                 {% with row.week.date|date:"Y-m-d" as formatted_date %}
                                     {% with weather_data|get_item:formatted_date as weather %}
                                         {% if weather %}
-                                            <!-- Display the weather information next to the date -->
-                                            <div class="weather-header">
-                                                <a href="https://openweathermap.org/city/4744091" target="_blank" class="weather-link">
-                                                    <span class="weather-emoji">{{ weather.description|weather_emoji }}</span>
-                                                    <span class="weather-info">
-                                                        {{ weather.temp|floatformat:0 }}°F, {{ weather.description }}<br>
-                                                        Wind: {{ weather.wind_speed|floatformat:1 }} mph, Rain: {{ weather.rain|floatformat:1 }} in
-                                                    </span>
-                                                </a>
+                                            <!-- Play forecast: answers "will games be played?" at a glance -->
+                                            {% if weather.playability == "good" %}
+                                            <div class="play-forecast play-forecast-good">
+                                                <span class="play-forecast-label">&#10003; Looks good to play</span>
+                                                <span class="play-forecast-detail">
+                                                    {{ weather.description|capfirst }} &middot; {{ weather.temp|floatformat:0 }}&deg;F
+                                                    {% if weather.pop_pct is not None %}&middot; {{ weather.pop_pct }}% chance of rain{% endif %}
+                                                </span>
                                             </div>
-                                        {% else %}
-                                            <div class="weather-header">
-                                                <p>Weather data not available.</p>
+                                            {% elif weather.playability == "uncertain" %}
+                                            <div class="play-forecast play-forecast-uncertain">
+                                                <span class="play-forecast-label">&#9888; Rain possible &mdash; watch for updates</span>
+                                                <span class="play-forecast-detail">
+                                                    {{ weather.description|capfirst }} &middot; {{ weather.temp|floatformat:0 }}&deg;F
+                                                    {% if weather.pop_pct is not None %}&middot; {{ weather.pop_pct }}% chance of rain{% endif %}
+                                                </span>
                                             </div>
+                                            {% else %}
+                                            <div class="play-forecast play-forecast-bad">
+                                                <span class="play-forecast-label">&#10007; Rain or snow likely &mdash; check for cancellation</span>
+                                                <span class="play-forecast-detail">
+                                                    {{ weather.description|capfirst }} &middot; {{ weather.temp|floatformat:0 }}&deg;F
+                                                    {% if weather.pop_pct is not None %}&middot; {{ weather.pop_pct }}% chance of rain{% endif %}
+                                                </span>
+                                            </div>
+                                            {% endif %}
                                         {% endif %}
                                     {% endwith %}
                                 {% endwith %}

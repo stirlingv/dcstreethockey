@@ -847,3 +847,64 @@ div div#content .matchupheader{
         font-size: 0.85em;
     }
 }
+
+/* ===== Play Forecast Widget ===== */
+.play-forecast {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border-left: 4px solid;
+    margin-top: 6px;
+    font-size: 0.88em;
+    line-height: 1.4;
+    max-width: 100%;
+}
+
+.play-forecast-good {
+    background-color: rgba(39, 174, 96, 0.1);
+    border-left-color: #27ae60;
+}
+
+.play-forecast-good .play-forecast-label {
+    color: #1a7341;
+}
+
+.play-forecast-uncertain {
+    background-color: rgba(211, 136, 36, 0.1);
+    border-left-color: #d38824;
+}
+
+.play-forecast-uncertain .play-forecast-label {
+    color: #7a4f00;
+}
+
+.play-forecast-bad {
+    background-color: rgba(192, 57, 43, 0.1);
+    border-left-color: #c0392b;
+}
+
+.play-forecast-bad .play-forecast-label {
+    color: #7b1d16;
+}
+
+.play-forecast-label {
+    font-weight: 700;
+    font-size: 0.95em;
+}
+
+.play-forecast-detail {
+    font-size: 0.85em;
+    color: #555;
+}
+
+@media screen and (max-width: 736px) {
+    .play-forecast {
+        font-size: 0.85em;
+        padding: 6px 9px;
+    }
+    .play-forecast-label {
+        font-size: 0.9em;
+    }
+}
