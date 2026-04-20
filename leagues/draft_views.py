@@ -7,7 +7,7 @@ import io
 import json
 import random
 
-from django.db.models import Case, Count, Q, Sum, Value, When
+from django.db.models import Case, Count, Exists, OuterRef, Q, Sum, Value, When
 from django.http import HttpResponse, JsonResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -79,24 +79,39 @@ def _get_wednesday_stats(player):
     agg = qs.aggregate(
         goals=Sum("goals"),
         assists=Sum("assists"),
-        goals_against=Sum("goals_against"),
-        matchup_games=Count("matchup", distinct=True),
     )
 
     goals = agg["goals"] or 0
     assists = agg["assists"] or 0
-    goals_against = agg["goals_against"] or 0
-    # Production data: each Stat row has a real MatchUp FK → count distinct matchups.
-    # Seed / legacy data: matchup=None (season-total rows) → fall back to row count so
-    # GAA is still calculable (each row represents one game in that case).
-    games = agg["matchup_games"] or qs.count()
     points = goals + assists
 
     def per_season(n):
         return round(n / seasons_played, 1)
 
-    # games > 0 is the correct guard; a shutout goalie has valid GAA of 0.00
-    gaa = round(goals_against / games, 2) if games > 0 else None
+    # GAA: only count stats from teams where this player was rostered as goalie.
+    # Players like Ryan Jacob who played many seasons as a non-goalie before switching
+    # would otherwise have their goals_against diluted across all their seasons' games.
+    goalie_qs = qs.filter(
+        Exists(
+            Roster.objects.filter(
+                player=player,
+                team_id=OuterRef("team_id"),
+                position1=4,
+                is_substitute=False,
+            )
+        )
+    )
+    goalie_agg = goalie_qs.aggregate(
+        goals_against=Sum("goals_against"),
+        goalie_games=Count("matchup", distinct=True),
+    )
+    goals_against = goalie_agg["goals_against"] or 0
+    # Production data: each Stat row has a real MatchUp FK → count distinct matchups.
+    # Seed / legacy data: matchup=None (season-total rows) → fall back to row count so
+    # GAA is still calculable (each row represents one game in that case).
+    goalie_games = goalie_agg["goalie_games"] or goalie_qs.count()
+    # goalie_games > 0 is the correct guard; a shutout goalie has valid GAA of 0.00
+    gaa = round(goals_against / goalie_games, 2) if goalie_games > 0 else None
 
     return {
         "is_new": False,
@@ -113,7 +128,7 @@ def _get_wednesday_stats(player):
 def _batch_wednesday_stats(player_ids):
     """
     Batch version of _get_wednesday_stats.
-    Returns {player_id: stats_dict} for all given player IDs in 2 queries,
+    Returns {player_id: stats_dict} for all given player IDs in 3 queries,
     regardless of how many players are passed.
     """
     player_ids = [p for p in player_ids if p is not None]
@@ -122,7 +137,7 @@ def _batch_wednesday_stats(player_ids):
 
     WED_DIVISION = 3
 
-    # Query 1: per-player season counts + aggregated stats + row count fallback
+    # Query 1: per-player season counts + aggregated scoring stats + row count fallback
     agg_rows = {
         row["player_id"]: row
         for row in Stat.objects.filter(
@@ -134,8 +149,6 @@ def _batch_wednesday_stats(player_ids):
             seasons=Count("team__season", distinct=True),
             goals=Sum("goals"),
             assists=Sum("assists"),
-            goals_against=Sum("goals_against"),
-            matchup_games=Count("matchup", distinct=True),
             stat_rows=Count("id"),
         )
     }
@@ -146,6 +159,30 @@ def _batch_wednesday_stats(player_ids):
         signup__linked_player_id__in=player_ids
     ).values_list("signup__linked_player_id", "round_number"):
         adp_raw.setdefault(pid, []).append(rnd)
+
+    # Query 3: GAA — only count stats from teams where the player was rostered as
+    # goalie. Players who played many seasons as a non-goalie before switching would
+    # otherwise have their goals_against diluted across all their seasons' games.
+    _goalie_roster = Roster.objects.filter(
+        player_id=OuterRef("player_id"),
+        team_id=OuterRef("team_id"),
+        position1=4,
+        is_substitute=False,
+    )
+    goalie_agg_rows = {
+        row["player_id"]: row
+        for row in Stat.objects.filter(
+            player_id__in=player_ids,
+            team__division__division=WED_DIVISION,
+        )
+        .filter(Exists(_goalie_roster))
+        .values("player_id")
+        .annotate(
+            goals_against=Sum("goals_against"),
+            goalie_games=Count("matchup", distinct=True),
+            goalie_rows=Count("id"),
+        )
+    }
 
     result = {}
     for pid in player_ids:
@@ -170,11 +207,16 @@ def _batch_wednesday_stats(player_ids):
         seasons = agg["seasons"]
         goals = agg["goals"] or 0
         assists = agg["assists"] or 0
-        goals_against = agg["goals_against"] or 0
-        # Prefer distinct matchup count; fall back to row count for legacy seed data
-        games = agg["matchup_games"] or agg["stat_rows"] or 0
         points = goals + assists
-        gaa = round(goals_against / games, 2) if games > 0 else None
+
+        goalie_agg = goalie_agg_rows.get(pid)
+        if goalie_agg:
+            goals_against = goalie_agg["goals_against"] or 0
+            # Prefer distinct matchup count; fall back to row count for legacy seed data
+            goalie_games = goalie_agg["goalie_games"] or goalie_agg["goalie_rows"] or 0
+            gaa = round(goals_against / goalie_games, 2) if goalie_games > 0 else None
+        else:
+            gaa = None
 
         def per_season(n, s=seasons):
             return round(n / s, 1)

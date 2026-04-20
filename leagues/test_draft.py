@@ -35,8 +35,10 @@ from leagues.models import (
     Week,
 )
 from leagues.draft_views import (
+    _batch_wednesday_stats,
     _get_champion_data_for_sessions,
     _get_session_champion,
+    _get_wednesday_stats,
     _process_auto_captain_picks,
     _session_state_payload,
 )
@@ -2564,3 +2566,197 @@ class DraftBoardChampionTests(DraftChampionDataTests):
         state = json.loads(resp.context["initial_state"])
         t1_data = next(t for t in state["teams"] if t["id"] == self.dt1.pk)
         self.assertEqual(t1_data["display_name"], self.dt1.team_name)
+
+
+# ---------------------------------------------------------------------------
+# GAA calculation — only goalie-rostered seasons
+# ---------------------------------------------------------------------------
+
+
+class WednesdayStatsGAATests(TestCase):
+    """
+    Regression tests for _get_wednesday_stats and _batch_wednesday_stats.
+
+    A player who played several seasons as a non-goalie and then one season as
+    a goalie should have their GAA calculated only from the goalie season —
+    not diluted across all seasons' games.
+    """
+
+    def setUp(self):
+        self.wed_div = Division.objects.create(division=3)
+        self.player = Player.objects.create(first_name="Ryan", last_name="Jacob")
+
+        # Three past seasons
+        self.season_d1 = Season.objects.create(
+            year=2022, season_type=4, is_current_season=False
+        )
+        self.season_d2 = Season.objects.create(
+            year=2023, season_type=4, is_current_season=False
+        )
+        self.season_goalie = Season.objects.create(
+            year=2024, season_type=4, is_current_season=False
+        )
+
+        # Defense team (2022) — 10 games, 0 goals against
+        self.team_d1 = Team.objects.create(
+            team_name="D Team 2022",
+            team_color="Red",
+            division=self.wed_div,
+            season=self.season_d1,
+            is_active=True,
+        )
+        Roster.objects.create(
+            player=self.player, team=self.team_d1, position1=3  # Defense
+        )
+        week1 = Week.objects.create(
+            division=self.wed_div, season=self.season_d1, date=datetime.date(2022, 1, 1)
+        )
+        opp1 = Team.objects.create(
+            team_name="Opp 2022",
+            team_color="Blue",
+            division=self.wed_div,
+            season=self.season_d1,
+            is_active=True,
+        )
+        for i in range(10):
+            mu = MatchUp.objects.create(
+                week=week1,
+                time=datetime.time(19 + i % 4, 0),
+                hometeam=self.team_d1,
+                awayteam=opp1,
+            )
+            Stat.objects.create(
+                player=self.player,
+                team=self.team_d1,
+                matchup=mu,
+                goals=0,
+                assists=0,
+                goals_against=0,
+            )
+
+        # Defense team (2023) — 10 games, 0 goals against
+        self.team_d2 = Team.objects.create(
+            team_name="D Team 2023",
+            team_color="Green",
+            division=self.wed_div,
+            season=self.season_d2,
+            is_active=True,
+        )
+        Roster.objects.create(
+            player=self.player, team=self.team_d2, position1=3  # Defense
+        )
+        week2 = Week.objects.create(
+            division=self.wed_div, season=self.season_d2, date=datetime.date(2023, 1, 1)
+        )
+        opp2 = Team.objects.create(
+            team_name="Opp 2023",
+            team_color="Yellow",
+            division=self.wed_div,
+            season=self.season_d2,
+            is_active=True,
+        )
+        for i in range(10):
+            mu = MatchUp.objects.create(
+                week=week2,
+                time=datetime.time(19 + i % 4, 0),
+                hometeam=self.team_d2,
+                awayteam=opp2,
+            )
+            Stat.objects.create(
+                player=self.player,
+                team=self.team_d2,
+                matchup=mu,
+                goals=0,
+                assists=0,
+                goals_against=0,
+            )
+
+        # Goalie team (2024) — 5 games, 10 goals against → GAA = 2.00
+        self.team_g = Team.objects.create(
+            team_name="G Team 2024",
+            team_color="Purple",
+            division=self.wed_div,
+            season=self.season_goalie,
+            is_active=True,
+        )
+        Roster.objects.create(
+            player=self.player,
+            team=self.team_g,
+            position1=4,  # Goalie
+            is_substitute=False,
+        )
+        week3 = Week.objects.create(
+            division=self.wed_div,
+            season=self.season_goalie,
+            date=datetime.date(2024, 1, 1),
+        )
+        opp3 = Team.objects.create(
+            team_name="Opp 2024",
+            team_color="Orange",
+            division=self.wed_div,
+            season=self.season_goalie,
+            is_active=True,
+        )
+        for i in range(5):
+            mu = MatchUp.objects.create(
+                week=week3,
+                time=datetime.time(19 + i % 4, 0),
+                hometeam=self.team_g,
+                awayteam=opp3,
+            )
+            Stat.objects.create(
+                player=self.player,
+                team=self.team_g,
+                matchup=mu,
+                goals=0,
+                assists=0,
+                goals_against=2,  # 2 goals against per game → GAA 2.00
+            )
+
+    def test_gaa_uses_only_goalie_seasons(self):
+        """GAA must reflect only goalie-rostered seasons (5 GP, 10 GA = 2.00)."""
+        stats = _get_wednesday_stats(self.player)
+        # If all 25 games were used: 10 GA / 25 GP = 0.40 (wrong)
+        # Correct: 10 GA / 5 GP = 2.00
+        self.assertEqual(stats["gaa"], 2.00)
+
+    def test_seasons_count_includes_non_goalie_seasons(self):
+        """seasons should count all Wednesday seasons, not just goalie seasons."""
+        stats = _get_wednesday_stats(self.player)
+        self.assertEqual(stats["seasons"], 3)
+
+    def test_gaa_none_for_player_with_no_goalie_seasons(self):
+        """A player who has never been rostered as goalie should have gaa=None."""
+        non_goalie = Player.objects.create(first_name="Dave", last_name="Defense")
+        Roster.objects.create(player=non_goalie, team=self.team_d1, position1=3)
+        Stat.objects.create(
+            player=non_goalie,
+            team=self.team_d1,
+            matchup=None,
+            goals=1,
+            assists=2,
+            goals_against=0,
+        )
+        stats = _get_wednesday_stats(non_goalie)
+        self.assertIsNone(stats["gaa"])
+
+    def test_batch_gaa_uses_only_goalie_seasons(self):
+        """_batch_wednesday_stats must also restrict GAA to goalie-rostered seasons."""
+        batch = _batch_wednesday_stats([self.player.id])
+        stats = batch[self.player.id]
+        self.assertEqual(stats["gaa"], 2.00)
+
+    def test_batch_gaa_none_for_player_with_no_goalie_seasons(self):
+        """Batch version returns gaa=None for players never rostered as goalie."""
+        non_goalie = Player.objects.create(first_name="Eve", last_name="Wing")
+        Roster.objects.create(player=non_goalie, team=self.team_d1, position1=2)
+        Stat.objects.create(
+            player=non_goalie,
+            team=self.team_d1,
+            matchup=None,
+            goals=3,
+            assists=1,
+            goals_against=0,
+        )
+        batch = _batch_wednesday_stats([non_goalie.id])
+        self.assertIsNone(batch[non_goalie.id]["gaa"])
