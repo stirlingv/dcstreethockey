@@ -786,6 +786,11 @@ div div#content .matchupheader{
     animation: cancellation-pulse 2.5s ease-in-out infinite;
 }
 
+.cancellation-banner-partial {
+    background-color: #d38824;
+    animation-name: cancellation-pulse-partial;
+}
+
 .cancellation-banner + .cancellation-banner {
     border-top: 2px solid rgba(255, 255, 255, 0.3);
     animation-delay: 0.4s;
@@ -828,6 +833,11 @@ div div#content .matchupheader{
 @keyframes cancellation-pulse {
     0%, 100% { background-color: #c0392b; }
     50%       { background-color: #a93226; }
+}
+
+@keyframes cancellation-pulse-partial {
+    0%, 100% { background-color: #d38824; }
+    50%       { background-color: #b8731a; }
 }
 
 @media screen and (max-width: 736px) {
@@ -906,5 +916,213 @@ div div#content .matchupheader{
     }
     .play-forecast-label {
         font-size: 0.9em;
+    }
+}
+
+.play-forecast-pending {
+    font-size: 0.85em;
+    color: #999;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+/* ===== Play Forecast Info Tooltip ===== */
+.play-forecast-info {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.play-forecast-info-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    font-size: 1em;
+    padding: 0 2px;
+    line-height: 1;
+    vertical-align: middle;
+    /* Ensure 44px tap target on mobile via padding expansion */
+    margin: -10px -6px;
+    padding: 10px 6px;
+}
+
+.play-forecast-info-btn:hover,
+.play-forecast-info-btn:focus {
+    color: #555;
+    outline: none;
+}
+
+.play-forecast-info-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    background: #444;
+    color: #fff;
+    font-size: 0.82em;
+    font-weight: normal;
+    font-style: italic;
+    line-height: 1.5;
+    padding: 10px 13px;
+    border-radius: 6px;
+    width: 250px;
+    max-width: 80vw;
+    z-index: 300;
+    white-space: normal;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+}
+
+/* Arrow pointing up toward the button */
+.play-forecast-info-tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 14px;
+    border: 6px solid transparent;
+    border-bottom-color: #444;
+}
+
+/* Show on desktop hover or when button is focused (tap on mobile) */
+.play-forecast-info:hover .play-forecast-info-tooltip,
+.play-forecast-info:focus-within .play-forecast-info-tooltip {
+    display: block;
+}
+
+/* ===== Schedule Page Play Forecast Summary ===== */
+.schedule-play-forecast {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    border: 1px solid #e2e6ea;
+}
+
+.schedule-play-forecast-title {
+    font-size: 1em;
+    font-weight: 700;
+    margin: 0 0 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #444;
+}
+
+.schedule-play-forecast-note {
+    font-size: 0.82em;
+    color: #777;
+    margin: 0 0 12px 0;
+}
+
+.schedule-play-forecast-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sched-forecast-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sched-forecast-date {
+    font-weight: 600;
+    font-size: 0.9em;
+    min-width: 90px;
+    color: #333;
+}
+
+.sched-forecast-badge {
+    padding: 2px 9px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.sched-forecast-good {
+    background: rgba(39, 174, 96, 0.15);
+    color: #1a7341;
+}
+
+.sched-forecast-uncertain {
+    background: rgba(211, 136, 36, 0.15);
+    color: #7a4f00;
+}
+
+.sched-forecast-bad {
+    background: rgba(192, 57, 43, 0.15);
+    color: #7b1d16;
+}
+
+.sched-forecast-detail {
+    font-size: 0.82em;
+    color: #666;
+}
+
+@media screen and (max-width: 736px) {
+    .schedule-play-forecast {
+        padding: 12px 14px;
+    }
+    .sched-forecast-date {
+        min-width: 80px;
+    }
+    .sched-forecast-detail {
+        width: 100%;
+        margin-left: 0;
+        padding-left: 100px;
+    }
+}
+
+/* ===== Cancelled Game Styles ===== */
+.game-cancelled-badge {
+    display: inline-block;
+    background: #c0392b;
+    color: #fff;
+    font-size: 0.7em;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.game-cancelled {
+    opacity: 0.55;
+}
+
+.game-cancelled .game-schedule td,
+.game-cancelled td {
+    text-decoration: line-through;
+    color: #888;
+}
+
+/* Cancellation banner — per-game detail rows */
+.cancellation-division-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: 3px;
+    flex-wrap: wrap;
+}
+
+.cancellation-division-name {
+    font-weight: 600;
+    font-size: 0.95em;
+}
+
+.cancellation-game-times {
+    font-size: 0.9em;
+    opacity: 0.85;
+}
+
+@media screen and (max-width: 736px) {
+    .cancellation-division-row {
+        flex-direction: column;
+        gap: 1px;
     }
 }

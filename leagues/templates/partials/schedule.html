@@ -1,6 +1,5 @@
 {% load static %}
 {% load helpers %}
-{% include "core/weather.html" %}
 {% for date, value in schedule.items %}
     {% for division, value2 in value.items %}
         {% if view == "schedule" %}
@@ -9,11 +8,11 @@
                 <h3>{{division}} | {{date|date:"l, N j"}}</h3>
             {% endif %}
             {% for match in value2 %}
-                <div class="game">
+                <div class="game{% if match.is_cancelled %} game-cancelled{% endif %}">
                     {% if view == "schedule" %}
-                        <h3>{{match.time}}</h3>
+                        <h3>{{match.time}}{% if match.is_cancelled %} <span class="game-cancelled-badge">Cancelled</span>{% endif %}</h3>
                     {% else %}
-                        <h3>{{match.time}} | {{date}}</h3>
+                        <h3>{{match.time}} | {{date}}{% if match.is_cancelled %} <span class="game-cancelled-badge">Cancelled</span>{% endif %}</h3>
                     {% endif %}
                     <table class="game-overview">
                         <tr>

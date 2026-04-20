@@ -1,12 +1,22 @@
 {% if cancelled_games %}
 <div class="cancellation-banner-wrapper">
-    {% for date, divisions in cancelled_games.items %}
-    <div class="cancellation-banner" role="alert">
+    {% for date, date_data in cancelled_games.items %}
+    <div class="cancellation-banner{% if date_data.partial %} cancellation-banner-partial{% endif %}" role="alert">
         <div class="cancellation-banner-inner">
             <span class="cancellation-icon" aria-hidden="true">&#9888;</span>
             <div class="cancellation-details">
-                <div class="cancellation-headline">Games Cancelled &mdash; {{ date|date:"l, F j" }}</div>
-                <div class="cancellation-divisions">{{ divisions|join:" &nbsp;&bull;&nbsp; " }}</div>
+                <div class="cancellation-headline">
+                    {% if date_data.partial %}Some Games Cancelled{% else %}All Games Cancelled{% endif %}
+                    &mdash; {{ date|date:"l, F j" }}
+                </div>
+                {% for division_name, matchups in date_data.divisions.items %}
+                <div class="cancellation-division-row">
+                    <span class="cancellation-division-name">{{ division_name }}</span>
+                    <span class="cancellation-game-times">
+                        {% for matchup in matchups %}{{ matchup.time|time:"g:i A" }} ({{ matchup.awayteam.team_name }} vs {{ matchup.hometeam.team_name }}){% if not forloop.last %}, {% endif %}{% endfor %}
+                    </span>
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>

@@ -174,6 +174,12 @@ db_migration_scripts/sync_render_to_local.sh
 
 ---
 
+## Committing changes
+
+Only run the `/commit` skill when the user explicitly asks to commit or push changes. Do not commit automatically after completing a feature or fix.
+
+---
+
 ## Common gotchas
 
 - `Team` requires `team_color` and `is_active` — both have no default in the model, so always supply them in test fixtures.

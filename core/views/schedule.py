@@ -1,6 +1,9 @@
 import datetime
+import os
+import threading
 from collections import OrderedDict, defaultdict
 
+from django.core.cache import cache
 from django.db.models import Case, F, IntegerField, Max, Q, Sum, When
 from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import render
@@ -8,6 +11,7 @@ from django.views.generic.list import ListView
 
 from leagues.models import Division, MatchUp, Player, Roster, Stat, Team, Week
 
+from .home import _WEATHER_PLACEHOLDER_TTL, _fetch_and_cache_weather
 from .players import get_player_stats, get_stats_for_past_team
 
 
@@ -224,6 +228,37 @@ def schedule(request):
         .filter(week__date__gte=datetime.datetime.today())
     )
     context["schedule"] = get_schedule_for_matchups(matchups)
+
+    # Weather for upcoming games within OWM's 5-day forecast window.
+    # Shares the same cache key as the home view so data is only fetched once.
+    today = datetime.date.today()
+    forecast_cutoff = today + datetime.timedelta(days=5)
+    cache_key = f"weather_data_{today}"
+    weather_data = cache.get(cache_key)
+
+    if weather_data is None:
+        weather_data = {}
+        cache.set(cache_key, weather_data, _WEATHER_PLACEHOLDER_TTL)
+        api_key = os.environ.get("OPENWEATHERMAP_API_KEY")
+        if api_key:
+            # Use values_list + manual dedup (SQLite-compatible; avoids
+            # the PostgreSQL-only .distinct("week__date") syntax).
+            dates_times = (
+                MatchUp.objects.filter(week__date__range=(today, forecast_cutoff))
+                .values_list("week__date", "time")
+                .order_by("week__date", "time")
+            )
+            game_times = {}
+            for date, time in dates_times:
+                if date not in game_times:
+                    game_times[date] = time
+            threading.Thread(
+                target=_fetch_and_cache_weather,
+                args=(cache_key, api_key, game_times),
+                daemon=True,
+            ).start()
+
+    context["weather_data"] = weather_data
     return render(request, "leagues/schedule.html", context=context)
 
 

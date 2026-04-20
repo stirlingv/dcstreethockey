@@ -297,6 +297,10 @@ class MatchUp(models.Model):
     notes = models.CharField(max_length=500, null=True, blank=True, default=None)
     is_postseason = models.BooleanField(default=False)
     is_championship = models.BooleanField(default=False)
+    is_cancelled = models.BooleanField(
+        default=False,
+        help_text="Mark this individual game as cancelled.",
+    )
     # Goalie status fields
     away_goalie = models.ForeignKey(
         "Player",

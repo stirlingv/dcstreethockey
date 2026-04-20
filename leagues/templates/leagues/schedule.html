@@ -1,5 +1,6 @@
 {% extends 'core/base.html' %}
 {% load static %}
+{% load helpers %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'assets/css/schedule.css' %}">
@@ -12,6 +13,35 @@
             <div class="title">
                 Schedule
             </div>
+
+            {% if weather_data %}
+            <div class="schedule-play-forecast">
+                <h4 class="schedule-play-forecast-title">Play Forecast</h4>
+                <p class="schedule-play-forecast-note">Weather forecast only <span class="play-forecast-info"><button type="button" class="play-forecast-info-btn" aria-label="More info">&#9432;</button><span class="play-forecast-info-tooltip" role="tooltip">Weather forecast only &mdash; not an official cancellation. Check with your captain for game status.</span></span></p>
+                <div class="schedule-play-forecast-rows">
+                {% for date, divisions in schedule.items %}
+                    {% with date|date:"Y-m-d" as date_str %}
+                    {% with weather_data|get_item:date_str as weather %}
+                    {% if weather %}
+                    <div class="sched-forecast-row">
+                        <span class="sched-forecast-date">{{ date|date:"D, M j" }}</span>
+                        {% if weather.playability == "good" %}
+                        <span class="sched-forecast-badge sched-forecast-good">&#10003; Clear forecast</span>
+                        {% elif weather.playability == "uncertain" %}
+                        <span class="sched-forecast-badge sched-forecast-uncertain">&#9888; Some chance of rain</span>
+                        {% else %}
+                        <span class="sched-forecast-badge sched-forecast-bad">&#127783; Rain or snow in forecast</span>
+                        {% endif %}
+                        <span class="sched-forecast-detail">{{ weather.description|capfirst }} &middot; {{ weather.temp|floatformat:0 }}&deg;F{% if weather.pop_pct %} &middot; {{ weather.pop_pct }}% chance of rain{% endif %}</span>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    {% endwith %}
+                {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
 			<div class="division-filters">
 				<button class="filter-btn active" data-division="all" onclick="filterSchedule('all')">All</button>
 				<button class="filter-btn" data-division="Monday A League" onclick="filterSchedule('Monday A League')">Monday A</button>

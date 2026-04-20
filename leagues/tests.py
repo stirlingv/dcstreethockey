@@ -1033,7 +1033,7 @@ class QuickCancelTemplateTagTest(TestCase):
             division=self.division2, season=self.season, date=self.today
         )
         result = self._call_tag()
-        self.assertEqual(len(result["grouped_weeks"][self.today]["weeks"]), 2)
+        self.assertEqual(len(result["grouped_weeks"][self.today]["divisions"]), 2)
 
 
 class CreateQuickCancelGroupCommandTest(TestCase):

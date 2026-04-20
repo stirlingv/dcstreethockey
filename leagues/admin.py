@@ -978,6 +978,11 @@ class WeekAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.quick_cancel_date_view),
                 name="leagues_week_quick_cancel_date",
             ),
+            path(
+                "quick-cancel-matchup/<int:matchup_id>/",
+                self.admin_site.admin_view(self.quick_cancel_matchup_view),
+                name="leagues_matchup_quick_cancel",
+            ),
         ]
         return custom_urls + urls
 
@@ -985,7 +990,7 @@ class WeekAdmin(admin.ModelAdmin):
         return request.user.has_perm("leagues.can_quick_cancel_games")
 
     def quick_cancel_week_view(self, request, week_id):
-        """Toggle is_cancelled on a single Week record."""
+        """Cancel or restore all games for a single Week, and stamp each MatchUp."""
         if not self.has_quick_cancel_permission(request):
             raise PermissionDenied
         if request.method != "POST":
@@ -993,6 +998,7 @@ class WeekAdmin(admin.ModelAdmin):
         week = Week.objects.select_related("division").get(pk=week_id)
         week.is_cancelled = not week.is_cancelled
         week.save()
+        MatchUp.objects.filter(week=week).update(is_cancelled=week.is_cancelled)
         status = "cancelled" if week.is_cancelled else "restored"
         messages.success(
             request,
@@ -1001,7 +1007,7 @@ class WeekAdmin(admin.ModelAdmin):
         return redirect(reverse("admin:index"))
 
     def quick_cancel_date_view(self, request, date_str, cancelled):
-        """Set is_cancelled for all Week records on a given date (1=cancel, 0=restore)."""
+        """Cancel or restore all games on a given date across all divisions."""
         if not self.has_quick_cancel_permission(request):
             raise PermissionDenied
         if request.method != "POST":
@@ -1010,10 +1016,39 @@ class WeekAdmin(admin.ModelAdmin):
         updated = Week.objects.filter(date=target_date).update(
             is_cancelled=bool(cancelled)
         )
+        MatchUp.objects.filter(week__date=target_date).update(
+            is_cancelled=bool(cancelled)
+        )
         action = "cancelled" if cancelled else "restored"
         messages.success(
             request,
-            f"All {updated} game(s) on {target_date:%A, %B %-d} have been {action}.",
+            f"All {updated} division(s) on {target_date:%A, %B %-d} have been {action}.",
+        )
+        return redirect(reverse("admin:index"))
+
+    def quick_cancel_matchup_view(self, request, matchup_id):
+        """Toggle is_cancelled on a single MatchUp. Syncs Week.is_cancelled."""
+        if not self.has_quick_cancel_permission(request):
+            raise PermissionDenied
+        if request.method != "POST":
+            return redirect(reverse("admin:index"))
+        matchup = MatchUp.objects.select_related(
+            "week__division", "hometeam", "awayteam"
+        ).get(pk=matchup_id)
+        matchup.is_cancelled = not matchup.is_cancelled
+        matchup.save()
+        # Keep Week.is_cancelled in sync: True only when every game is cancelled.
+        week = matchup.week
+        all_cancelled = not MatchUp.objects.filter(
+            week=week, is_cancelled=False
+        ).exists()
+        week.is_cancelled = all_cancelled
+        week.save()
+        status = "cancelled" if matchup.is_cancelled else "restored"
+        messages.success(
+            request,
+            f"{matchup.awayteam} vs {matchup.hometeam} at "
+            f"{matchup.time:%I:%M %p} has been {status}.",
         )
         return redirect(reverse("admin:index"))
 
