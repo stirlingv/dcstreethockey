@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.urls import reverse, path
 from django.shortcuts import redirect, render
 from django.http import HttpResponseRedirect
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 
 from dal import autocomplete
@@ -999,6 +1000,7 @@ class WeekAdmin(admin.ModelAdmin):
         week.is_cancelled = not week.is_cancelled
         week.save()
         MatchUp.objects.filter(week=week).update(is_cancelled=week.is_cancelled)
+        cache.delete("cancelled_games_ctx")
         status = "cancelled" if week.is_cancelled else "restored"
         messages.success(
             request,
@@ -1019,6 +1021,7 @@ class WeekAdmin(admin.ModelAdmin):
         MatchUp.objects.filter(week__date=target_date).update(
             is_cancelled=bool(cancelled)
         )
+        cache.delete("cancelled_games_ctx")
         action = "cancelled" if cancelled else "restored"
         messages.success(
             request,
@@ -1044,6 +1047,7 @@ class WeekAdmin(admin.ModelAdmin):
         ).exists()
         week.is_cancelled = all_cancelled
         week.save()
+        cache.delete("cancelled_games_ctx")
         status = "cancelled" if matchup.is_cancelled else "restored"
         messages.success(
             request,
