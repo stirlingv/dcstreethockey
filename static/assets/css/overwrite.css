@@ -919,7 +919,8 @@ div div#content .matchupheader{
     }
 }
 
-.play-forecast-pending {
+.play-forecast-pending,
+.play-forecast-unavailable {
     font-size: 0.85em;
     color: #999;
     margin-top: 4px;
@@ -990,48 +991,13 @@ div div#content .matchupheader{
     display: block;
 }
 
-/* ===== Schedule Page Play Forecast Summary ===== */
-.schedule-play-forecast {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 14px 18px;
-    margin-bottom: 20px;
-    border: 1px solid #e2e6ea;
-}
-
-.schedule-play-forecast-title {
-    font-size: 1em;
-    font-weight: 700;
-    margin: 0 0 4px 0;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #444;
-}
-
-.schedule-play-forecast-note {
-    font-size: 0.82em;
-    color: #777;
-    margin: 0 0 12px 0;
-}
-
-.schedule-play-forecast-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.sched-forecast-row {
+/* ===== Schedule Page Inline Weather Chip ===== */
+.sched-weather-inline {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
-}
-
-.sched-forecast-date {
-    font-weight: 600;
-    font-size: 0.9em;
-    min-width: 90px;
-    color: #333;
+    margin: -2px 0 10px 0;
 }
 
 .sched-forecast-badge {
@@ -1040,11 +1006,6 @@ div div#content .matchupheader{
     font-size: 0.85em;
     font-weight: 700;
     white-space: nowrap;
-}
-
-.sched-forecast-good {
-    background: rgba(39, 174, 96, 0.15);
-    color: #1a7341;
 }
 
 .sched-forecast-uncertain {
@@ -1063,16 +1024,8 @@ div div#content .matchupheader{
 }
 
 @media screen and (max-width: 736px) {
-    .schedule-play-forecast {
-        padding: 12px 14px;
-    }
-    .sched-forecast-date {
-        min-width: 80px;
-    }
     .sched-forecast-detail {
         width: 100%;
-        margin-left: 0;
-        padding-left: 100px;
     }
 }
 

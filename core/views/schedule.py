@@ -1,6 +1,4 @@
 import datetime
-import os
-import threading
 from collections import OrderedDict, defaultdict
 
 from django.core.cache import cache
@@ -11,7 +9,12 @@ from django.views.generic.list import ListView
 
 from leagues.models import Division, MatchUp, Player, Roster, Stat, Team, Week
 
-from .home import _WEATHER_PLACEHOLDER_TTL, _fetch_and_cache_weather
+from .home import (
+    _WEATHER_ERROR_TTL,
+    _WEATHER_FETCH_FAILED,
+    _WEATHER_FULL_TTL,
+    _fetch_weather,
+)
 from .players import get_player_stats, get_stats_for_past_team
 
 
@@ -39,7 +42,7 @@ class MatchUpDetailView(ListView):
         matchups = list(
             MatchUp.objects.filter(week__date=context["date_of_week"])
             .order_by("time")
-            .select_related("hometeam", "awayteam")
+            .select_related("hometeam__division", "awayteam__division")
         )
 
         # Batch-load all rosters for all teams in one query (instead of 2 per matchup)
@@ -229,36 +232,41 @@ def schedule(request):
     )
     context["schedule"] = get_schedule_for_matchups(matchups)
 
-    # Weather for upcoming games within OWM's 5-day forecast window.
+    # Weather for upcoming games within NWS's 7-day forecast window.
     # Shares the same cache key as the home view so data is only fetched once.
     today = datetime.date.today()
-    forecast_cutoff = today + datetime.timedelta(days=5)
+    forecast_cutoff = today + datetime.timedelta(days=7)
     cache_key = f"weather_data_{today}"
-    weather_data = cache.get(cache_key)
-
-    if weather_data is None:
-        weather_data = {}
-        cache.set(cache_key, weather_data, _WEATHER_PLACEHOLDER_TTL)
-        api_key = os.environ.get("OPENWEATHERMAP_API_KEY")
-        if api_key:
-            # Use values_list + manual dedup (SQLite-compatible; avoids
-            # the PostgreSQL-only .distinct("week__date") syntax).
-            dates_times = (
-                MatchUp.objects.filter(week__date__range=(today, forecast_cutoff))
-                .values_list("week__date", "time")
-                .order_by("week__date", "time")
-            )
-            game_times = {}
-            for date, time in dates_times:
-                if date not in game_times:
-                    game_times[date] = time
-            threading.Thread(
-                target=_fetch_and_cache_weather,
-                args=(cache_key, api_key, game_times),
-                daemon=True,
-            ).start()
+    weather_unavailable = False
+    if cached := cache.get(cache_key):
+        if cached is _WEATHER_FETCH_FAILED or cached.get("_failed"):
+            weather_unavailable = True
+            weather_data = {}
+        else:
+            weather_data = cached
+    else:
+        # Use values_list + manual dedup (SQLite-compatible; avoids
+        # the PostgreSQL-only .distinct("week__date") syntax).
+        dates_times = (
+            MatchUp.objects.filter(week__date__range=(today, forecast_cutoff))
+            .values_list("week__date", "time")
+            .order_by("week__date", "time")
+        )
+        game_times = {}
+        for date, time in dates_times:
+            if date not in game_times:
+                game_times[date] = time
+        result = _fetch_weather(None, game_times)
+        if result is None:
+            cache.set(cache_key, _WEATHER_FETCH_FAILED, _WEATHER_ERROR_TTL)
+            weather_unavailable = True
+            weather_data = {}
+        else:
+            cache.set(cache_key, result, _WEATHER_FULL_TTL)
+            weather_data = result
 
     context["weather_data"] = weather_data
+    context["weather_unavailable"] = weather_unavailable
     return render(request, "leagues/schedule.html", context=context)
 
 

@@ -6,6 +6,12 @@
             <section id="schedulesection" class="schedule-section" data-division="{{division}}">
                 <a href="{% url 'rosters' date=date %}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
                 <h3>{{division}} | {{date|date:"l, N j"}}</h3>
+                {% with date|date:"Y-m-d" as date_str %}{% with weather_data|get_item:date_str as weather %}{% if weather and weather.playability != "good" %}
+                <div class="sched-weather-inline">
+                    <span class="sched-forecast-badge {% if weather.playability == 'uncertain' %}sched-forecast-uncertain{% else %}sched-forecast-bad{% endif %}">{% if weather.playability == "uncertain" %}&#9888; Some chance of rain{% else %}{% if weather.thunder %}&#9889; Thunderstorms possible{% else %}&#127783; Rain or snow likely{% endif %}{% endif %}</span>
+                    <span class="sched-forecast-detail">{{ weather.description|capfirst }} &middot; {{ weather.temp|floatformat:0 }}&deg;F{% if weather.pop_pct is not None %} &middot; {{ weather.pop_pct }}% chance of rain{% endif %}</span>
+                </div>
+                {% endif %}{% endwith %}{% endwith %}
             {% endif %}
             {% for match in value2 %}
                 <div class="game{% if match.is_cancelled %} game-cancelled{% endif %}">

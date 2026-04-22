@@ -1,82 +1,290 @@
-{% extends 'core/base.html' %}
+<!DOCTYPE html>
 {% load static %}
-{% block content %}
-<div id="content-wrapper">
-    <div id="content">
-		<div class="container">
-            <h3>{{date_of_week}}</h3>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scoresheets — {{ date_of_week|date:"N j, Y" }}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            color: #000;
+            background: #fff;
+        }
+
+        /* ── Screen wrapper ──────────────────────────────────── */
+        @media screen {
+            body { background: #d0d0d0; }
+            .page { background: #fff; max-width: 900px; margin: 24px auto; padding: 28px 32px; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+            .print-bar { max-width: 900px; margin: 0 auto 0; padding: 12px 32px; display: flex; justify-content: space-between; align-items: center; }
+            .print-bar h2 { font-size: 15px; color: #333; }
+            .print-btn {
+                padding: 9px 22px; font-size: 14px; cursor: pointer;
+                background: #1a5276; color: #fff; border: none; border-radius: 4px;
+                font-weight: bold;
+            }
+            .print-btn:hover { background: #154360; }
+        }
+
+        /* ── Sheet header ────────────────────────────────────── */
+        .sheet-header { text-align: center; margin-bottom: 10px; }
+        .sheet-title { font-size: 17px; font-weight: bold; }
+        .sheet-meta { font-size: 12px; margin-top: 3px; color: #333; }
+
+        /* ── Score grid ──────────────────────────────────────── */
+        .score-grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 14px;
+            font-size: 12px;
+        }
+        .score-grid th {
+            background: #f0f0f0;
+            border: 1px solid #888;
+            padding: 5px 8px;
+            text-align: center;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .score-grid th.team-col { text-align: left; min-width: 140px; }
+        .score-grid td {
+            border: 1px solid #888;
+            height: 30px;
+            min-width: 38px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .score-grid td.team-name-cell { text-align: left; padding: 0 6px; font-weight: bold; }
+        .score-grid td.final-cell { font-size: 15px; font-weight: bold; min-width: 48px; }
+
+        /* ── Rosters ─────────────────────────────────────────── */
+        .rosters {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .team-label {
+            font-size: 13px;
+            font-weight: bold;
+            border-bottom: 2px solid #000;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+        table.roster {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            table-layout: fixed;
+        }
+        table.roster th {
+            background: #f0f0f0;
+            border: 1px solid #888;
+            padding: 4px 2px;
+            text-align: center;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        table.roster th.name-col { text-align: left; padding-left: 4px; }
+        table.roster td {
+            border: 1px solid #bbb;
+            height: 22px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        table.roster col.col-num  { width: 8%; }
+        table.roster col.col-name { width: 44%; }
+        table.roster col.col-pos  { width: 8%; }
+        table.roster col.col-stat { width: 13%; }
+        table.roster td.num { text-align: center; }
+        table.roster td.pos { text-align: center; }
+        table.roster td.name { text-align: left; padding: 0 4px; }
+        table.roster td.stat { text-align: center; }
+        table.roster tr.goalie-row { background: #f5f5f5; }
+        table.roster tr.blank-row td { background: #fafafa; }
+
+        .col-legend {
+            font-size: 10px;
+            color: #555;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        /* ── Ref lines ───────────────────────────────────────── */
+        .ref-lines {
+            display: flex;
+            gap: 32px;
+            margin-top: 18px;
+        }
+        .sig-field {
+            flex: 1;
+            border-top: 1px solid #000;
+            padding-top: 3px;
+            font-size: 10px;
+            text-align: center;
+            color: #444;
+        }
+
+        /* ── Page break between scoresheets ─────────────────── */
+        .page-break { page-break-before: always; }
+
+        /* ── Print overrides ─────────────────────────────────── */
+        @media print {
+            .no-print { display: none !important; }
+            .page { padding: 8px 10px; box-shadow: none; }
+            body { background: #fff; }
+            table.roster td { height: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Screen-only toolbar -->
+<div class="no-print print-bar">
+    <h2>Scoresheets for {{ date_of_week|date:"l, N j, Y" }}</h2>
+    <button class="print-btn" onclick="window.print()">Print All Scoresheets</button>
+</div>
+
+{% for mid, match in matchups.items %}
+<div class="page{% if not forloop.first %} page-break{% endif %}">
+
+    <!-- Game header -->
+    <div class="sheet-header">
+        <div class="sheet-title">{{ match.matchup.awayteam.team_name }} vs {{ match.matchup.hometeam.team_name }}</div>
+        <div class="sheet-meta">
+            {{ date_of_week|date:"l, N j, Y" }} &nbsp;&bull;&nbsp; {{ match.matchup.time }}
+            {% if match.matchup.awayteam.division %}&nbsp;&bull;&nbsp; {{ match.matchup.awayteam.division }}{% endif %}
         </div>
     </div>
-	{% for mid,match in matchups.items %}
-	<div id="content">
-		<div class="container">
-		<header class="matchupheader">
-			<h2>{{match.matchup.awayteam.team_name}} vs {{match.matchup.hometeam.team_name}} @ {{match.matchup.time}}</h2>
-		</header>
-			<div class="row">
-				<div class="6u 12u(mobile)">
-					<section class="stats_print">
-						<header>
-							<h3>{{match.matchup.awayteam.team_name}}</h3>
-						</header>
-					    <table class="roster">
-					    		<tr>
-									<th>#</th>
-						    		<th>Player Name</th>
-						    		<th>Goals</th>
-						    		<th>Assists</th>
-						    		<th>GA</th>
-						    		<th>EN</th>
-						    	</tr>
-							{% for x in match.awayteamroster %}
-							    	<tr>
-										<td>{{x.player_number|default_if_none:""}}</td>
-							    		<td text-align:left>{{x.player.first_name}} {{x.player.last_name}}</td>
-								    	<td>{{y.goals}}</td>
-										<td>{{y.assists}}</td>
-										<td>{{y.goals_against}}</td>
-										<td>{{y.empty_net}}</td>
-							    	</tr>
-							{% endfor %}
-				    	</table>
-					</section>
-					</div>
-					<div class="6u 12u(mobile)">
-					<section class="stats_print">
-						<header>
-							<h3>{{match.matchup.hometeam.team_name}}</h3>
-						</header>
-					    <table class="roster">
-					    		<tr>
-									<th>#</th>
-						    		<th>Player Name</th>
-						    		<th>Goals</th>
-						    		<th>Assists</th>
-						    		<th>GA</th>
-						    		<th>EN</th>
-						    	</tr>
-							{% for x in match.hometeamroster %}
-							    	<tr>
-										<td>{{x.player_number|default_if_none:""}}</td>
-							    		<td>{{x.player.first_name}} {{x.player.last_name}}</td>
-                                        <td>{{y.goals}}</td>
-                                        <td>{{y.assists}}</td>
-                                        <td>{{y.goals_against}}</td>
-                                        <td>{{y.empty_net}}</td>
-							    	</tr>
-							{% endfor %}
-				    	</table>
-					</section>
-				</div>
-			</div>
-		</div>
-	</div>
-    <p style="page-break-before:always">
+
+    <!-- Score grid -->
+    <table class="score-grid">
+        <thead>
+            <tr>
+                <th class="team-col">Team</th>
+                <th>1st Half</th>
+                <th>2nd Half</th>
+                <th>OT</th>
+                <th>Final</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="team-name-cell">{{ match.matchup.awayteam.team_name }}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td class="final-cell"></td>
+            </tr>
+            <tr>
+                <td class="team-name-cell">{{ match.matchup.hometeam.team_name }}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td class="final-cell"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Side-by-side rosters -->
+    <div class="rosters">
+
+        <!-- Away team -->
+        <div>
+            <div class="team-label">{{ match.matchup.awayteam.team_name }}</div>
+            <table class="roster">
+                <colgroup>
+                    <col class="col-num"><col class="col-name"><col class="col-pos">
+                    <col class="col-stat"><col class="col-stat"><col class="col-stat">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th class="num">#</th>
+                        <th class="name-col">Player Name</th>
+                        <th class="pos">Pos</th>
+                        <th class="stat">Goals</th>
+                        <th class="stat">Assists</th>
+                        <th class="stat">GA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for x in match.awayteamroster %}
+                    <tr{% if x.position1 == 4 %} class="goalie-row"{% endif %}>
+                        <td class="num">{{ x.player_number|default_if_none:"" }}</td>
+                        <td class="name">{{ x.player.first_name }} {{ x.player.last_name }}</td>
+                        <td class="pos">{% if x.position1 == 1 %}C{% elif x.position1 == 2 %}W{% elif x.position1 == 3 %}D{% elif x.position1 == 4 %}G{% endif %}</td>
+                        <td class="stat"></td>
+                        <td class="stat"></td>
+                        <td class="stat"></td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Blank rows for walk-in players -->
+                    <tr class="blank-row"><td class="num"></td><td class="name"></td><td class="pos"></td><td class="stat"></td><td class="stat"></td><td class="stat"></td></tr>
+                    <tr class="blank-row"><td class="num"></td><td class="name"></td><td class="pos"></td><td class="stat"></td><td class="stat"></td><td class="stat"></td></tr>
+                    <tr class="blank-row"><td class="num"></td><td class="name"></td><td class="pos"></td><td class="stat"></td><td class="stat"></td><td class="stat"></td></tr>
+                </tbody>
+            </table>
+            <div class="col-legend">Pos: C=Center, W=Wing, D=Defense, G=Goalie &nbsp;&bull;&nbsp; GA = Goals Against (goalie)</div>
+        </div>
+
+        <!-- Home team -->
+        <div>
+            <div class="team-label">{{ match.matchup.hometeam.team_name }}</div>
+            <table class="roster">
+                <colgroup>
+                    <col class="col-num"><col class="col-name"><col class="col-pos">
+                    <col class="col-stat"><col class="col-stat"><col class="col-stat">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th class="num">#</th>
+                        <th class="name-col">Player Name</th>
+                        <th class="pos">Pos</th>
+                        <th class="stat">Goals</th>
+                        <th class="stat">Assists</th>
+                        <th class="stat">GA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for x in match.hometeamroster %}
+                    <tr{% if x.position1 == 4 %} class="goalie-row"{% endif %}>
+                        <td class="num">{{ x.player_number|default_if_none:"" }}</td>
+                        <td class="name">{{ x.player.first_name }} {{ x.player.last_name }}</td>
+                        <td class="pos">{% if x.position1 == 1 %}C{% elif x.position1 == 2 %}W{% elif x.position1 == 3 %}D{% elif x.position1 == 4 %}G{% endif %}</td>
+                        <td class="stat"></td>
+                        <td class="stat"></td>
+                        <td class="stat"></td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Blank rows for walk-in players -->
+                    <tr class="blank-row"><td class="num"></td><td class="name"></td><td class="pos"></td><td class="stat"></td><td class="stat"></td><td class="stat"></td></tr>
+                    <tr class="blank-row"><td class="num"></td><td class="name"></td><td class="pos"></td><td class="stat"></td><td class="stat"></td><td class="stat"></td></tr>
+                    <tr class="blank-row"><td class="num"></td><td class="name"></td><td class="pos"></td><td class="stat"></td><td class="stat"></td><td class="stat"></td></tr>
+                </tbody>
+            </table>
+            <div class="col-legend">Pos: C=Center, W=Wing, D=Defense, G=Goalie &nbsp;&bull;&nbsp; GA = Goals Against (goalie)</div>
+        </div>
+
+    </div><!-- /rosters -->
+
+    <!-- Signature lines -->
+    <div class="ref-lines">
+        <div class="sig-field">Referee</div>
+        <div class="sig-field">Home Captain</div>
+        <div class="sig-field">Away Captain</div>
+    </div>
+
+</div><!-- /page -->
 {% empty %}
-    <li>No matchups entered yet.</li>
-{% endfor %}
+<div class="page">
+    <p>No matchups found for {{ date_of_week|date:"l, N j, Y" }}.</p>
 </div>
-<script type="text/javascript">
-    window.print();
-</script>
-{% endblock %}
+{% endfor %}
+
+<script>window.print();</script>
+</body>
+</html>
