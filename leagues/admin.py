@@ -38,6 +38,7 @@ from leagues.models import (
     DraftRound,
     DraftPick,
 )
+import json
 import logging
 from datetime import timedelta, date
 
@@ -521,11 +522,43 @@ class MatchUpAdmin(admin.ModelAdmin):
         kwargs["extra_context"] = extra_context
         return super().render_change_list(request, *args, **kwargs)
 
+    # "Save and add another" creates a blank new matchup, which is never the
+    # right action here (matchups are created via WeekAdmin). Remove it so the
+    # only choices are "Save" (done → home) and "Save and continue editing".
+    show_save_and_add_another = False
+
     def changelist_view(self, request, extra_context=None):
         redirect_url = _apply_default_matchup_filters(request, default_timeframe="past")
         if redirect_url:
             return redirect(redirect_url)
         return super().changelist_view(request, extra_context=extra_context)
+
+    def response_post_save_change(self, request, obj):
+        """After a plain 'Save', return to the admin home where the stats entry
+        widget and quick-cancel widget live — not the matchup changelist."""
+        return HttpResponseRedirect(reverse("admin:index"))
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        try:
+            match = MatchUp.objects.select_related("hometeam", "awayteam").get(
+                pk=object_id
+            )
+            roster_entries = Roster.objects.filter(
+                team__in=[match.hometeam_id, match.awayteam_id]
+            ).values("player_id", "team_id")
+            player_team_map = {
+                str(r["player_id"]): str(r["team_id"]) for r in roster_entries
+            }
+            extra_context["player_team_map_json"] = json.dumps(player_team_map)
+        except MatchUp.DoesNotExist:
+            extra_context["player_team_map_json"] = "{}"
+        return super().change_view(
+            request, object_id, form_url=form_url, extra_context=extra_context
+        )
+
+    class Media:
+        js = ("admin/js/stat_autofill_team.js",)
 
     def lookup_allowed(self, lookup, value):
         if lookup in {"season_ids", "timeframe"}:

@@ -1,0 +1,179 @@
+<style>
+  .se-module { margin-bottom: 20px; }
+  .se-date-group { border-bottom: 1px solid #eee; }
+  .se-date-group:last-child { border-bottom: none; }
+  .se-date-heading {
+    font-size: 13px;
+    font-weight: bold;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px 12px 6px;
+    margin: 0;
+  }
+  .se-today-badge {
+    display: inline-block;
+    background: #417690;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-right: 6px;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+  }
+
+  /* Division rows */
+  details.se-division { border-top: 1px solid #f0f0f0; }
+  details.se-division:first-of-type { border-top: none; }
+  summary.se-division-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  summary.se-division-summary::-webkit-details-marker { display: none; }
+  .se-division-chevron {
+    font-size: 11px;
+    color: #999;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  details[open] .se-division-chevron { transform: rotate(90deg); }
+  .se-division-name {
+    font-size: 14px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+  }
+  .se-status-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .se-status-done { background: #e8f5e9; color: #2e7d32; }
+  .se-status-pending { background: #fff3e0; color: #e65100; }
+
+  /* Game rows */
+  .se-games { padding: 2px 12px 10px 28px; }
+  .se-game-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-top: 1px solid #f5f5f5;
+  }
+  .se-game-row:first-child { border-top: none; }
+  .se-game-time {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    min-width: 60px;
+    flex-shrink: 0;
+  }
+  .se-game-matchup {
+    font-size: 13px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .se-stat-count {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .se-stat-count-zero { background: #fce4e4; color: #b71c1c; }
+  .se-stat-count-has { background: #e8f5e9; color: #2e7d32; }
+
+  /* Action button */
+  .se-btn {
+    font-size: 11px;
+    padding: 4px 9px;
+    cursor: pointer;
+    border-radius: 4px;
+    border: none;
+    font-weight: 600;
+    white-space: nowrap;
+    line-height: 1.3;
+    flex-shrink: 0;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .se-btn-enter { background: #417690; color: #fff; }
+  .se-btn-enter:hover { background: #2c5f73; color: #fff; }
+  .se-btn-edit { background: #79aec8; color: #fff; }
+  .se-btn-edit:hover { background: #5e9ab8; color: #fff; }
+
+  .se-no-games {
+    padding: 10px 12px;
+    color: #888;
+    font-style: italic;
+    font-size: 13px;
+  }
+
+  @media (max-width: 600px) {
+    summary.se-division-summary { padding: 10px 12px; }
+    .se-btn { font-size: 12px; padding: 7px 10px; }
+    .se-games { padding-bottom: 12px; }
+  }
+</style>
+
+<div class="module se-module">
+  <h2>📋 Enter Stats</h2>
+  {% if grouped_games %}
+  {% for game_date, info in grouped_games.items %}
+  <div class="se-date-group">
+    <p class="se-date-heading">
+      {% if game_date == today %}<span class="se-today-badge">TODAY</span>{% endif %}
+      {{ game_date|date:"l, F j" }}
+    </p>
+
+    {% for div in info.divisions %}
+    <details class="se-division"{% if div.any_missing %} open{% endif %}>
+      <summary class="se-division-summary">
+        <span class="se-division-chevron">&#9658;</span>
+        <span class="se-division-name">{{ div.division }}</span>
+        {% if div.all_entered %}
+          <span class="se-status-badge se-status-done">All Entered</span>
+        {% else %}
+          <span class="se-status-badge se-status-pending">Stats Needed</span>
+        {% endif %}
+      </summary>
+
+      <div class="se-games">
+        {% for game in div.games %}
+        <div class="se-game-row">
+          <span class="se-game-time">{{ game.time|date:"g:i A" }}</span>
+          <span class="se-game-matchup">{{ game.awayteam.team_name }} vs {{ game.hometeam.team_name }}</span>
+          {% if game.stat_count == 0 %}
+            <span class="se-stat-count se-stat-count-zero">0 stats</span>
+            <a href="{% url 'admin:leagues_matchup_change' game.pk %}" class="se-btn se-btn-enter">Enter Stats</a>
+          {% else %}
+            <span class="se-stat-count se-stat-count-has">{{ game.stat_count }} stat{{ game.stat_count|pluralize }}</span>
+            <a href="{% url 'admin:leagues_matchup_change' game.pk %}" class="se-btn se-btn-edit">Edit</a>
+          {% endif %}
+        </div>
+        {% empty %}
+        <p style="color:#999;font-size:12px;margin:4px 0">No games scheduled.</p>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="se-no-games">No completed games in the past week.</div>
+  {% endif %}
+</div>

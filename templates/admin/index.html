@@ -16,6 +16,7 @@
   {% if perms.leagues.can_quick_cancel_games %}
   {% quick_cancel_widget %}
   {% endif %}
+  {% stats_entry_widget %}
   {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
 </div>
 {% endblock %}
