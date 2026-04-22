@@ -10,13 +10,3 @@
 	{% include "core/homepage_info_2.html" %}
 
 {% endblock %}
-
-{% block extra_scripts %}
-<script>
-// If weather is still loading, reload the page after 3 seconds so the
-// play forecast appears without requiring a manual refresh.
-if (document.querySelector('.play-forecast-pending')) {
-    setTimeout(function() { location.reload(); }, 3000);
-}
-</script>
-{% endblock %}

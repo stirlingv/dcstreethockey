@@ -1,5 +1,5 @@
 import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import TestCase, Client
@@ -9,125 +9,127 @@ from core.views.home import (
     _compute_playability,
     _compute_window_playability,
     _find_best_forecast_slot,
-    _playability_from_current_weather,
     _worse_playability,
 )
 
 
+def _make_period(start_iso, pop_pct=0, short_forecast="Sunny", temp=70, humidity=50):
+    """Build a minimal NWS hourly period dict."""
+    return {
+        "startTime": start_iso,
+        "endTime": start_iso,  # not used in logic
+        "temperature": temp,
+        "temperatureUnit": "F",
+        "shortForecast": short_forecast,
+        "probabilityOfPrecipitation": {"unitCode": "wmoUnit:percent", "value": pop_pct},
+        "relativeHumidity": {"unitCode": "wmoUnit:percent", "value": humidity},
+    }
+
+
 class ComputePlayabilityTest(TestCase):
-    """Unit tests for _compute_playability()."""
+    """Unit tests for _compute_playability(pop_pct, short_forecast)."""
 
     def test_clear_skies_is_good(self):
-        # Condition 800 = Clear sky, no precip
-        self.assertEqual(_compute_playability(800, 0.0, 0, 0), "good")
+        self.assertEqual(_compute_playability(0, "Sunny"), "good")
 
-    def test_cloudy_no_precip_is_good(self):
-        # Condition 803 = Broken clouds
-        self.assertEqual(_compute_playability(803, 0.10, 0, 0), "good")
+    def test_mostly_cloudy_low_pop_is_good(self):
+        self.assertEqual(_compute_playability(10, "Mostly Cloudy"), "good")
 
-    def test_low_pop_is_good(self):
-        self.assertEqual(_compute_playability(800, 0.20, 0, 0), "good")
+    def test_slight_chance_rain_is_uncertain(self):
+        # "Slight Chance" = NWS 10–20 % PoP; still worth flagging
+        self.assertEqual(
+            _compute_playability(13, "Slight Chance Rain Showers"), "uncertain"
+        )
 
-    def test_pop_threshold_uncertain(self):
-        # 30% pop with clear condition code → uncertain
-        self.assertEqual(_compute_playability(800, 0.30, 0, 0), "uncertain")
+    def test_chance_rain_is_uncertain(self):
+        # "Chance" = NWS 30–50 % PoP
+        self.assertEqual(_compute_playability(43, "Chance Rain Showers"), "uncertain")
 
-    def test_high_pop_no_precipitation_condition_still_uncertain(self):
-        # 70% pop but no precipitation in the window yet
-        self.assertEqual(_compute_playability(801, 0.70, 0, 0), "uncertain")
+    def test_pop_20_no_precip_keyword_is_uncertain(self):
+        self.assertEqual(_compute_playability(20, "Mostly Cloudy"), "uncertain")
 
-    def test_rain_condition_code_is_cancelled(self):
-        # 500 = Light rain
-        self.assertEqual(_compute_playability(500, 0.0, 0, 0), "likely_cancelled")
+    def test_pop_19_no_precip_keyword_is_good(self):
+        self.assertEqual(_compute_playability(19, "Mostly Cloudy"), "good")
 
-    def test_heavy_rain_condition_code_is_cancelled(self):
-        # 502 = Heavy intensity rain
-        self.assertEqual(_compute_playability(502, 0.80, 5.0, 0), "likely_cancelled")
+    def test_rain_likely_is_cancelled(self):
+        # "Likely" = NWS 60–70 % PoP
+        self.assertEqual(
+            _compute_playability(59, "Rain Showers Likely"), "likely_cancelled"
+        )
 
-    def test_drizzle_condition_code_is_cancelled(self):
-        # 300 = Light intensity drizzle
-        self.assertEqual(_compute_playability(300, 0.10, 0, 0), "likely_cancelled")
+    def test_pop_50_is_cancelled(self):
+        self.assertEqual(
+            _compute_playability(50, "Chance Rain Showers"), "likely_cancelled"
+        )
 
-    def test_snow_condition_code_is_cancelled(self):
-        # 601 = Snow
-        self.assertEqual(_compute_playability(601, 0.90, 0, 2.0), "likely_cancelled")
+    def test_high_pop_no_precip_keyword_is_cancelled(self):
+        self.assertEqual(_compute_playability(60, "Mostly Cloudy"), "likely_cancelled")
 
-    def test_thunderstorm_condition_code_is_cancelled(self):
-        # 211 = Thunderstorm
-        self.assertEqual(_compute_playability(211, 0.95, 3.0, 0), "likely_cancelled")
+    def test_thunderstorm_is_cancelled_regardless_of_pop(self):
+        self.assertEqual(
+            _compute_playability(5, "Slight Chance Thunderstorms"), "likely_cancelled"
+        )
 
-    def test_measurable_rain_mm_is_cancelled_even_with_clear_code(self):
-        # Clear condition code but actual rain in the window
-        self.assertEqual(_compute_playability(800, 0.0, 0.5, 0), "likely_cancelled")
+    def test_thunderstorm_high_pop_is_cancelled(self):
+        self.assertEqual(_compute_playability(80, "Thunderstorms"), "likely_cancelled")
 
-    def test_trace_rain_below_threshold_is_good(self):
-        # Under 0.1 mm is trace/noise — does not cancel
-        self.assertEqual(_compute_playability(800, 0.05, 0.05, 0), "good")
+    def test_snow_showers_likely_is_cancelled(self):
+        self.assertEqual(
+            _compute_playability(60, "Snow Showers Likely"), "likely_cancelled"
+        )
 
-    def test_snow_mm_is_cancelled(self):
-        # Any snow triggers cancellation
-        self.assertEqual(_compute_playability(800, 0.0, 0, 0.1), "likely_cancelled")
+    def test_slight_chance_snow_is_uncertain(self):
+        self.assertEqual(
+            _compute_playability(15, "Slight Chance Snow Showers"), "uncertain"
+        )
 
-    def test_boundary_condition_699_is_cancelled(self):
-        # 699 is the last "bad" condition code (top of snow range)
-        self.assertEqual(_compute_playability(699, 0.0, 0, 0), "likely_cancelled")
+    def test_drizzle_low_pop_is_uncertain(self):
+        self.assertEqual(_compute_playability(10, "Drizzle"), "uncertain")
 
-    def test_boundary_condition_700_is_not_precipitation(self):
-        # 700-series is atmospheric (mist, fog) — not a cancellation condition
-        self.assertEqual(_compute_playability(701, 0.0, 0, 0), "good")
+    def test_null_pop_treated_as_zero(self):
+        self.assertEqual(_compute_playability(None, "Sunny"), "good")
 
-    def test_fog_low_pop_is_good(self):
-        # 741 = Fog — not a cancellation reason for floor hockey
-        self.assertEqual(_compute_playability(741, 0.05, 0, 0), "good")
+    def test_fog_is_good(self):
+        # Fog is not a cancellation condition for floor hockey
+        self.assertEqual(_compute_playability(0, "Dense Fog"), "good")
 
 
 class FindBestForecastSlotTest(TestCase):
     """Unit tests for _find_best_forecast_slot()."""
 
-    def _make_slot(self, dt_txt, condition_id=800, pop=0.0, rain_mm=0, temp=70):
-        """Build a minimal OWM forecast list item."""
-        return {
-            "dt_txt": dt_txt,
-            "weather": [{"id": condition_id, "description": "clear sky"}],
-            "main": {"temp": temp, "humidity": 50},
-            "pop": pop,
-            "rain": {"3h": rain_mm} if rain_mm else {},
-            "snow": {},
-        }
-
     def test_returns_none_for_empty_list(self):
         result = _find_best_forecast_slot([], datetime.date(2025, 6, 15), None)
         self.assertIsNone(result)
 
-    def test_finds_closest_slot_to_7pm_eastern_default(self):
-        # For a summer date (EDT = UTC-4), 7pm ET = 23:00 UTC
-        # Slots at 21:00 UTC (5pm ET) and 00:00 UTC next day (8pm ET) — 00:00 is closer
-        game_date = datetime.date(2025, 6, 15)  # Summer (EDT)
-        slots = [
-            self._make_slot("2025-06-15 21:00:00"),  # 5pm EDT — 2h before target
-            self._make_slot("2025-06-16 00:00:00"),  # 8pm EDT — 1h after target
-        ]
-        result = _find_best_forecast_slot(slots, game_date, None)
-        self.assertEqual(result["dt_txt"], "2025-06-16 00:00:00")
-
-    def test_finds_closest_slot_to_explicit_game_time(self):
-        # 7:30pm ET game on a summer date; 23:00 UTC slot (7pm ET) is closest
+    def test_finds_closest_period_to_7pm_eastern_default(self):
+        # No game_time → defaults to 7pm ET.
+        # On 2025-06-15 (EDT, UTC-4): 7pm ET = 23:00 UTC = "2025-06-15T23:00:00-04:00"
+        # Period at 5pm ET (2h before) vs 8pm ET (1h after) → 8pm is closer.
         game_date = datetime.date(2025, 6, 15)
-        game_time = datetime.time(19, 30)
-        slots = [
-            self._make_slot("2025-06-15 18:00:00"),  # 2pm ET — far
-            self._make_slot("2025-06-15 21:00:00"),  # 5pm ET — moderate
-            self._make_slot("2025-06-15 23:00:00"),  # 7pm ET — closest to 7:30pm
-            self._make_slot("2025-06-16 02:00:00"),  # 10pm ET — farther
+        periods = [
+            _make_period("2025-06-15T17:00:00-04:00"),  # 5pm ET — 2h before
+            _make_period("2025-06-15T20:00:00-04:00"),  # 8pm ET — 1h after
         ]
-        result = _find_best_forecast_slot(slots, game_date, game_time)
-        self.assertEqual(result["dt_txt"], "2025-06-15 23:00:00")
+        result = _find_best_forecast_slot(periods, game_date, None)
+        self.assertEqual(result["startTime"], "2025-06-15T20:00:00-04:00")
 
-    def test_handles_single_slot(self):
+    def test_finds_closest_period_to_explicit_game_time(self):
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 30)  # 7:30pm
+        periods = [
+            _make_period("2025-06-15T14:00:00-04:00"),  # 2pm — far
+            _make_period("2025-06-15T17:00:00-04:00"),  # 5pm — moderate
+            _make_period("2025-06-15T19:00:00-04:00"),  # 7pm — closest to 7:30
+            _make_period("2025-06-15T22:00:00-04:00"),  # 10pm — farther
+        ]
+        result = _find_best_forecast_slot(periods, game_date, game_time)
+        self.assertEqual(result["startTime"], "2025-06-15T19:00:00-04:00")
+
+    def test_handles_single_period(self):
         game_date = datetime.date(2025, 4, 20)
-        slots = [self._make_slot("2025-04-20 21:00:00")]
-        result = _find_best_forecast_slot(slots, game_date, None)
-        self.assertEqual(result["dt_txt"], "2025-04-20 21:00:00")
+        periods = [_make_period("2025-04-20T21:00:00-04:00")]
+        result = _find_best_forecast_slot(periods, game_date, None)
+        self.assertEqual(result["startTime"], "2025-04-20T21:00:00-04:00")
 
 
 class WorsePlayabilityTest(TestCase):
@@ -172,216 +174,135 @@ class WorsePlayabilityTest(TestCase):
 class ComputeWindowPlayabilityTest(TestCase):
     """Unit tests for _compute_window_playability()."""
 
-    def _make_slot(self, dt_txt, condition_id=800, pop=0.0, rain_mm=0, snow_mm=0):
-        return {
-            "dt_txt": dt_txt,
-            "weather": [{"id": condition_id, "description": "clear sky"}],
-            "main": {"temp": 70, "humidity": 50},
-            "pop": pop,
-            "rain": {"3h": rain_mm} if rain_mm else {},
-            "snow": {"3h": snow_mm} if snow_mm else {},
-        }
-
-    def test_returns_none_when_no_slots_in_window(self):
-        # Only slot is 6h before game — outside the 4h window
-        # 7pm ET on 2025-06-15 (summer, EDT=UTC-4) → 23:00 UTC
-        # 6h before = 17:00 UTC
+    def test_returns_none_when_no_periods_in_window(self):
+        # Period 6h before game — outside the 4h window
         game_date = datetime.date(2025, 6, 15)
-        game_time = datetime.time(19, 0)
-        slots = [self._make_slot("2025-06-15 17:00:00")]
-        result = _compute_window_playability(slots, game_date, game_time)
+        game_time = datetime.time(19, 0)  # 7pm ET
+        periods = [_make_period("2025-06-15T13:00:00-04:00")]  # 1pm ET — 6h before
+        result = _compute_window_playability(periods, game_date, game_time)
         self.assertIsNone(result)
 
-    def test_good_when_all_window_slots_are_clear(self):
-        # 7pm ET game on 2025-06-15 → window is 15:00–00:00 UTC
+    def test_good_when_all_window_periods_are_clear(self):
         game_date = datetime.date(2025, 6, 15)
         game_time = datetime.time(19, 0)
-        slots = [
-            self._make_slot("2025-06-15 21:00:00"),  # 5pm ET — 2h before
-            self._make_slot("2025-06-15 23:00:00"),  # 7pm ET — at game time
+        periods = [
+            _make_period("2025-06-15T17:00:00-04:00", pop_pct=5),  # 5pm — 2h before
+            _make_period("2025-06-15T19:00:00-04:00", pop_pct=10),  # 7pm — at game
         ]
-        result = _compute_window_playability(slots, game_date, game_time)
+        result = _compute_window_playability(periods, game_date, game_time)
         self.assertEqual(result, "good")
 
-    def test_cancelled_when_one_slot_has_rain(self):
-        # Slot 2h before game shows rain → whole window is cancelled
+    def test_cancelled_when_one_period_has_rain(self):
         game_date = datetime.date(2025, 6, 15)
         game_time = datetime.time(19, 0)
-        slots = [
-            self._make_slot("2025-06-15 21:00:00", rain_mm=2.0),  # 5pm ET — rain
-            self._make_slot("2025-06-15 23:00:00"),  # 7pm ET — clear
+        periods = [
+            _make_period(
+                "2025-06-15T17:00:00-04:00", pop_pct=70, short_forecast="Rain"
+            ),
+            _make_period(
+                "2025-06-15T19:00:00-04:00", pop_pct=5, short_forecast="Sunny"
+            ),
         ]
-        result = _compute_window_playability(slots, game_date, game_time)
+        result = _compute_window_playability(periods, game_date, game_time)
         self.assertEqual(result, "likely_cancelled")
 
-    def test_uncertain_when_high_pop_no_actual_rain(self):
+    def test_uncertain_when_moderate_pop(self):
         game_date = datetime.date(2025, 6, 15)
         game_time = datetime.time(19, 0)
-        slots = [
-            self._make_slot("2025-06-15 21:00:00", pop=0.5),  # 5pm ET, 50% PoP
+        periods = [
+            _make_period(
+                "2025-06-15T17:00:00-04:00",
+                pop_pct=30,
+                short_forecast="Chance Rain Showers",
+            ),
         ]
-        result = _compute_window_playability(slots, game_date, game_time)
+        result = _compute_window_playability(periods, game_date, game_time)
         self.assertEqual(result, "uncertain")
 
-    def test_slot_just_after_game_is_included(self):
-        # Slot 1h after game start (within window) with rain
+    def test_period_1h_after_game_is_included(self):
         game_date = datetime.date(2025, 6, 15)
-        game_time = datetime.time(19, 0)
-        # 7pm ET = 23:00 UTC; 1h after = 00:00 UTC next day
-        slots = [
-            self._make_slot("2025-06-16 00:00:00", rain_mm=1.5),
+        game_time = datetime.time(19, 0)  # 7pm ET; 1h after = 8pm ET
+        periods = [
+            _make_period(
+                "2025-06-15T20:00:00-04:00", pop_pct=80, short_forecast="Rain"
+            ),
         ]
-        result = _compute_window_playability(slots, game_date, game_time)
+        result = _compute_window_playability(periods, game_date, game_time)
         self.assertEqual(result, "likely_cancelled")
 
-    def test_slot_more_than_1h_after_game_excluded(self):
-        # Slot 2h after game should be outside the window
-        # 7pm ET = 23:00 UTC; 2h after = 01:00 UTC next day
+    def test_period_2h_after_game_is_excluded(self):
         game_date = datetime.date(2025, 6, 15)
-        game_time = datetime.time(19, 0)
-        slots = [
-            self._make_slot("2025-06-16 01:00:00", condition_id=500),
+        game_time = datetime.time(19, 0)  # 7pm ET; 2h after = 9pm ET
+        periods = [
+            _make_period(
+                "2025-06-15T21:00:00-04:00", pop_pct=90, short_forecast="Rain"
+            ),
         ]
-        result = _compute_window_playability(slots, game_date, game_time)
+        result = _compute_window_playability(periods, game_date, game_time)
         self.assertIsNone(result)
 
     def test_defaults_to_7pm_when_no_game_time(self):
-        # No game_time → defaults to 7pm ET; verify window still works
         game_date = datetime.date(2025, 6, 15)
-        slots = [
-            self._make_slot("2025-06-15 21:00:00"),  # 5pm ET — in window
+        periods = [
+            _make_period(
+                "2025-06-15T17:00:00-04:00", pop_pct=5, short_forecast="Sunny"
+            ),
         ]
-        result = _compute_window_playability(slots, game_date, None)
+        result = _compute_window_playability(periods, game_date, None)
         self.assertEqual(result, "good")
 
-    def test_worst_of_multiple_window_slots(self):
-        # Mix of good and cancelled slots in window — worst wins
+    def test_worst_of_multiple_window_periods(self):
         game_date = datetime.date(2025, 6, 15)
         game_time = datetime.time(19, 0)
-        slots = [
-            self._make_slot("2025-06-15 21:00:00"),  # good
-            self._make_slot("2025-06-15 23:00:00", pop=0.4),  # uncertain
-            self._make_slot(
-                "2025-06-15 23:00:00", rain_mm=1.0
-            ),  # cancelled (dup dt ok)
+        periods = [
+            _make_period(
+                "2025-06-15T17:00:00-04:00", pop_pct=5, short_forecast="Sunny"
+            ),
+            _make_period(
+                "2025-06-15T18:00:00-04:00",
+                pop_pct=35,
+                short_forecast="Chance Rain Showers",
+            ),
+            _make_period(
+                "2025-06-15T19:00:00-04:00",
+                pop_pct=75,
+                short_forecast="Rain Showers Likely",
+            ),
         ]
-        result = _compute_window_playability(slots, game_date, game_time)
+        result = _compute_window_playability(periods, game_date, game_time)
         self.assertEqual(result, "likely_cancelled")
 
 
-class PlayabilityFromCurrentWeatherTest(TestCase):
-    """Unit tests for _playability_from_current_weather()."""
-
-    def _make_current(self, condition_id, rain_1h=0, rain_3h=0, snow_1h=0):
-        return {
-            "weather": [{"id": condition_id, "description": "test"}],
-            "main": {"temp": 60, "humidity": 70},
-            "rain": {
-                **({"1h": rain_1h} if rain_1h else {}),
-                **({"3h": rain_3h} if rain_3h else {}),
-            },
-            "snow": {"1h": snow_1h} if snow_1h else {},
-        }
-
-    def test_clear_sky_is_good(self):
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(800)), "good"
-        )
-
-    def test_broken_clouds_is_good(self):
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(803)), "good"
-        )
-
-    def test_active_rain_condition_is_cancelled(self):
-        # 500 = Light rain — actively precipitating
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(500)),
-            "likely_cancelled",
-        )
-
-    def test_active_thunderstorm_is_cancelled(self):
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(211)),
-            "likely_cancelled",
-        )
-
-    def test_active_snow_is_cancelled(self):
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(601)),
-            "likely_cancelled",
-        )
-
-    def test_recent_rain_1h_is_uncertain(self):
-        # Stopped raining but rained in the last hour → rink may still be wet
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(800, rain_1h=0.5)),
-            "uncertain",
-        )
-
-    def test_trace_rain_1h_below_threshold_is_good(self):
-        # ≤ 0.1 mm/h is negligible
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(800, rain_1h=0.1)),
-            "good",
-        )
-
-    def test_meaningful_rain_3h_is_uncertain(self):
-        # Hasn't rained in last hour but significant rain in last 3h
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(800, rain_3h=0.6)),
-            "uncertain",
-        )
-
-    def test_light_rain_3h_below_threshold_is_good(self):
-        # Under 0.5 mm in last 3h is negligible
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(800, rain_3h=0.5)),
-            "good",
-        )
-
-    def test_recent_snow_1h_is_uncertain(self):
-        # Snow in last hour — rink is likely wet/slushy
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(800, snow_1h=0.1)),
-            "uncertain",
-        )
-
-    def test_fog_with_no_recent_precip_is_good(self):
-        # Fog (741) is not a cancellation reason
-        self.assertEqual(
-            _playability_from_current_weather(self._make_current(741)),
-            "good",
-        )
-
-
-class WeatherPlayabilityIntegrationTest(TestCase):
+class WeatherIntegrationTest(TestCase):
     """
     Integration smoke test: home view produces playability data when the
-    OWM API returns a rainy forecast.
+    NWS API returns a forecast.
     """
 
-    def _get_home_with_forecast(self, condition_id, pop, rain_mm=0):
-        """Hit the home view with a mocked OWM response."""
-        fake_slot = {
-            "dt_txt": "2025-06-15 23:00:00",
-            "weather": [{"id": condition_id, "description": "light rain"}],
-            "main": {"temp": 65, "humidity": 80},
-            "pop": pop,
-            "rain": {"3h": rain_mm} if rain_mm else {},
-            "snow": {},
-        }
-        fake_forecast = {"list": [fake_slot]}
+    def _make_nws_response(self, periods):
+        return {"properties": {"periods": periods}}
 
+    def _get_home_with_forecast(self, periods):
         with patch("core.views.home.MatchUp") as MockMatchUp, patch(
             "core.views.home.requests.get"
-        ) as mock_get, patch.dict("os.environ", {"OPENWEATHERMAP_API_KEY": "fake"}):
+        ) as mock_get:
             mock_get.return_value.status_code = 200
-            mock_get.return_value.json.return_value = fake_forecast
+            mock_get.return_value.json.return_value = self._make_nws_response(periods)
             cache.clear()
             response = self.client.get(reverse("home"))
         return response
 
     def test_home_view_returns_200(self):
-        response = self._get_home_with_forecast(800, 0.0)
+        periods = [_make_period("2025-06-15T19:00:00-04:00", pop_pct=5)]
+        response = self._get_home_with_forecast(periods)
         self.assertEqual(response.status_code, 200)
+
+    def test_weather_unavailable_on_api_failure(self):
+        with patch("core.views.home.MatchUp") as MockMatchUp, patch(
+            "core.views.home.requests.get"
+        ) as mock_get:
+            mock_get.return_value.status_code = 500
+            cache.clear()
+            response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["weather_unavailable"])

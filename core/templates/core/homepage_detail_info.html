@@ -14,6 +14,9 @@
                             <div class="date-weather-container">
                                 <!-- Display the date -->
                                 <h3 class="game-date">{{ row.week.date }}</h3>
+                                {% if weather_unavailable %}
+                                    <div class="play-forecast-unavailable">Weather data unavailable</div>
+                                {% else %}
                                 {% with row.week.date|date:"Y-m-d" as formatted_date %}
                                     {% with weather_data|get_item:formatted_date as weather %}
                                         {% if weather %}
@@ -36,20 +39,20 @@
                                             </div>
                                             {% else %}
                                             <div class="play-forecast play-forecast-bad">
-                                                <span class="play-forecast-label">&#127783; Rain or snow in forecast <span class="play-forecast-info"><button type="button" class="play-forecast-info-btn" aria-label="About this forecast">&#9432;</button><span class="play-forecast-info-tooltip" role="tooltip">Weather forecast only &mdash; not an official cancellation. Check with your captain for game status.</span></span></span>
+                                                <span class="play-forecast-label">
+                                                    {% if weather.thunder %}&#9889; Thunderstorms possible{% else %}&#127783; Rain or snow likely{% endif %}
+                                                    <span class="play-forecast-info"><button type="button" class="play-forecast-info-btn" aria-label="About this forecast">&#9432;</button><span class="play-forecast-info-tooltip" role="tooltip">Weather forecast only &mdash; not an official cancellation. Check with your captain for game status.</span></span>
+                                                </span>
                                                 <span class="play-forecast-detail">
                                                     {{ weather.description|capfirst }} &middot; {{ weather.temp|floatformat:0 }}&deg;F
                                                     {% if weather.pop_pct is not None %}&middot; {{ weather.pop_pct }}% chance of rain{% endif %}
                                                 </span>
                                             </div>
                                             {% endif %}
-                                        {% else %}
-                                            <div class="play-forecast-pending">
-                                                Checking weather&hellip;
-                                            </div>
                                         {% endif %}
                                     {% endwith %}
                                 {% endwith %}
+                                {% endif %}
                             </div>
                         </header>
                         <ul class="quote-list">
