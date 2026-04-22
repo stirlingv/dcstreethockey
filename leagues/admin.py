@@ -38,6 +38,7 @@ from leagues.models import (
     DraftRound,
     DraftPick,
 )
+import json
 import logging
 from datetime import timedelta, date
 
@@ -521,11 +522,236 @@ class MatchUpAdmin(admin.ModelAdmin):
         kwargs["extra_context"] = extra_context
         return super().render_change_list(request, *args, **kwargs)
 
+    # "Save and add another" creates a blank new matchup, which is never the
+    # right action here (matchups are created via WeekAdmin). Remove it so the
+    # only choices are "Save" (done → home) and "Save and continue editing".
+    show_save_and_add_another = False
+
     def changelist_view(self, request, extra_context=None):
         redirect_url = _apply_default_matchup_filters(request, default_timeframe="past")
         if redirect_url:
             return redirect(redirect_url)
         return super().changelist_view(request, extra_context=extra_context)
+
+    def response_post_save_change(self, request, obj):
+        """After a plain 'Save', return to the admin home where the stats entry
+        widget and quick-cancel widget live — not the matchup changelist."""
+        return HttpResponseRedirect(reverse("admin:index"))
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        try:
+            match = MatchUp.objects.select_related("hometeam", "awayteam").get(
+                pk=object_id
+            )
+            roster_entries = Roster.objects.filter(
+                team__in=[match.hometeam_id, match.awayteam_id]
+            ).values("player_id", "team_id")
+            player_team_map = {
+                str(r["player_id"]): str(r["team_id"]) for r in roster_entries
+            }
+            extra_context["player_team_map_json"] = json.dumps(player_team_map)
+        except MatchUp.DoesNotExist:
+            extra_context["player_team_map_json"] = "{}"
+        return super().change_view(
+            request, object_id, form_url=form_url, extra_context=extra_context
+        )
+
+    class Media:
+        js = ("admin/js/stat_autofill_team.js",)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "schedule/",
+                self.admin_site.admin_view(self.schedule_manager_view),
+                name="leagues_matchup_schedule_manager",
+            ),
+        ]
+        return custom_urls + urls
+
+    def schedule_manager_view(self, request):
+        import datetime as dt
+        from collections import defaultdict as _defaultdict
+
+        today = date.today()
+
+        # ------------------------------------------------------------------ #
+        # POST — save edits + create new matchups                             #
+        # ------------------------------------------------------------------ #
+        if request.method == "POST":
+            division_id = request.POST.get("division_id", "")
+            filter_date = request.POST.get("filter_date", "")
+            updated = 0
+            added = 0
+
+            # --- Update existing matchups ---
+            pks_raw = request.POST.get("matchup_pks", "")
+            matchup_pks = [int(pk) for pk in pks_raw.split(",") if pk.strip().isdigit()]
+            for matchup in MatchUp.objects.filter(pk__in=matchup_pks).select_related(
+                "week__division", "week__season"
+            ):
+                new_date_str = request.POST.get(f"m_{matchup.pk}_date", "")
+                new_time_str = request.POST.get(f"m_{matchup.pk}_time", "")
+                changed = False
+
+                if new_date_str:
+                    try:
+                        new_date_val = dt.datetime.strptime(
+                            new_date_str, "%Y-%m-%d"
+                        ).date()
+                    except ValueError:
+                        continue
+                    if new_date_val != matchup.week.date:
+                        week, _ = Week.objects.get_or_create(
+                            division=matchup.week.division,
+                            season=matchup.week.season,
+                            date=new_date_val,
+                            defaults={"is_cancelled": False},
+                        )
+                        matchup.week = week
+                        changed = True
+
+                if new_time_str:
+                    try:
+                        new_time_val = dt.datetime.strptime(
+                            new_time_str, "%H:%M"
+                        ).time()
+                    except ValueError:
+                        continue
+                    if new_time_val != matchup.time:
+                        matchup.time = new_time_val
+                        changed = True
+
+                if changed:
+                    matchup.save()
+                    updated += 1
+
+            # --- Create new matchups ---
+            new_row_count = int(request.POST.get("new_row_count", 0) or 0)
+            for i in range(new_row_count):
+                date_str = request.POST.get(f"new_{i}_date", "").strip()
+                time_str = request.POST.get(f"new_{i}_time", "").strip()
+                away_id = request.POST.get(f"new_{i}_away", "").strip()
+                home_id = request.POST.get(f"new_{i}_home", "").strip()
+                div_id = (
+                    request.POST.get(f"new_{i}_division_id", "").strip() or division_id
+                )
+                if not all([date_str, time_str, away_id, home_id, div_id]):
+                    continue
+                try:
+                    new_date_val = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    new_time_val = dt.datetime.strptime(time_str, "%H:%M").time()
+                    away_team = Team.objects.get(pk=int(away_id))
+                    home_team = Team.objects.get(pk=int(home_id))
+                    division_obj = Division.objects.get(pk=int(div_id))
+                except (ValueError, Team.DoesNotExist, Division.DoesNotExist):
+                    continue
+                season = (
+                    get_current_season_for_division(division_obj.pk)
+                    or get_current_season()
+                )
+                if not season:
+                    continue
+                week, _ = Week.objects.get_or_create(
+                    division=division_obj,
+                    season=season,
+                    date=new_date_val,
+                    defaults={"is_cancelled": False},
+                )
+                MatchUp.objects.create(
+                    week=week,
+                    time=new_time_val,
+                    awayteam=away_team,
+                    hometeam=home_team,
+                )
+                added += 1
+
+            # Build result message
+            parts = []
+            if added:
+                parts.append(f"{added} game{'s' if added != 1 else ''} added")
+            if updated:
+                parts.append(f"{updated} game{'s' if updated != 1 else ''} updated")
+            if parts:
+                messages.success(request, ", ".join(parts).capitalize() + ".")
+            else:
+                messages.info(request, "No changes were made.")
+
+            params = {}
+            if division_id:
+                params["division_id"] = division_id
+            if filter_date:
+                params["filter_date"] = filter_date
+            redirect_url = reverse("admin:leagues_matchup_schedule_manager")
+            if params:
+                redirect_url += "?" + urlencode(params)
+            return HttpResponseRedirect(redirect_url)
+
+        # ------------------------------------------------------------------ #
+        # GET — render filter + table                                          #
+        # ------------------------------------------------------------------ #
+        division_id = request.GET.get("division_id", "")
+        filter_date = request.GET.get("filter_date", "")
+
+        all_divisions = (
+            Division.objects.filter(week__date__gte=today)
+            .distinct()
+            .order_by("division")
+        )
+
+        matchups_by_date = {}
+        matchup_pks_str = ""
+
+        if division_id or filter_date:
+            qs = (
+                MatchUp.objects.filter(week__date__gte=today, is_cancelled=False)
+                .select_related(
+                    "hometeam", "awayteam", "week__division", "week__season"
+                )
+                .order_by("week__date", "time")
+            )
+            if division_id:
+                qs = qs.filter(week__division_id=division_id)
+            if filter_date:
+                qs = qs.filter(week__date=filter_date)
+
+            for m in qs:
+                matchups_by_date.setdefault(m.week.date, []).append(m)
+            matchup_pks_str = ",".join(
+                str(m.pk) for games in matchups_by_date.values() for m in games
+            )
+
+        # Teams grouped by division — used by JS to populate add-row dropdowns
+        teams_by_div = _defaultdict(list)
+        for team in (
+            Team.objects.filter(is_active=True)
+            .select_related("division")
+            .order_by("team_name")
+        ):
+            if team.division_id:
+                teams_by_div[str(team.division_id)].append(
+                    {"id": team.pk, "name": team.team_name}
+                )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Manage Schedule",
+            "all_divisions": all_divisions,
+            "division_id": division_id,
+            "filter_date": filter_date,
+            "matchups_by_date": matchups_by_date,
+            "matchup_pks_str": matchup_pks_str,
+            "has_filters": bool(division_id or filter_date),
+            "has_results": bool(matchups_by_date),
+            "teams_by_division_json": json.dumps(dict(teams_by_div)),
+            "division_names_json": json.dumps(
+                {str(d.pk): str(d) for d in all_divisions}
+            ),
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/leagues/matchup/schedule_manager.html", context)
 
     def lookup_allowed(self, lookup, value):
         if lookup in {"season_ids", "timeframe"}:

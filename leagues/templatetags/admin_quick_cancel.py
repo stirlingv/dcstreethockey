@@ -2,6 +2,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from django import template
+from django.db.models import Count
 
 from leagues.models import MatchUp, Week
 
@@ -61,4 +62,50 @@ def quick_cancel_widget(context):
         "grouped_weeks": grouped,
         "today": today,
         "csrf_token": context.get("csrf_token"),
+    }
+
+
+@register.inclusion_tag("admin/stats_entry_widget.html")
+def stats_entry_widget():
+    today = date.today()
+    since = today - timedelta(days=7)
+
+    matchups = (
+        MatchUp.objects.filter(
+            week__date__range=(since, today),
+            is_cancelled=False,
+            week__is_cancelled=False,
+        )
+        .select_related("hometeam", "awayteam", "week__division")
+        .annotate(stat_count=Count("stat"))
+        .order_by("week__date", "week__division__division", "time")
+    )
+
+    # Group by date, then by division
+    date_buckets = defaultdict(lambda: defaultdict(list))
+    for m in matchups:
+        date_buckets[m.week.date][m.week.division].append(m)
+
+    grouped = {}
+    for game_date in sorted(date_buckets.keys(), reverse=True):
+        divisions = []
+        for division, games in sorted(
+            date_buckets[game_date].items(), key=lambda x: x[0].division
+        ):
+            divisions.append(
+                {
+                    "division": division,
+                    "games": games,
+                    "all_entered": all(g.stat_count > 0 for g in games),
+                    "any_missing": any(g.stat_count == 0 for g in games),
+                }
+            )
+        grouped[game_date] = {
+            "divisions": divisions,
+            "all_entered": all(d["all_entered"] for d in divisions),
+        }
+
+    return {
+        "grouped_games": grouped,
+        "today": today,
     }

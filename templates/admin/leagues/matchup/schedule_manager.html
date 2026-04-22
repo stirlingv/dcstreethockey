@@ -1,0 +1,428 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Manage Schedule — {{ site_title }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; Manage Schedule
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  /* ---- Filter bar ---- */
+  .sm-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  .sm-filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .sm-filter-group label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: #666;
+  }
+  .sm-filter-group select,
+  .sm-filter-group input[type="date"] {
+    font-size: 13px; padding: 6px 8px; border: 1px solid #ccc;
+    border-radius: 3px; background: #fff; min-width: 180px;
+  }
+  .sm-filter-actions { display: flex; gap: 8px; align-items: flex-end; padding-bottom: 1px; }
+
+  /* ---- Buttons ---- */
+  .sm-btn {
+    font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 3px;
+    border: none; cursor: pointer; text-decoration: none; white-space: nowrap;
+    display: inline-block; line-height: 1.4;
+  }
+  .sm-btn-primary   { background: #417690; color: #fff; }
+  .sm-btn-primary:hover { background: #2c5f73; color: #fff; }
+  .sm-btn-secondary { background: #f0f0f0; color: #333; border: 1px solid #ccc; }
+  .sm-btn-secondary:hover { background: #e0e0e0; }
+  .sm-btn-add       { background: #2e7d32; color: #fff; font-size: 12px; padding: 6px 12px; }
+  .sm-btn-add:hover { background: #1b5e20; }
+
+  /* ---- Active filter chips ---- */
+  .sm-active-filters {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px; font-size: 13px; color: #555;
+  }
+  .sm-filter-chip {
+    background: #dbe8f0; color: #1a4a5c; font-weight: 600;
+    padding: 3px 9px; border-radius: 12px; font-size: 12px;
+  }
+
+  /* ---- Shared table styles ---- */
+  .sm-table-wrap { overflow-x: auto; }
+  .sm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sm-table th {
+    background: #417690; color: #fff; text-align: left;
+    padding: 8px 12px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+  }
+  .sm-table td { padding: 7px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .sm-table tr:hover td { background: #f9f9f9; }
+
+  .sm-date-row td {
+    background: #f5f5f5; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; color: #555; padding: 5px 12px;
+  }
+  .sm-date-row:hover td { background: #f0f0f0; }
+  .sm-today-chip {
+    background: #417690; color: #fff; font-size: 10px; font-weight: 700;
+    padding: 1px 6px; border-radius: 3px; margin-left: 6px;
+    vertical-align: middle; letter-spacing: .06em;
+  }
+
+  .sm-input-date, .sm-input-time, .sm-select {
+    font-size: 13px; padding: 5px 7px; border: 1px solid #ccc;
+    border-radius: 3px; background: #fff;
+  }
+  .sm-input-date  { width: 140px; }
+  .sm-input-time  { width: 110px; }
+  .sm-select      { min-width: 140px; }
+  .sm-input-date:focus, .sm-input-time:focus, .sm-select:focus {
+    border-color: #417690; outline: none;
+    box-shadow: 0 0 0 2px rgba(65,118,144,.2);
+  }
+
+  /* Highlight edited rows */
+  .sm-row-changed td { background: #fffbeb !important; }
+  .sm-row-changed .sm-input-date,
+  .sm-row-changed .sm-input-time { border-color: #e6a817; }
+
+  .sm-team       { font-weight: 500; }
+  .sm-division-tag { font-size: 11px; color: #888; white-space: nowrap; }
+
+  /* ---- Add-rows section ---- */
+  .sm-add-section {
+    margin-top: 24px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;
+  }
+  .sm-add-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: #f0f7f0; border-bottom: 1px solid #ddd;
+  }
+  .sm-add-header h3 { margin: 0; font-size: 13px; font-weight: 700; color: #2e7d32; }
+  .sm-add-table { border: none; }
+  .sm-add-table th { background: #4a7c59; }
+  .sm-add-row td { background: #fafff9; }
+  .sm-add-row:hover td { background: #f0faf0 !important; }
+
+  .sm-remove-btn {
+    font-size: 15px; line-height: 1; padding: 2px 7px; border: 1px solid #ccc;
+    border-radius: 3px; background: #f8f8f8; color: #666; cursor: pointer;
+  }
+  .sm-remove-btn:hover { background: #fce4e4; border-color: #e57373; color: #b71c1c; }
+
+  .sm-add-hint {
+    padding: 12px 16px; color: #888; font-size: 12px; font-style: italic;
+  }
+
+  /* ---- Save bar ---- */
+  .sm-save-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0 4px; border-top: 1px solid #eee; margin-top: 8px;
+  }
+  .sm-change-count { font-size: 12px; color: #888; }
+
+  /* ---- Empty / prompt states ---- */
+  .sm-empty {
+    padding: 32px 16px; text-align: center; color: #888; font-size: 14px;
+    border: 1px dashed #ddd; border-radius: 4px;
+  }
+  .sm-empty strong { display: block; font-size: 15px; margin-bottom: 6px; color: #555; }
+
+  @media (max-width: 767px) {
+    .sm-filter-bar { flex-direction: column; align-items: stretch; }
+    .sm-filter-group select,
+    .sm-filter-group input[type="date"] { min-width: 0; width: 100%; }
+    .sm-input-date  { width: 120px; }
+    .sm-input-time  { width: 95px; }
+    .sm-select      { min-width: 110px; }
+    /* hide division col on mobile when not needed */
+    .sm-table .sm-col-division { display: none; }
+  }
+</style>
+
+<div id="content-main">
+
+  {# ---- Filter bar ---- #}
+  <form method="get" class="sm-filter-bar">
+    <div class="sm-filter-group">
+      <label for="sm-division">Division</label>
+      <select name="division_id" id="sm-division">
+        <option value="">All Divisions</option>
+        {% for div in all_divisions %}
+        <option value="{{ div.pk }}"{% if div.pk|stringformat:"s" == division_id %} selected{% endif %}>{{ div }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="sm-filter-group">
+      <label for="sm-date">Date</label>
+      <input type="date" name="filter_date" id="sm-date" value="{{ filter_date }}">
+    </div>
+
+    <div class="sm-filter-actions">
+      <button type="submit" class="sm-btn sm-btn-primary">Show Games</button>
+      {% if has_filters %}
+      <a href="{% url 'admin:leagues_matchup_schedule_manager' %}" class="sm-btn sm-btn-secondary">Clear</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {# ---- Active filter summary ---- #}
+  {% if has_filters %}
+  <div class="sm-active-filters">
+    Showing:
+    {% if division_id %}
+      {% for div in all_divisions %}{% if div.pk|stringformat:"s" == division_id %}<span class="sm-filter-chip">{{ div }}</span>{% endif %}{% endfor %}
+    {% else %}
+      <span class="sm-filter-chip">All Divisions</span>
+    {% endif %}
+    {% if filter_date %}
+      <span class="sm-filter-chip">{{ filter_date|date:"l, F j" }}</span>
+    {% else %}
+      <span class="sm-filter-chip">All Upcoming Dates</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ================================================================ #}
+  {# Main form — wraps both the edit table and the add-rows section   #}
+  {# ================================================================ #}
+  {% if not has_filters %}
+
+  <div class="sm-empty">
+    <strong>Select a filter above to load the schedule</strong>
+    Choose a division to see all its upcoming games, a date to see every game
+    that day, or both to narrow to a specific division on a specific date.
+  </div>
+
+  {% else %}
+
+  <form method="post" id="sm-save-form">
+    {% csrf_token %}
+    <input type="hidden" name="division_id" value="{{ division_id }}">
+    <input type="hidden" name="filter_date" value="{{ filter_date }}">
+    <input type="hidden" name="matchup_pks" value="{{ matchup_pks_str }}">
+    <input type="hidden" name="new_row_count" id="sm-new-row-count" value="0">
+
+    {# ---- Existing games table ---- #}
+    {% if has_results %}
+    <div class="sm-table-wrap">
+      <table class="sm-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Away Team</th>
+            <th>Home Team</th>
+            <th class="sm-col-division">Division</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for game_date, games in matchups_by_date.items %}
+          <tr class="sm-date-row">
+            <td colspan="5">
+              {{ game_date|date:"l, F j, Y" }}
+              {% if game_date == today %}<span class="sm-today-chip">TODAY</span>{% endif %}
+            </td>
+          </tr>
+          {% for game in games %}
+          <tr class="sm-game-row"
+              data-orig-date="{{ game.week.date|date:'Y-m-d' }}"
+              data-orig-time="{{ game.time|time:'H:i' }}">
+            <td>
+              <input type="date" name="m_{{ game.pk }}_date"
+                     value="{{ game.week.date|date:'Y-m-d' }}"
+                     class="sm-input-date sm-date-input">
+            </td>
+            <td>
+              <input type="time" name="m_{{ game.pk }}_time"
+                     value="{{ game.time|time:'H:i' }}"
+                     class="sm-input-time sm-time-input">
+            </td>
+            <td class="sm-team">{{ game.awayteam.team_name }}</td>
+            <td class="sm-team">{{ game.hometeam.team_name }}</td>
+            <td class="sm-division-tag sm-col-division">{{ game.week.division }}</td>
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="sm-empty" style="margin-bottom:0;border-radius:4px 4px 0 0;border-bottom:none;">
+      <strong>No upcoming games found for this filter</strong>
+      Use the section below to add the first games.
+    </div>
+    {% endif %}
+
+    {# ---- Add new games section ---- #}
+    <div class="sm-add-section">
+      <div class="sm-add-header">
+        <h3>Add New Games</h3>
+        <button type="button" id="sm-add-btn" class="sm-btn sm-btn-add">+ Add game</button>
+      </div>
+      <div class="sm-table-wrap">
+        <table class="sm-table sm-add-table">
+          <thead>
+            <tr>
+              {% if not division_id %}<th>Division</th>{% endif %}
+              <th>Date</th>
+              <th>Time</th>
+              <th>Away Team</th>
+              <th>Home Team</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sm-add-tbody"></tbody>
+        </table>
+      </div>
+      <p class="sm-add-hint" id="sm-add-hint">Click "+ Add game" to add a new game to the schedule.</p>
+    </div>
+
+    {# ---- Save bar ---- #}
+    <div class="sm-save-bar">
+      <button type="submit" name="_save" class="sm-btn sm-btn-primary">Save All Changes</button>
+      <span class="sm-change-count" id="sm-change-count"></span>
+    </div>
+  </form>
+  {% endif %}
+
+</div>{# end content-main #}
+
+<script>
+(function () {
+  /* ------------------------------------------------------------------ */
+  /* Data from server                                                     */
+  /* ------------------------------------------------------------------ */
+  var smTeamsByDiv    = {{ teams_by_division_json|safe }};
+  var smDivisionNames = {{ division_names_json|safe }};
+  var smSingleDivId   = "{{ division_id }}";
+  var smDefaultDate   = "{{ filter_date }}";
+  var smRowCount      = 0;
+
+  /* ------------------------------------------------------------------ */
+  /* Helpers                                                              */
+  /* ------------------------------------------------------------------ */
+  function teamOptions(divId) {
+    var teams = (divId && smTeamsByDiv[String(divId)]) || [];
+    var html = '<option value="">— Select Team —</option>';
+    teams.forEach(function (t) {
+      html += '<option value="' + t.id + '">' + t.name + '</option>';
+    });
+    return html;
+  }
+
+  function refreshTeamSelects(idx, divId) {
+    var opts = teamOptions(divId);
+    var row = document.getElementById('sm-add-row-' + idx);
+    if (!row) return;
+    row.querySelector('[name="new_' + idx + '_away"]').innerHTML = opts;
+    row.querySelector('[name="new_' + idx + '_home"]').innerHTML = opts;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Add a new row                                                        */
+  /* ------------------------------------------------------------------ */
+  function addRow() {
+    var idx = smRowCount++;
+    document.getElementById('sm-new-row-count').value = smRowCount;
+
+    var tr = document.createElement('tr');
+    tr.className = 'sm-add-row';
+    tr.id = 'sm-add-row-' + idx;
+
+    var cells = '';
+
+    /* Division cell — only when no division filter is active */
+    if (!smSingleDivId) {
+      var divOpts = '<option value="">— Select Division —</option>';
+      Object.keys(smDivisionNames).sort().forEach(function (id) {
+        divOpts += '<option value="' + id + '">' + smDivisionNames[id] + '</option>';
+      });
+      cells += '<td><select name="new_' + idx + '_division_id" class="sm-select"'
+             + ' data-idx="' + idx + '" id="sm-div-sel-' + idx + '">'
+             + divOpts + '</select></td>';
+    } else {
+      cells += '<td style="display:none">'
+             + '<input type="hidden" name="new_' + idx + '_division_id" value="' + smSingleDivId + '">'
+             + '</td>';
+    }
+
+    var initialTeamOpts = teamOptions(smSingleDivId);
+
+    cells += '<td><input type="date"  name="new_' + idx + '_date"  value="' + smDefaultDate + '" class="sm-input-date" required></td>';
+    cells += '<td><input type="time"  name="new_' + idx + '_time"  class="sm-input-time" required></td>';
+    cells += '<td><select             name="new_' + idx + '_away"  class="sm-select" required>' + initialTeamOpts + '</select></td>';
+    cells += '<td><select             name="new_' + idx + '_home"  class="sm-select" required>' + initialTeamOpts + '</select></td>';
+    cells += '<td><button type="button" class="sm-remove-btn" data-idx="' + idx + '" title="Remove row">&times;</button></td>';
+
+    tr.innerHTML = cells;
+
+    /* Division change → refresh team dropdowns */
+    if (!smSingleDivId) {
+      tr.querySelector('#sm-div-sel-' + idx).addEventListener('change', function () {
+        refreshTeamSelects(this.dataset.idx, this.value);
+      });
+    }
+
+    /* Remove button */
+    tr.querySelector('.sm-remove-btn').addEventListener('click', function () {
+      tr.remove();
+      updateHint();
+    });
+
+    document.getElementById('sm-add-tbody').appendChild(tr);
+    updateHint();
+  }
+
+  function updateHint() {
+    var hint = document.getElementById('sm-add-hint');
+    if (!hint) return;
+    hint.style.display =
+      document.querySelectorAll('#sm-add-tbody .sm-add-row').length === 0 ? '' : 'none';
+  }
+
+  document.getElementById('sm-add-btn').addEventListener('click', addRow);
+
+  /* ------------------------------------------------------------------ */
+  /* Highlight edited existing rows + live change counter                */
+  /* ------------------------------------------------------------------ */
+  var existingRows = document.querySelectorAll('.sm-game-row');
+  var countEl = document.getElementById('sm-change-count');
+
+  function updateChangedState() {
+    var changed = 0;
+    existingRows.forEach(function (row) {
+      var isChanged =
+        row.querySelector('.sm-date-input').value !== row.dataset.origDate ||
+        row.querySelector('.sm-time-input').value !== row.dataset.origTime;
+      row.classList.toggle('sm-row-changed', isChanged);
+      if (isChanged) changed++;
+    });
+    if (countEl) {
+      countEl.textContent = changed > 0
+        ? changed + ' unsaved change' + (changed !== 1 ? 's' : '')
+        : '';
+    }
+  }
+
+  existingRows.forEach(function (row) {
+    row.querySelectorAll('input').forEach(function (input) {
+      input.addEventListener('change', updateChangedState);
+      input.addEventListener('input', updateChangedState);
+    });
+  });
+})();
+</script>
+{% endblock %}

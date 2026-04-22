@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.test import TestCase
 from django.test.client import Client
 from django.test.utils import override_settings
+from django.utils.http import urlencode
 
 from leagues.forms import MatchUpForm
 from leagues.models import Division, MatchUp, Player, Season, Team, Week
@@ -1285,3 +1286,677 @@ class StatInlineMatchupQuerysetTest(TestCase):
     def test_matchup_queryset_is_empty_when_no_object_id(self):
         field = self._make_inline(object_id=None)
         self.assertEqual(field.queryset.count(), 0)
+
+
+class ScheduleManagerViewTest(TestCase):
+    """Tests for the schedule manager custom admin view."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin_user = User.objects.create_superuser(
+            username="admin", email="admin@test.com", password="adminpass123"
+        )
+        self.client.login(username="admin", password="adminpass123")
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+        self.division1 = Division.objects.create(division=1)
+        self.division2 = Division.objects.create(division=2)
+        self.tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        self.week1 = Week.objects.create(
+            division=self.division1, season=self.season, date=self.tomorrow
+        )
+        self.week2 = Week.objects.create(
+            division=self.division2, season=self.season, date=self.tomorrow
+        )
+        self.team1 = Team.objects.create(
+            team_name="A",
+            team_color="red",
+            season=self.season,
+            division=self.division1,
+            is_active=True,
+        )
+        self.team2 = Team.objects.create(
+            team_name="B",
+            team_color="blue",
+            season=self.season,
+            division=self.division1,
+            is_active=True,
+        )
+        self.team3 = Team.objects.create(
+            team_name="C",
+            team_color="green",
+            season=self.season,
+            division=self.division2,
+            is_active=True,
+        )
+        self.team4 = Team.objects.create(
+            team_name="D",
+            team_color="white",
+            season=self.season,
+            division=self.division2,
+            is_active=True,
+        )
+        self.matchup1 = MatchUp.objects.create(
+            week=self.week1,
+            time=datetime.time(18, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+        )
+        self.matchup2 = MatchUp.objects.create(
+            week=self.week2,
+            time=datetime.time(19, 0),
+            awayteam=self.team3,
+            hometeam=self.team4,
+        )
+
+    def _url(self, **params):
+        base = reverse("admin:leagues_matchup_schedule_manager")
+        return base + ("?" + urlencode(params) if params else "")
+
+    def test_get_no_filters_shows_prompt(self):
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a filter above")
+        self.assertFalse(response.context["has_results"])
+
+    def test_get_division_filter_shows_only_that_division(self):
+        response = self.client.get(self._url(division_id=self.division1.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["has_results"])
+        dates = response.context["matchups_by_date"]
+        games = [g for gs in dates.values() for g in gs]
+        pks = [g.pk for g in games]
+        self.assertIn(self.matchup1.pk, pks)
+        self.assertNotIn(self.matchup2.pk, pks)
+
+    def test_get_date_filter_shows_all_divisions_on_that_date(self):
+        response = self.client.get(
+            self._url(filter_date=self.tomorrow.strftime("%Y-%m-%d"))
+        )
+        self.assertEqual(response.status_code, 200)
+        dates = response.context["matchups_by_date"]
+        games = [g for gs in dates.values() for g in gs]
+        pks = [g.pk for g in games]
+        self.assertIn(self.matchup1.pk, pks)
+        self.assertIn(self.matchup2.pk, pks)
+
+    def test_get_both_filters_narrows_correctly(self):
+        response = self.client.get(
+            self._url(
+                division_id=self.division1.pk,
+                filter_date=self.tomorrow.strftime("%Y-%m-%d"),
+            )
+        )
+        dates = response.context["matchups_by_date"]
+        games = [g for gs in dates.values() for g in gs]
+        pks = [g.pk for g in games]
+        self.assertIn(self.matchup1.pk, pks)
+        self.assertNotIn(self.matchup2.pk, pks)
+
+    def test_past_games_excluded(self):
+        past_week = Week.objects.create(
+            division=self.division1,
+            season=self.season,
+            date=datetime.date.today() - datetime.timedelta(days=1),
+        )
+        past_game = MatchUp.objects.create(
+            week=past_week,
+            time=datetime.time(18, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+        )
+        response = self.client.get(self._url(division_id=self.division1.pk))
+        dates = response.context["matchups_by_date"]
+        all_pks = [g.pk for gs in dates.values() for g in gs]
+        self.assertNotIn(past_game.pk, all_pks)
+
+    def test_cancelled_games_excluded(self):
+        cancelled = MatchUp.objects.create(
+            week=self.week1,
+            time=datetime.time(20, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+            is_cancelled=True,
+        )
+        response = self.client.get(self._url(division_id=self.division1.pk))
+        dates = response.context["matchups_by_date"]
+        all_pks = [g.pk for gs in dates.values() for g in gs]
+        self.assertNotIn(cancelled.pk, all_pks)
+
+    def test_post_updates_time(self):
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": str(self.division1.pk),
+            "filter_date": "",
+            "matchup_pks": str(self.matchup1.pk),
+            f"m_{self.matchup1.pk}_date": self.tomorrow.strftime("%Y-%m-%d"),
+            f"m_{self.matchup1.pk}_time": "20:00",
+        }
+        self.client.post(url, data)
+        self.matchup1.refresh_from_db()
+        self.assertEqual(self.matchup1.time, datetime.time(20, 0))
+
+    def test_post_updates_date_and_creates_new_week(self):
+        new_date = self.tomorrow + datetime.timedelta(days=7)
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": str(self.division1.pk),
+            "filter_date": "",
+            "matchup_pks": str(self.matchup1.pk),
+            f"m_{self.matchup1.pk}_date": new_date.strftime("%Y-%m-%d"),
+            f"m_{self.matchup1.pk}_time": self.matchup1.time.strftime("%H:%M"),
+        }
+        self.client.post(url, data)
+        self.matchup1.refresh_from_db()
+        self.assertEqual(self.matchup1.week.date, new_date)
+        self.assertTrue(
+            Week.objects.filter(
+                division=self.division1, season=self.season, date=new_date
+            ).exists()
+        )
+
+    def test_post_reuses_existing_week_when_date_matches(self):
+        new_date = self.tomorrow + datetime.timedelta(days=7)
+        existing_week = Week.objects.create(
+            division=self.division1, season=self.season, date=new_date
+        )
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": "",
+            "filter_date": "",
+            "matchup_pks": str(self.matchup1.pk),
+            f"m_{self.matchup1.pk}_date": new_date.strftime("%Y-%m-%d"),
+            f"m_{self.matchup1.pk}_time": self.matchup1.time.strftime("%H:%M"),
+        }
+        self.client.post(url, data)
+        self.matchup1.refresh_from_db()
+        self.assertEqual(self.matchup1.week_id, existing_week.pk)
+        # No duplicate week created
+        self.assertEqual(
+            Week.objects.filter(
+                division=self.division1, season=self.season, date=new_date
+            ).count(),
+            1,
+        )
+
+    def test_post_no_changes_shows_info_message(self):
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": "",
+            "filter_date": "",
+            "matchup_pks": str(self.matchup1.pk),
+            f"m_{self.matchup1.pk}_date": self.tomorrow.strftime("%Y-%m-%d"),
+            f"m_{self.matchup1.pk}_time": self.matchup1.time.strftime("%H:%M"),
+        }
+        response = self.client.post(url, data, follow=True)
+        messages_list = list(response.context["messages"])
+        self.assertTrue(any("No changes" in str(m) for m in messages_list))
+
+    def test_post_redirects_with_filters_preserved(self):
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": str(self.division1.pk),
+            "filter_date": self.tomorrow.strftime("%Y-%m-%d"),
+            "matchup_pks": "",
+        }
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"division_id={self.division1.pk}", response["Location"])
+        self.assertIn(self.tomorrow.strftime("%Y-%m-%d"), response["Location"])
+
+    def test_post_adds_new_matchup(self):
+        new_date = self.tomorrow + datetime.timedelta(days=14)
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": str(self.division1.pk),
+            "filter_date": "",
+            "matchup_pks": "",
+            "new_row_count": "1",
+            "new_0_date": new_date.strftime("%Y-%m-%d"),
+            "new_0_time": "18:00",
+            "new_0_away": str(self.team1.pk),
+            "new_0_home": str(self.team2.pk),
+            "new_0_division_id": str(self.division1.pk),
+        }
+        response = self.client.post(url, data, follow=True)
+        self.assertTrue(
+            MatchUp.objects.filter(
+                awayteam=self.team1,
+                hometeam=self.team2,
+                week__date=new_date,
+                time=datetime.time(18, 0),
+            ).exists()
+        )
+        messages_list = list(response.context["messages"])
+        self.assertTrue(any("added" in str(m) for m in messages_list))
+
+    def test_post_adds_and_updates_in_same_request(self):
+        new_date = self.tomorrow + datetime.timedelta(days=14)
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": "",
+            "filter_date": "",
+            "matchup_pks": str(self.matchup1.pk),
+            f"m_{self.matchup1.pk}_date": self.tomorrow.strftime("%Y-%m-%d"),
+            f"m_{self.matchup1.pk}_time": "20:00",  # changed
+            "new_row_count": "1",
+            "new_0_date": new_date.strftime("%Y-%m-%d"),
+            "new_0_time": "19:00",
+            "new_0_away": str(self.team1.pk),
+            "new_0_home": str(self.team2.pk),
+            "new_0_division_id": str(self.division1.pk),
+        }
+        response = self.client.post(url, data, follow=True)
+        self.matchup1.refresh_from_db()
+        self.assertEqual(self.matchup1.time, datetime.time(20, 0))
+        self.assertTrue(MatchUp.objects.filter(week__date=new_date).exists())
+        messages_list = list(response.context["messages"])
+        msg_text = " ".join(str(m) for m in messages_list)
+        self.assertIn("added", msg_text)
+        self.assertIn("updated", msg_text)
+
+    def test_post_add_skips_incomplete_rows(self):
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        initial_count = MatchUp.objects.count()
+        data = {
+            "_save": "1",
+            "division_id": "",
+            "filter_date": "",
+            "matchup_pks": "",
+            "new_row_count": "1",
+            "new_0_date": self.tomorrow.strftime("%Y-%m-%d"),
+            "new_0_time": "18:00",
+            # missing away/home/division — should be skipped
+        }
+        self.client.post(url, data)
+        self.assertEqual(MatchUp.objects.count(), initial_count)
+
+    def test_post_add_creates_week_if_needed(self):
+        new_date = self.tomorrow + datetime.timedelta(days=21)
+        self.assertFalse(
+            Week.objects.filter(division=self.division1, date=new_date).exists()
+        )
+        url = reverse("admin:leagues_matchup_schedule_manager")
+        data = {
+            "_save": "1",
+            "division_id": str(self.division1.pk),
+            "filter_date": "",
+            "matchup_pks": "",
+            "new_row_count": "1",
+            "new_0_date": new_date.strftime("%Y-%m-%d"),
+            "new_0_time": "18:00",
+            "new_0_away": str(self.team1.pk),
+            "new_0_home": str(self.team2.pk),
+            "new_0_division_id": str(self.division1.pk),
+        }
+        self.client.post(url, data)
+        self.assertTrue(
+            Week.objects.filter(division=self.division1, date=new_date).exists()
+        )
+
+    def test_get_includes_teams_by_division_json(self):
+        import json
+
+        response = self.client.get(self._url(division_id=self.division1.pk))
+        self.assertIn("teams_by_division_json", response.context)
+        teams_map = json.loads(response.context["teams_by_division_json"])
+        div_teams = teams_map.get(str(self.division1.pk), [])
+        team_ids = [t["id"] for t in div_teams]
+        self.assertIn(self.team1.pk, team_ids)
+        self.assertIn(self.team2.pk, team_ids)
+
+    def test_requires_login(self):
+        self.client.logout()
+        response = self.client.get(self._url(division_id=self.division1.pk))
+        self.assertNotEqual(response.status_code, 200)
+
+
+class MatchUpSaveRedirectTest(TestCase):
+    """Tests for MatchUpAdmin save button behaviour."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin_user = User.objects.create_superuser(
+            username="admin", email="admin@test.com", password="adminpass123"
+        )
+        self.client.login(username="admin", password="adminpass123")
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date.today(),
+        )
+        self.team1 = Team.objects.create(
+            team_name="Home",
+            team_color="red",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.team2 = Team.objects.create(
+            team_name="Away",
+            team_color="blue",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            awayteam=self.team2,
+            hometeam=self.team1,
+        )
+
+    def _post_save(self, button="_save"):
+        url = reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+        data = {
+            button: "1",
+            "week": self.week.pk,
+            "time": "07:00 PM",
+            "awayteam": self.team2.pk,
+            "hometeam": self.team1.pk,
+            "away_goalie_status": 3,
+            "home_goalie_status": 3,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+        }
+        return self.client.post(url, data)
+
+    def test_save_redirects_to_admin_home(self):
+        response = self._post_save("_save")
+        self.assertRedirects(response, reverse("admin:index"))
+
+    def test_save_and_continue_stays_on_change_page(self):
+        response = self._post_save("_continue")
+        expected = reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+        self.assertRedirects(response, expected)
+
+    def test_save_and_add_another_button_is_not_shown(self):
+        url = reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "_addanother")
+
+
+class StatAutofillTeamTest(TestCase):
+    """Tests for change_view passing the player→team map used by stat_autofill_team.js."""
+
+    def setUp(self):
+        self.client = Client()
+        self.admin_user = User.objects.create_superuser(
+            username="admin", email="admin@test.com", password="adminpass123"
+        )
+        self.client.login(username="admin", password="adminpass123")
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.today = datetime.date.today()
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=self.today
+        )
+        self.team1 = Team.objects.create(
+            team_name="Home Team",
+            team_color="red",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.team2 = Team.objects.create(
+            team_name="Away Team",
+            team_color="blue",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            awayteam=self.team2,
+            hometeam=self.team1,
+        )
+        self.player1 = Player.objects.create(
+            first_name="Alice", last_name="Smith", is_active=True
+        )
+        self.player2 = Player.objects.create(
+            first_name="Bob", last_name="Jones", is_active=True
+        )
+        from leagues.models import Roster
+
+        Roster.objects.create(player=self.player1, team=self.team1, position1=3)
+        Roster.objects.create(player=self.player2, team=self.team2, position1=3)
+
+    def _change_url(self):
+        return reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+
+    def test_change_view_includes_player_team_map_json(self):
+        import json
+
+        response = self.client.get(self._change_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("player_team_map_json", response.context)
+        mapping = json.loads(response.context["player_team_map_json"])
+        self.assertEqual(mapping[str(self.player1.pk)], str(self.team1.pk))
+        self.assertEqual(mapping[str(self.player2.pk)], str(self.team2.pk))
+
+    def test_map_excludes_players_not_on_either_roster(self):
+        import json
+
+        other_player = Player.objects.create(
+            first_name="Other", last_name="Guy", is_active=True
+        )
+        response = self.client.get(self._change_url())
+        mapping = json.loads(response.context["player_team_map_json"])
+        self.assertNotIn(str(other_player.pk), mapping)
+
+    def test_map_contains_both_teams_players(self):
+        import json
+
+        response = self.client.get(self._change_url())
+        mapping = json.loads(response.context["player_team_map_json"])
+        self.assertIn(str(self.player1.pk), mapping)
+        self.assertIn(str(self.player2.pk), mapping)
+
+
+class StatsEntryWidgetTest(TestCase):
+    """Tests for the stats_entry_widget templatetag."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.today = datetime.date.today()
+        self.team1 = Team.objects.create(
+            team_name="Red Team",
+            team_color="red",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.team2 = Team.objects.create(
+            team_name="Blue Team",
+            team_color="blue",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.player = Player.objects.create(
+            first_name="Test",
+            last_name="Player",
+            is_active=True,
+        )
+
+    def _week(self, delta=0, cancelled=False):
+        return Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today - datetime.timedelta(days=delta),
+            is_cancelled=cancelled,
+        )
+
+    def _matchup(self, week, cancelled=False):
+        return MatchUp.objects.create(
+            week=week,
+            time=datetime.time(19, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+            is_cancelled=cancelled,
+        )
+
+    def _call_widget(self):
+        from leagues.templatetags.admin_quick_cancel import stats_entry_widget
+
+        return stats_entry_widget()
+
+    def test_recent_game_with_no_stats_appears_with_zero_count(self):
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        ctx = self._call_widget()
+        all_games = [
+            g
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        pks = [g.pk for g in all_games]
+        self.assertIn(game.pk, pks)
+        match = next(g for g in all_games if g.pk == game.pk)
+        self.assertEqual(match.stat_count, 0)
+
+    def test_game_with_stats_shows_correct_count(self):
+        from leagues.models import Stat
+
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        Stat.objects.create(
+            player=self.player, team=self.team1, matchup=game, goals=1, assists=0
+        )
+        Stat.objects.create(
+            player=self.player, team=self.team2, matchup=game, goals=0, assists=1
+        )
+        ctx = self._call_widget()
+        all_games = [
+            g
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        match = next(g for g in all_games if g.pk == game.pk)
+        self.assertEqual(match.stat_count, 2)
+
+    def test_cancelled_matchup_excluded(self):
+        week = self._week(delta=1)
+        cancelled_game = self._matchup(week, cancelled=True)
+        ctx = self._call_widget()
+        all_pks = [
+            g.pk
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        self.assertNotIn(cancelled_game.pk, all_pks)
+
+    def test_cancelled_week_excluded(self):
+        week = self._week(delta=1, cancelled=True)
+        game = self._matchup(week)
+        ctx = self._call_widget()
+        all_pks = [
+            g.pk
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        self.assertNotIn(game.pk, all_pks)
+
+    def test_game_older_than_seven_days_excluded(self):
+        week = self._week(delta=8)
+        old_game = self._matchup(week)
+        ctx = self._call_widget()
+        all_pks = [
+            g.pk
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        self.assertNotIn(old_game.pk, all_pks)
+
+    def test_future_game_excluded(self):
+        future_week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=1),
+        )
+        future_game = self._matchup(future_week)
+        ctx = self._call_widget()
+        all_pks = [
+            g.pk
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        self.assertNotIn(future_game.pk, all_pks)
+
+    def test_all_entered_flag_true_when_all_games_have_stats(self):
+        from leagues.models import Stat
+
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        Stat.objects.create(player=self.player, team=self.team1, matchup=game, goals=1)
+        ctx = self._call_widget()
+        date_info = ctx["grouped_games"][self.today - datetime.timedelta(days=1)]
+        self.assertTrue(date_info["divisions"][0]["all_entered"])
+
+    def test_any_missing_flag_true_when_a_game_lacks_stats(self):
+        week = self._week(delta=1)
+        self._matchup(week)
+        ctx = self._call_widget()
+        date_info = ctx["grouped_games"][self.today - datetime.timedelta(days=1)]
+        self.assertTrue(date_info["divisions"][0]["any_missing"])
+
+    def test_dates_ordered_most_recent_first(self):
+        week_yesterday = self._week(delta=1)
+        week_two_days_ago = self._week(delta=2)
+        self._matchup(week_yesterday)
+        self._matchup(week_two_days_ago)
+        ctx = self._call_widget()
+        dates = list(ctx["grouped_games"].keys())
+        self.assertGreater(dates[0], dates[1])
+
+    def test_games_grouped_by_date(self):
+        week_yesterday = self._week(delta=1)
+        week_two_days_ago = self._week(delta=2)
+        game1 = self._matchup(week_yesterday)
+        game2 = self._matchup(week_two_days_ago)
+        ctx = self._call_widget()
+        yesterday = self.today - datetime.timedelta(days=1)
+        two_days_ago = self.today - datetime.timedelta(days=2)
+        self.assertIn(yesterday, ctx["grouped_games"])
+        self.assertIn(two_days_ago, ctx["grouped_games"])
+        yesterday_pks = [
+            g.pk
+            for d in ctx["grouped_games"][yesterday]["divisions"]
+            for g in d["games"]
+        ]
+        two_days_ago_pks = [
+            g.pk
+            for d in ctx["grouped_games"][two_days_ago]["divisions"]
+            for g in d["games"]
+        ]
+        self.assertIn(game1.pk, yesterday_pks)
+        self.assertNotIn(game2.pk, yesterday_pks)
+        self.assertIn(game2.pk, two_days_ago_pks)
+        self.assertNotIn(game1.pk, two_days_ago_pks)
