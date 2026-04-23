@@ -194,11 +194,12 @@ def captain_goalie_update(request, access_code):
         .order_by("week__date", "time")
     )
 
-    # Get all goalies for the dropdown (position1=4 means Goalie)
-    # Only include active players
+    # Get all goalies for the dropdown: players rostered as goalie on any team,
+    # plus any player flagged can_play_goalie (e.g. a multi-position player who
+    # occasionally fills in at goal but isn't officially rostered there).
     all_goalies = (
         Player.objects.filter(
-            Q(roster__position1=4) | Q(roster__position2=4),
+            Q(roster__position1=4) | Q(roster__position2=4) | Q(can_play_goalie=True),
             is_active=True,
         )
         .distinct()

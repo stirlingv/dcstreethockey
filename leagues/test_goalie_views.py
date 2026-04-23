@@ -473,3 +473,74 @@ class UpdateGoalieStatusEndpointTest(TestCase):
         self.matchup.refresh_from_db()
         self.assertIsNone(self.matchup.home_goalie)
         self.assertEqual(self.matchup.home_goalie_status, 1)
+
+
+# ---------------------------------------------------------------------------
+# can_play_goalie flag
+# ---------------------------------------------------------------------------
+
+
+class CanPlayGoalieTest(TestCase):
+    """Players flagged can_play_goalie appear in goalie sub dropdowns even when
+    they have no goalie position on any roster entry."""
+
+    def setUp(self):
+        self.client = Client()
+        season = make_season()
+        self.division = make_division()
+        self.team = make_team("Test Team", self.division, season)
+        self.opponent = make_team("Opponent", self.division, season, color="Blue")
+        self.week = make_week(self.division, season, offset_days=3)
+        self.matchup = make_matchup(self.week, self.team, self.opponent)
+
+        # Roster goalie so the page renders properly
+        self.roster_goalie = Player.objects.create(
+            first_name="Roster", last_name="Goalie", is_active=True
+        )
+        Roster.objects.create(
+            player=self.roster_goalie,
+            team=self.team,
+            position1=4,
+            is_captain=False,
+            is_primary_goalie=True,
+        )
+
+    def _url(self):
+        return reverse(
+            "captain_goalie_update", args=[str(self.team.captain_access_code)]
+        )
+
+    def test_can_play_goalie_player_appears_in_all_goalies(self):
+        """A non-goalie player with can_play_goalie=True should appear in the dropdown."""
+        flex = Player.objects.create(
+            first_name="Flex", last_name="Player", is_active=True, can_play_goalie=True
+        )
+        Roster.objects.create(
+            player=flex, team=self.team, position1=3, is_captain=False
+        )
+        response = self.client.get(self._url())
+        self.assertIn(flex, response.context["all_goalies"])
+
+    def test_non_goalie_without_flag_excluded_from_all_goalies(self):
+        """A non-goalie player without can_play_goalie should NOT appear in the dropdown."""
+        defender = Player.objects.create(
+            first_name="Def", last_name="Ender", is_active=True, can_play_goalie=False
+        )
+        Roster.objects.create(
+            player=defender, team=self.team, position1=3, is_captain=False
+        )
+        response = self.client.get(self._url())
+        self.assertNotIn(defender, response.context["all_goalies"])
+
+    def test_inactive_can_play_goalie_player_excluded(self):
+        """can_play_goalie has no effect for inactive players."""
+        inactive = Player.objects.create(
+            first_name="Old", last_name="Timer", is_active=False, can_play_goalie=True
+        )
+        response = self.client.get(self._url())
+        self.assertNotIn(inactive, response.context["all_goalies"])
+
+    def test_rostered_goalie_still_appears_without_flag(self):
+        """The existing logic still works — goalie position on roster is sufficient."""
+        response = self.client.get(self._url())
+        self.assertIn(self.roster_goalie, response.context["all_goalies"])

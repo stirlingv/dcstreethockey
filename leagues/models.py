@@ -80,6 +80,10 @@ class Player(models.Model):
         default=True,
         help_text="Inactive players won't appear in goalie dropdowns",
     )
+    can_play_goalie = models.BooleanField(
+        default=False,
+        help_text="If checked, this player appears in goalie sub dropdowns even if not rostered as a goalie (e.g. a player who occasionally fills in at goal).",
+    )
     exclude_from_auto_deactivation = models.BooleanField(
         default=False,
         help_text="If checked, this player won't be auto-deactivated by the cleanup command (e.g., available subs not on a roster)",
