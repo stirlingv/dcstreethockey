@@ -210,7 +210,9 @@ class GoalieListFilter(SimpleListFilter):
     def queryset(self, request, queryset):
         if self.value() == "yes":
             return queryset.filter(
-                Q(roster__position1=4) | Q(roster__position2=4)
+                Q(roster__position1=4)
+                | Q(roster__position2=4)
+                | Q(can_play_goalie=True)
             ).distinct()
         return queryset
 
@@ -341,8 +343,13 @@ class PlayerAdmin(admin.ModelAdmin):
     search_fields = ["last_name", "first_name"]
     list_select_related = ("player_photo",)
     list_filter = [GoalieListFilter, PlayerActiveFilter]
-    list_display = ["__str__", "is_active", "exclude_from_auto_deactivation"]
-    list_editable = ["is_active", "exclude_from_auto_deactivation"]
+    list_display = [
+        "__str__",
+        "is_active",
+        "can_play_goalie",
+        "exclude_from_auto_deactivation",
+    ]
+    list_editable = ["is_active", "can_play_goalie", "exclude_from_auto_deactivation"]
 
 
 class StatInline(admin.TabularInline):
@@ -367,9 +374,12 @@ class StatInline(admin.TabularInline):
                 rostered_players = Player.objects.filter(
                     roster__team__in=[match.hometeam, match.awayteam]
                 )
-                # All active players who are a goalie in any roster
+                # All active players who are a goalie in any roster, or flagged as
+                # able to play goalie (e.g. occasional fill-ins not rostered at 4)
                 goalie_players = Player.objects.filter(
-                    Q(roster__position1=4) | Q(roster__position2=4),
+                    Q(roster__position1=4)
+                    | Q(roster__position2=4)
+                    | Q(can_play_goalie=True),
                     is_active=True,
                 )
                 # Union of both querysets
@@ -914,7 +924,7 @@ class MatchUpGoalieStatusAdmin(admin.ModelAdmin):
         ).values_list("player_id", flat=True)
 
         return (
-            Player.objects.filter(id__in=goalie_player_ids)
+            Player.objects.filter(Q(id__in=goalie_player_ids) | Q(can_play_goalie=True))
             .filter(Q(is_active=True) | Q(roster__team__season__year__in=recent_years))
             .distinct()
             .order_by("last_name", "first_name")
