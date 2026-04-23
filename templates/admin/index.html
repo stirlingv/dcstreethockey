@@ -13,27 +13,66 @@
 
 {% block content %}
 <div id="content-main">
+
+  {# ── Time-sensitive: cancel games ── #}
   {% if perms.leagues.can_quick_cancel_games %}
   {% quick_cancel_widget %}
   {% endif %}
+
+  {# ── Regular task: enter stats for recent games ── #}
   {% stats_entry_widget %}
 
+  {# ── Tools & pending actions ── #}
   <div class="module" style="margin-bottom:20px;">
-    <h2>Staff Tools</h2>
-    <div style="padding:10px 12px;">
+    <h2>Tools</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;padding:12px;">
+
       <a href="{% url 'admin:leagues_matchup_schedule_manager' %}"
-         style="display:inline-block;padding:8px 16px;background:#417690;color:#fff;
-                font-size:13px;font-weight:600;border-radius:4px;text-decoration:none;">
-        Manage Schedule
+         style="display:flex;align-items:center;gap:8px;padding:10px 16px;
+                background:#417690;color:#fff;font-size:13px;font-weight:600;
+                border-radius:4px;text-decoration:none;min-height:44px;">
+        &#128197; Manage Schedule
       </a>
-      <span style="margin-left:10px;font-size:12px;color:#888;">
-        Update game dates &amp; times by division or date
-      </span>
+
+      {% if pending_photo_count %}
+      <a href="{% url 'admin:leagues_pendingplayerphoto_changelist' %}"
+         style="display:flex;align-items:center;gap:8px;padding:10px 16px;
+                background:#e65c00;color:#fff;font-size:13px;font-weight:600;
+                border-radius:4px;text-decoration:none;min-height:44px;">
+        &#128247; {{ pending_photo_count }} photo{{ pending_photo_count|pluralize }} to review
+      </a>
+      {% endif %}
+
     </div>
   </div>
 
-  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+  {# ── All models, collapsed by default ── #}
+  <details id="all-models-section" style="margin-bottom:20px;">
+    <summary style="cursor:pointer;padding:10px 14px;background:#f8f8f8;
+                    border:1px solid #ddd;border-radius:4px;font-size:13px;
+                    font-weight:600;color:#555;list-style:none;
+                    display:flex;align-items:center;gap:6px;">
+      <span id="all-models-chevron" style="font-size:11px;transition:transform 0.15s;">&#9658;</span>
+      All models
+    </summary>
+    <div style="border:1px solid #ddd;border-top:none;border-radius:0 0 4px 4px;padding:8px 0;">
+      {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+    </div>
+  </details>
+
 </div>
+<script>
+  // Rotate chevron when details opens/closes
+  (function() {
+    var details = document.getElementById('all-models-section');
+    var chevron = document.getElementById('all-models-chevron');
+    if (details && chevron) {
+      details.addEventListener('toggle', function() {
+        chevron.style.transform = details.open ? 'rotate(90deg)' : '';
+      });
+    }
+  })();
+</script>
 {% endblock %}
 
 {% block sidebar %}
