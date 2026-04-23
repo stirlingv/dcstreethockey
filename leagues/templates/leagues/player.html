@@ -129,50 +129,68 @@
         gap: 8px;
         margin-bottom: 14px;
     }
-    /* Player avatar */
+    /* Player header: avatar left, name+stats right */
+    .player-header-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 18px;
+        margin-bottom: 16px;
+    }
     .player-avatar-wrap {
+        flex-shrink: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
-        margin-bottom: 14px;
     }
     .player-avatar {
-        width: 110px;
-        height: 110px;
+        width: 84px;
+        height: 84px;
         border-radius: 50%;
         object-fit: cover;
         border: 3px solid #ddd;
         display: block;
     }
     .player-avatar-placeholder {
-        width: 110px;
-        height: 110px;
+        width: 84px;
+        height: 84px;
         border-radius: 50%;
         background: #e8e8e8;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 2.4rem;
+        font-size: 2rem;
         font-weight: 700;
         color: #aaa;
         letter-spacing: -2px;
     }
+    .player-header-text {
+        min-width: 0;
+        padding-top: 4px;
+    }
     .player-photo-upload-link {
         display: inline-block;
-        margin-top: 7px;
-        font-size: 0.82rem;
-        color: #888;
+        margin-top: 6px;
+        font-size: 0.78rem;
+        color: #aaa;
         text-decoration: none;
-        border-bottom: 1px dotted #bbb;
+        border-bottom: 1px dotted #ccc;
     }
     .player-photo-upload-link:hover {
-        color: #555;
+        color: #666;
     }
     @media (max-width: 767px) {
+        .player-header-row {
+            flex-direction: column;
+            align-items: center;
+        }
+        .player-header-text {
+            text-align: center;
+            width: 100%;
+        }
         .player-avatar, .player-avatar-placeholder {
-            width: 80px;
-            height: 80px;
-            font-size: 1.7rem;
+            width: 72px;
+            height: 72px;
+            font-size: 1.6rem;
         }
     }
 </style>
@@ -184,18 +202,24 @@
             <div class="row">
                 <div class="{% if both_snapshots %}6u{% else %}8u{% endif %} 12u(mobile)">
                     {% if player %}
-                    <div class="player-avatar-wrap">
-                        {% if player.player_photo and player.player_photo.photo %}
-                            <img src="{{ player.player_photo.photo.url }}"
-                                 alt="{{ player.first_name }} {{ player.last_name }}"
-                                 class="player-avatar">
-                        {% else %}
-                            <div class="player-avatar-placeholder" title="No photo yet">
-                                {{ player.first_name|slice:":1" }}{{ player.last_name|slice:":1" }}
-                            </div>
-                            <a href="{% url 'upload_player_photo' player.id %}" class="player-photo-upload-link">+ Add photo</a>
-                        {% endif %}
-                    </div>
+                    <div class="player-header-row">
+                        <div class="player-avatar-wrap">
+                            {% if player.player_photo and player.player_photo.photo %}
+                                <img src="{{ player.player_photo.photo.url }}"
+                                     alt="{{ player.first_name }} {{ player.last_name }}"
+                                     class="player-avatar"
+                                     data-photo-url="{{ player.player_photo.photo.url }}"
+                                     style="cursor:zoom-in;"
+                                     title="Click to enlarge">
+                                <a href="{% url 'upload_player_photo' player.id %}" class="player-photo-upload-link">Change photo</a>
+                            {% else %}
+                                <div class="player-avatar-placeholder" title="No photo yet">
+                                    {{ player.first_name|slice:":1" }}{{ player.last_name|slice:":1" }}
+                                </div>
+                                <a href="{% url 'upload_player_photo' player.id %}" class="player-photo-upload-link">+ Add photo</a>
+                            {% endif %}
+                        </div>
+                        <div class="player-header-text">
                     <div class="title">
                         {{ player.first_name }} {{ player.last_name }}
                     </div>
@@ -215,6 +239,8 @@
                             Post Season Average Assists/Season: {{ average_stats.postseason.average_assists_per_season|default:0|floatformat:2 }}
                         </h3>
                     {% endif %}
+                        </div>{# /player-header-text #}
+                    </div>{# /player-header-row #}
                     {% endif %}
                 </div>
                 <div class="{% if both_snapshots %}6u{% else %}4u{% endif %} 12u(mobile)">
@@ -539,6 +565,44 @@
             }
         });
     });
+</script>
+{% endif %}
+{% if player.player_photo and player.player_photo.photo %}
+<script>
+(function () {
+    function init() {
+        var modal = document.createElement('div');
+        modal.id = 'avatar-modal';
+        modal.style.cssText =
+            'display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);' +
+            'z-index:9999;cursor:zoom-out;align-items:center;justify-content:center;';
+        modal.innerHTML =
+            '<img id="avatar-modal-img" style="max-width:90%;max-height:90%;' +
+            'border-radius:6px;box-shadow:0 8px 32px rgba(0,0,0,.5);">';
+        modal.addEventListener('click', function () {
+            modal.style.display = 'none';
+        });
+        document.body.appendChild(modal);
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') modal.style.display = 'none';
+        });
+
+        document.addEventListener('click', function (e) {
+            var target = e.target.closest('[data-photo-url]');
+            if (!target) return;
+            e.preventDefault();
+            document.getElementById('avatar-modal-img').src = target.dataset.photoUrl;
+            modal.style.display = 'flex';
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
 </script>
 {% endif %}
 {% endblock %}

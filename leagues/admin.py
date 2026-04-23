@@ -8,7 +8,7 @@ from django.utils.http import urlencode
 from django.utils.html import format_html
 from django.utils import timezone
 from django.urls import reverse, path
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.http import HttpResponseRedirect
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
@@ -1332,10 +1332,15 @@ class PlayerPhotoAdmin(admin.ModelAdmin):
 def approve_pending_photos(modeladmin, request, queryset):
     approved = 0
     for pending in queryset.select_related("player"):
+        old_live_photo = pending.player.player_photo
         live_photo = PlayerPhoto.objects.create(photo=pending.photo.name)
         pending.player.player_photo = live_photo
         pending.player.save()
         pending.delete()
+        # Clean up the previous live photo (file + record) now that it's replaced.
+        if old_live_photo:
+            old_live_photo.photo.delete(save=False)
+            old_live_photo.delete()
         approved += 1
     modeladmin.message_user(
         request,
@@ -1344,9 +1349,29 @@ def approve_pending_photos(modeladmin, request, queryset):
     )
 
 
+@admin.action(description="Reject selected photos and delete from storage")
+def reject_pending_photos(modeladmin, request, queryset):
+    rejected = 0
+    for pending in queryset:
+        pending.photo.delete(save=False)
+        pending.delete()
+        rejected += 1
+    modeladmin.message_user(
+        request,
+        f"{rejected} photo(s) rejected and deleted.",
+        messages.SUCCESS,
+    )
+
+
 @admin.register(PendingPlayerPhoto)
 class PendingPlayerPhotoAdmin(admin.ModelAdmin):
-    list_display = ["player", "photo_preview", "submitter_email", "submitted_at"]
+    list_display = [
+        "player",
+        "photo_preview",
+        "submitter_email",
+        "submitted_at",
+        "row_actions",
+    ]
     list_filter = []
     readonly_fields = [
         "player",
@@ -1355,12 +1380,71 @@ class PendingPlayerPhotoAdmin(admin.ModelAdmin):
         "submitter_email",
         "submitter_note",
     ]
-    actions = [approve_pending_photos]
+    actions = [approve_pending_photos, reject_pending_photos]
+
+    class Media:
+        js = ("admin/js/pending_photo_modal.js",)
+
+    # ------------------------------------------------------------------
+    # Custom URLs: single-item approve / reject
+    # ------------------------------------------------------------------
+
+    def get_urls(self):
+        custom = [
+            path(
+                "<int:pk>/approve/",
+                self.admin_site.admin_view(self.approve_single_view),
+                name="leagues_pendingplayerphoto_approve_single",
+            ),
+            path(
+                "<int:pk>/reject/",
+                self.admin_site.admin_view(self.reject_single_view),
+                name="leagues_pendingplayerphoto_reject_single",
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def approve_single_view(self, request, pk):
+        pending = get_object_or_404(PendingPlayerPhoto, pk=pk)
+        player = pending.player
+        old_live_photo = player.player_photo
+        live_photo = PlayerPhoto.objects.create(photo=pending.photo.name)
+        player.player_photo = live_photo
+        player.save()
+        pending.delete()
+        if old_live_photo:
+            old_live_photo.photo.delete(save=False)
+            old_live_photo.delete()
+        self.message_user(
+            request,
+            f"Photo for {player} approved and now live.",
+            messages.SUCCESS,
+        )
+        return redirect(reverse("admin:leagues_pendingplayerphoto_changelist"))
+
+    def reject_single_view(self, request, pk):
+        pending = get_object_or_404(PendingPlayerPhoto, pk=pk)
+        player_name = str(pending.player)
+        pending.photo.delete(save=False)
+        pending.delete()
+        self.message_user(
+            request,
+            f"Photo for {player_name} rejected and deleted.",
+            messages.SUCCESS,
+        )
+        return redirect(reverse("admin:leagues_pendingplayerphoto_changelist"))
+
+    # ------------------------------------------------------------------
+    # List display columns
+    # ------------------------------------------------------------------
 
     def photo_preview(self, obj):
         if obj.photo:
             return format_html(
-                '<img src="{}" style="height:48px; width:48px; object-fit:cover; border-radius:50%;">',
+                '<img src="{}" data-photo-url="{}" '
+                'style="height:48px;width:48px;object-fit:cover;border-radius:50%;'
+                'cursor:zoom-in;" title="Click to enlarge">',
+                obj.photo.url,
                 obj.photo.url,
             )
         return "—"
@@ -1370,12 +1454,36 @@ class PendingPlayerPhotoAdmin(admin.ModelAdmin):
     def photo_preview_large(self, obj):
         if obj.photo:
             return format_html(
-                '<img src="{}" style="max-height:240px; max-width:240px; border-radius:4px;">',
+                '<img src="{}" data-photo-url="{}" '
+                'style="max-height:240px;max-width:240px;border-radius:4px;'
+                'cursor:zoom-in;" title="Click to enlarge">',
+                obj.photo.url,
                 obj.photo.url,
             )
         return "—"
 
     photo_preview_large.short_description = "Photo"
+
+    def row_actions(self, obj):
+        approve_url = reverse(
+            "admin:leagues_pendingplayerphoto_approve_single", args=[obj.pk]
+        )
+        reject_url = reverse(
+            "admin:leagues_pendingplayerphoto_reject_single", args=[obj.pk]
+        )
+        return format_html(
+            '<a href="{}" style="display:inline-block;padding:5px 12px;background:#2e7d32;'
+            "color:#fff;border-radius:3px;font-size:12px;font-weight:600;"
+            'text-decoration:none;margin-right:6px;">Approve</a>'
+            '<a href="{}" style="display:inline-block;padding:5px 12px;background:#c62828;'
+            "color:#fff;border-radius:3px;font-size:12px;font-weight:600;"
+            'text-decoration:none;" '
+            "onclick=\"return confirm('Permanently delete this photo?')\">Reject</a>",
+            approve_url,
+            reject_url,
+        )
+
+    row_actions.short_description = ""
 
 
 admin.site.register(Player, PlayerAdmin)

@@ -14,7 +14,11 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.test.client import Client
 from django.urls import reverse
 
-from leagues.admin import PendingPlayerPhotoAdmin, approve_pending_photos
+from leagues.admin import (
+    PendingPlayerPhotoAdmin,
+    approve_pending_photos,
+    reject_pending_photos,
+)
 from leagues.models import PendingPlayerPhoto, Player, PlayerPhoto
 
 
@@ -108,6 +112,20 @@ class UploadPlayerPhotoViewTest(TestCase):
         self.player.refresh_from_db()
         self.assertIsNone(self.player.player_photo)
 
+    def test_resubmission_replaces_previous_pending(self):
+        # First submission.
+        self.client.post(self.url, {"photo": _fake_image("first.jpg")})
+        self.assertEqual(
+            PendingPlayerPhoto.objects.filter(player=self.player).count(), 1
+        )
+        first_pk = PendingPlayerPhoto.objects.get(player=self.player).pk
+
+        # Second submission should replace the first.
+        self.client.post(self.url, {"photo": _fake_image("second.jpg")})
+        pending = PendingPlayerPhoto.objects.filter(player=self.player)
+        self.assertEqual(pending.count(), 1)
+        self.assertNotEqual(pending.first().pk, first_pk)
+
 
 @override_settings(MEDIA_ROOT=_TEST_MEDIA, STORAGES=_TEST_STORAGE)
 class ApprovePendingPhotoAdminActionTest(TestCase):
@@ -163,6 +181,118 @@ class ApprovePendingPhotoAdminActionTest(TestCase):
         self.assertIsNotNone(self.player.player_photo)
         self.assertIsNotNone(player2.player_photo)
 
+    def test_approve_replaces_existing_live_photo(self):
+        # Give the player an existing live photo.
+        old_live = PlayerPhoto.objects.create(photo=_fake_image("old_live.jpg"))
+        self.player.player_photo = old_live
+        self.player.save()
+        old_live_pk = old_live.pk
+
+        request = self._make_request()
+        queryset = PendingPlayerPhoto.objects.filter(pk=self.pending.pk)
+        approve_pending_photos(self.admin, request, queryset)
+
+        # Old PlayerPhoto record is deleted.
+        self.assertFalse(PlayerPhoto.objects.filter(pk=old_live_pk).exists())
+        # Player now points to the new live photo.
+        self.player.refresh_from_db()
+        self.assertIsNotNone(self.player.player_photo)
+        self.assertNotEqual(self.player.player_photo.pk, old_live_pk)
+
+    def test_reject_deletes_record_and_file(self):
+        file_name = self.pending.photo.name
+        request = self._make_request()
+        queryset = PendingPlayerPhoto.objects.filter(pk=self.pending.pk)
+        reject_pending_photos(self.admin, request, queryset)
+
+        self.assertFalse(PendingPlayerPhoto.objects.filter(pk=self.pending.pk).exists())
+        # File should no longer exist in storage.
+        from django.core.files.storage import default_storage
+
+        self.assertFalse(default_storage.exists(file_name))
+
+    def test_reject_does_not_affect_live_photo(self):
+        # Player has an approved live photo — rejection of a pending photo
+        # must not touch it.
+        live = PlayerPhoto.objects.create(photo=_fake_image("live.jpg"))
+        self.player.player_photo = live
+        self.player.save()
+
+        request = self._make_request()
+        queryset = PendingPlayerPhoto.objects.filter(pk=self.pending.pk)
+        reject_pending_photos(self.admin, request, queryset)
+
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.player_photo.pk, live.pk)
+
+
+@override_settings(MEDIA_ROOT=_TEST_MEDIA, STORAGES=_TEST_STORAGE)
+class SingleItemApproveRejectViewTest(TestCase):
+    """Inline Approve / Reject buttons hit single-item admin views."""
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser("admin", "a@a.com", "pw")
+        self.client.force_login(self.superuser)
+        self.player = _make_player()
+        self.pending = PendingPlayerPhoto.objects.create(
+            player=self.player,
+            photo=_fake_image("pending.jpg"),
+        )
+
+    def test_approve_single_makes_photo_live(self):
+        url = f"/admin/leagues/pendingplayerphoto/{self.pending.pk}/approve/"
+        response = self.client.get(url)
+        self.assertRedirects(response, "/admin/leagues/pendingplayerphoto/")
+        self.assertFalse(PendingPlayerPhoto.objects.filter(pk=self.pending.pk).exists())
+        self.player.refresh_from_db()
+        self.assertIsNotNone(self.player.player_photo)
+
+    def test_approve_single_cleans_up_old_live_photo(self):
+        old_live = PlayerPhoto.objects.create(photo=_fake_image("old.jpg"))
+        self.player.player_photo = old_live
+        self.player.save()
+
+        url = f"/admin/leagues/pendingplayerphoto/{self.pending.pk}/approve/"
+        self.client.get(url)
+
+        self.assertFalse(PlayerPhoto.objects.filter(pk=old_live.pk).exists())
+        self.player.refresh_from_db()
+        self.assertNotEqual(self.player.player_photo.pk, old_live.pk)
+
+    def test_reject_single_deletes_record_and_file(self):
+        file_name = self.pending.photo.name
+        url = f"/admin/leagues/pendingplayerphoto/{self.pending.pk}/reject/"
+        response = self.client.get(url)
+        self.assertRedirects(response, "/admin/leagues/pendingplayerphoto/")
+        self.assertFalse(PendingPlayerPhoto.objects.filter(pk=self.pending.pk).exists())
+        from django.core.files.storage import default_storage
+
+        self.assertFalse(default_storage.exists(file_name))
+
+    def test_approve_single_requires_login(self):
+        self.client.logout()
+        url = f"/admin/leagues/pendingplayerphoto/{self.pending.pk}/approve/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/login/", response["Location"])
+
+    def test_approve_single_404_for_missing_pk(self):
+        url = "/admin/leagues/pendingplayerphoto/99999/approve/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_change_form_shows_approve_and_reject_buttons(self):
+        url = f"/admin/leagues/pendingplayerphoto/{self.pending.pk}/change/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        approve_url = f"/admin/leagues/pendingplayerphoto/{self.pending.pk}/approve/"
+        reject_url = f"/admin/leagues/pendingplayerphoto/{self.pending.pk}/reject/"
+        self.assertContains(response, approve_url)
+        self.assertContains(response, reject_url)
+        self.assertContains(response, "Approve")
+        self.assertContains(response, "Reject")
+
 
 @override_settings(MEDIA_ROOT=_TEST_MEDIA, STORAGES=_TEST_STORAGE)
 class AdminPendingPhotoBannerTest(TestCase):
@@ -217,7 +347,7 @@ class PlayerProfileAvatarTest(TestCase):
         self.assertContains(response, upload_url)
 
     @override_settings(MEDIA_ROOT=_TEST_MEDIA, STORAGES=_TEST_STORAGE)
-    def test_approved_photo_shows_img_tag(self):
+    def test_approved_photo_shows_img_and_change_link(self):
         live_photo = PlayerPhoto.objects.create(photo=_fake_image("live.jpg"))
         self.player.player_photo = live_photo
         self.player.save()
@@ -226,5 +356,6 @@ class PlayerProfileAvatarTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "player-avatar")
         self.assertContains(response, "<img")
-        # Upload link should not appear when a photo exists
-        self.assertNotContains(response, "Add photo")
+        self.assertContains(response, "Change photo")
+        upload_url = reverse("upload_player_photo", args=[self.player.id])
+        self.assertContains(response, upload_url)

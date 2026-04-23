@@ -376,6 +376,12 @@ def upload_player_photo(request, player_id):
     if request.method == "POST":
         form = PlayerPhotoUploadForm(request.POST, request.FILES)
         if form.is_valid():
+            # Replace any existing pending submission for this player so old
+            # files don't accumulate in storage.
+            for old in player.pending_photos.all():
+                old.photo.delete(save=False)
+                old.delete()
+
             PendingPlayerPhoto.objects.create(
                 player=player,
                 photo=form.cleaned_data["photo"],
