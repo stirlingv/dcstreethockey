@@ -1,6 +1,5 @@
 import datetime
 import os
-import threading
 from zoneinfo import ZoneInfo
 
 import requests
@@ -9,32 +8,55 @@ from django.shortcuts import render
 
 from leagues.models import HomePage, MatchUp
 
-# Short TTL for the "fetch in progress" placeholder so that if the background
-# thread fails (network error, bad API key, etc.) the next request after one
-# minute will retry rather than serving empty weather for 30 minutes.
-_WEATHER_PLACEHOLDER_TTL = 60  # seconds
 _WEATHER_FULL_TTL = 60 * 30  # 30 minutes
+_WEATHER_ERROR_TTL = 60 * 5  # retry after 5 minutes on API failure
+_WEATHER_FETCH_TIMEOUT = 8  # seconds — NWS can be slightly slower than commercial APIs
 
 _EASTERN = ZoneInfo("America/New_York")
+
+# NWS grid coordinates for Alexandria, VA (LWX office, never changes).
+# Derived from: GET https://api.weather.gov/points/38.8048,-77.0469
+_NWS_HOURLY_URL = "https://api.weather.gov/gridpoints/LWX/97,67/forecast/hourly"
+_NWS_HEADERS = {
+    "User-Agent": "dcstreethockey.com (weather forecast for game planning)",
+    "Accept": "application/geo+json",
+}
+
+# Sentinel stored in cache when the API fetch fails so we don't hammer it.
+_WEATHER_FETCH_FAILED = {"_failed": True}
 
 # Used for comparing and combining playability values
 _PLAYABILITY_ORDER = {"good": 0, "uncertain": 1, "likely_cancelled": 2}
 
 
-def _compute_playability(condition_id, pop, rain_mm, snow_mm):
+def _compute_playability(pop_pct, short_forecast):
     """
-    Determine game playability from a single OWM forecast slot.
+    Determine game playability from a single NWS hourly forecast period.
     Returns one of: "good" | "uncertain" | "likely_cancelled"
 
-    OWM condition code ranges:
-      2xx = Thunderstorm, 3xx = Drizzle, 5xx = Rain, 6xx = Snow
+    pop_pct: 0–100 integer or None (NWS probabilityOfPrecipitation.value)
+    short_forecast: NWS shortForecast string, e.g. "Chance Rain Showers"
+
+    NWS qualifying language maps to PoP ranges:
+      "Slight Chance" = 10–20 %   "Chance" = 30–50 %
+      "Likely"        = 60–70 %   no qualifier = > 70 %
     """
-    if 200 <= condition_id <= 699:
+    short = short_forecast.lower()
+    pop = pop_pct or 0
+
+    # Thunderstorms — dangerous regardless of probability
+    if "thunder" in short:
         return "likely_cancelled"
-    if rain_mm > 0.1 or snow_mm > 0:
+
+    # More likely to precipitate than not (>= 50 % or NWS "Likely" qualifier)
+    if pop >= 50 or "likely" in short:
         return "likely_cancelled"
-    if pop >= 0.30:
+
+    # Moderate chance or any precipitation keyword in the forecast text
+    precip_keywords = ("rain", "shower", "snow", "sleet", "drizzle", "flurr", "hail")
+    if pop >= 20 or any(k in short for k in precip_keywords):
         return "uncertain"
+
     return "good"
 
 
@@ -43,201 +65,136 @@ def _worse_playability(a, b):
     return a if _PLAYABILITY_ORDER[a] >= _PLAYABILITY_ORDER[b] else b
 
 
-def _find_best_forecast_slot(forecast_list, game_date, game_time):
+def _find_best_forecast_slot(periods, game_date, game_time):
     """
-    Return the forecast slot whose UTC timestamp is closest to game start.
+    Return the NWS hourly period whose start time is closest to game start.
     Used for display info (temp, description, pop_pct).
     """
-    if not forecast_list:
+    if not periods:
         return None
 
     if game_time is not None:
-        target_local = datetime.datetime.combine(game_date, game_time).replace(
+        target_dt = datetime.datetime.combine(game_date, game_time).replace(
             tzinfo=_EASTERN
         )
     else:
-        target_local = datetime.datetime.combine(
-            game_date, datetime.time(19, 0)
-        ).replace(tzinfo=_EASTERN)
+        target_dt = datetime.datetime.combine(game_date, datetime.time(19, 0)).replace(
+            tzinfo=_EASTERN
+        )
 
-    target_utc = target_local.astimezone(datetime.timezone.utc)
-
-    best_slot = None
+    best_period = None
     best_diff = None
-    for item in forecast_list:
-        slot_dt = datetime.datetime.strptime(
-            item["dt_txt"], "%Y-%m-%d %H:%M:%S"
-        ).replace(tzinfo=datetime.timezone.utc)
-        diff = abs((slot_dt - target_utc).total_seconds())
+    for period in periods:
+        start = datetime.datetime.fromisoformat(period["startTime"])
+        diff = abs((start - target_dt).total_seconds())
         if best_diff is None or diff < best_diff:
             best_diff = diff
-            best_slot = item
+            best_period = period
 
-    return best_slot
+    return best_period
 
 
-def _compute_window_playability(forecast_list, game_date, game_time):
+def _compute_window_playability(periods, game_date, game_time):
     """
-    Check every forecast slot from 4 hours before game time through 1 hour
-    after and return the worst playability found.
+    Check every NWS hourly period from 4 hours before game time through
+    1 hour after and return the worst playability found.
 
     A 4-hour pre-game window catches rain that would leave the rink wet by
     game time even if the forecast at the exact game hour looks clear.
 
-    Returns None if no forecast slots fall within the window (e.g. game is
-    beyond the 5-day forecast horizon).
+    Returns None if no periods fall within the window (e.g. game is beyond
+    the 7-day forecast horizon).
     """
     if game_time is not None:
-        target_local = datetime.datetime.combine(game_date, game_time).replace(
+        target_dt = datetime.datetime.combine(game_date, game_time).replace(
             tzinfo=_EASTERN
         )
     else:
-        target_local = datetime.datetime.combine(
-            game_date, datetime.time(19, 0)
-        ).replace(tzinfo=_EASTERN)
-
-    target_utc = target_local.astimezone(datetime.timezone.utc)
+        target_dt = datetime.datetime.combine(game_date, datetime.time(19, 0)).replace(
+            tzinfo=_EASTERN
+        )
 
     worst = None
-    for item in forecast_list:
-        slot_dt = datetime.datetime.strptime(
-            item["dt_txt"], "%Y-%m-%d %H:%M:%S"
-        ).replace(tzinfo=datetime.timezone.utc)
-        diff_seconds = (slot_dt - target_utc).total_seconds()
+    for period in periods:
+        start = datetime.datetime.fromisoformat(period["startTime"])
+        diff_seconds = (start - target_dt).total_seconds()
         # Window: 4 h before game through 1 h after
         if -4 * 3600 <= diff_seconds <= 3600:
-            cond_id = item["weather"][0]["id"]
-            pop = item.get("pop", 0)
-            rain = item.get("rain", {}).get("3h", 0)
-            snow = item.get("snow", {}).get("3h", 0)
-            p = _compute_playability(cond_id, pop, rain, snow)
+            pop_pct = (period.get("probabilityOfPrecipitation") or {}).get("value") or 0
+            p = _compute_playability(pop_pct, period["shortForecast"])
             worst = p if worst is None else _worse_playability(worst, p)
 
     return worst
 
 
-def _playability_from_current_weather(current_w):
+def _fetch_weather(api_key, game_times):
     """
-    Assess current on-the-ground conditions for today's games.
+    Fetch hourly forecast from the NWS API and return the weather_data dict.
+    Returns None on any network or API error so the caller can cache a failure
+    sentinel and show a graceful unavailable state.
 
-    Checks whether it is actively precipitating or has rained/snowed in the
-    last 1–3 hours (OWM 'rain.1h' / 'rain.3h' fields).  Recent rain leaves
-    the rink wet even after the sky clears, so this is factored in alongside
-    the forward forecast.
-    """
-    cond_id = current_w["weather"][0]["id"]
-    rain_1h = current_w.get("rain", {}).get("1h", 0)
-    snow_1h = current_w.get("snow", {}).get("1h", 0)
-    rain_3h = current_w.get("rain", {}).get("3h", 0)
-
-    # Currently precipitating — rink is actively getting wet
-    if 200 <= cond_id <= 699:
-        return "likely_cancelled"
-
-    # Rained or snowed in the past hour — rink is likely still wet
-    if rain_1h > 0.1 or snow_1h > 0:
-        return "uncertain"
-
-    # Meaningful rain in the past 3 hours — rink may still be damp
-    if rain_3h > 0.5:
-        return "uncertain"
-
-    return "good"
-
-
-def _fetch_and_cache_weather(cache_key, api_key, game_times):
-    """
-    Fetch weather from OpenWeatherMap and write real data into the cache.
-    Always runs in a background daemon thread — never called on the hot path.
+    api_key is accepted for interface compatibility but is unused — NWS
+    requires no API key.
 
     game_times: dict mapping datetime.date -> datetime.time (or None) for the
     earliest game on that date, used to select the right forecast window.
     """
-    today = datetime.date.today()
     weather_data = {}
-    forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
-    current_weather_url = "https://api.openweathermap.org/data/2.5/weather"
 
     try:
-        forecast_response = requests.get(
-            forecast_url,
-            params={"q": "Alexandria,VA,US", "appid": api_key, "units": "imperial"},
-            timeout=10,
+        response = requests.get(
+            _NWS_HOURLY_URL,
+            headers=_NWS_HEADERS,
+            timeout=_WEATHER_FETCH_TIMEOUT,
         )
 
-        # Always fetch current conditions when today has games — needed to
-        # detect rain that fell in the last 1–3 hours even if the forecast
-        # at game time now looks clear.
-        current_w = None
-        if today in game_times:
-            current_response = requests.get(
-                current_weather_url,
-                params={"q": "Alexandria,VA,US", "appid": api_key, "units": "imperial"},
-                timeout=10,
-            )
-            if current_response.status_code == 200:
-                current_w = current_response.json()
+        if response.status_code != 200:
+            return None
 
-        if forecast_response.status_code == 200:
-            forecast_list = forecast_response.json()["list"]
+        periods = response.json()["properties"]["periods"]
 
-            for game_date, game_time in game_times.items():
-                game_date_str = game_date.strftime("%Y-%m-%d")
+        for game_date, game_time in game_times.items():
+            game_date_str = game_date.strftime("%Y-%m-%d")
 
-                # Display info uses the slot closest to game time.
-                display_slot = _find_best_forecast_slot(
-                    forecast_list, game_date, game_time
+            # Display info: period closest to game start time
+            display_period = _find_best_forecast_slot(periods, game_date, game_time)
+
+            # Playability: worst condition in the 4-hour pre-game window
+            window_play = _compute_window_playability(periods, game_date, game_time)
+
+            # Fall back to single-period assessment if window is outside the
+            # 7-day forecast horizon.
+            if window_play is None and display_period:
+                pop_pct = (display_period.get("probabilityOfPrecipitation") or {}).get(
+                    "value"
+                ) or 0
+                window_play = _compute_playability(
+                    pop_pct, display_period["shortForecast"]
                 )
 
-                # Playability uses the worst condition in the pre-game window.
-                window_play = _compute_window_playability(
-                    forecast_list, game_date, game_time
+            if display_period:
+                pop_pct = (display_period.get("probabilityOfPrecipitation") or {}).get(
+                    "value"
                 )
-
-                # Fall back to single-slot assessment if no window data
-                # (game is beyond the 5-day forecast or no matching slots).
-                if window_play is None and display_slot:
-                    cond_id = display_slot["weather"][0]["id"]
-                    pop = display_slot.get("pop", 0)
-                    rain_mm = display_slot.get("rain", {}).get("3h", 0)
-                    snow_mm = display_slot.get("snow", {}).get("3h", 0)
-                    window_play = _compute_playability(cond_id, pop, rain_mm, snow_mm)
-
-                # For today, combine forecast with current on-the-ground conditions.
-                if game_date == today and current_w:
-                    current_play = _playability_from_current_weather(current_w)
-                    final_play = _worse_playability(window_play or "good", current_play)
-                    # Use current weather for display if no forecast slot
-                    if not display_slot:
-                        display_slot = {
-                            "main": current_w["main"],
-                            "weather": current_w["weather"],
-                        }
-                else:
-                    final_play = window_play or "good"
-
-                if display_slot:
-                    pop = display_slot.get("pop")
-                    rain_mm = display_slot.get("rain", {}).get("3h", 0)
-                    snow_mm = display_slot.get("snow", {}).get("3h", 0)
-
-                    weather_data[game_date_str] = {
-                        "temp": display_slot["main"].get("temp", "N/A"),
-                        "description": display_slot["weather"][0].get(
-                            "description", "N/A"
-                        ),
-                        "pop_pct": round(pop * 100) if pop is not None else None,
-                        "rain": rain_mm * 0.0393701,
-                        "snow": snow_mm * 0.0393701,
-                        "humidity": display_slot["main"].get("humidity"),
-                        "playability": final_play,
-                    }
+                short = display_period["shortForecast"]
+                weather_data[game_date_str] = {
+                    "temp": display_period["temperature"],
+                    "description": short,
+                    "pop_pct": pop_pct,
+                    "humidity": (display_period.get("relativeHumidity") or {}).get(
+                        "value"
+                    ),
+                    "playability": window_play or "good",
+                    # Distinguish thunderstorm cancellations from plain rain so
+                    # the template can show a more specific label.
+                    "thunder": "thunder" in short.lower(),
+                }
 
     except Exception as e:
-        print(f"Error fetching weather data: {e}")
+        print(f"Error fetching NWS weather data: {e}")
+        return None
 
-    # Overwrite the short-TTL placeholder with real data (or empty dict on error).
-    cache.set(cache_key, weather_data, _WEATHER_FULL_TTL)
+    return weather_data
 
 
 def home(request):
@@ -250,39 +207,39 @@ def home(request):
         .select_related("week", "hometeam", "awayteam")
         .order_by("time")
     )
-    # Evaluate once so the queryset isn't re-hit when we extract game_dates
-    # and again when the template iterates it.
+    # One row per date, ordered by date then time so distinct picks the
+    # earliest game — used for weather window targeting and template date headers.
     one_row = list(
         MatchUp.objects.filter(week__date__range=(today, next_week))
         .select_related("week")
-        .order_by("week__date")
+        .order_by("week__date", "time")
         .distinct("week__date")
     )
 
     cache_key = f"weather_data_{today}"
-    weather_data = cache.get(cache_key)
+    cached = cache.get(cache_key)
 
-    if weather_data is None:
-        # Serve the page immediately with no weather data.  A background thread
-        # fetches real data and overwrites the cache; the next page load will
-        # have weather.  A short placeholder TTL ensures we retry quickly if the
-        # thread fails.
+    weather_unavailable = False
+
+    if cached is None:
+        game_times = {row.week.date: row.time for row in one_row}
+        result = _fetch_weather(None, game_times)
+        if result is None:
+            cache.set(cache_key, _WEATHER_FETCH_FAILED, _WEATHER_ERROR_TTL)
+            weather_unavailable = True
+            weather_data = {}
+        else:
+            cache.set(cache_key, result, _WEATHER_FULL_TTL)
+            weather_data = result
+    elif cached is _WEATHER_FETCH_FAILED or cached.get("_failed"):
+        weather_unavailable = True
         weather_data = {}
-        cache.set(cache_key, weather_data, _WEATHER_PLACEHOLDER_TTL)
-        api_key = os.environ.get("OPENWEATHERMAP_API_KEY")
-        if api_key:
-            # Use the game time from one_row as the target forecast time so we
-            # look at the weather window closest to when players are actually
-            # on the rink.
-            game_times = {row.week.date: row.time for row in one_row}
-            threading.Thread(
-                target=_fetch_and_cache_weather,
-                args=(cache_key, api_key, game_times),
-                daemon=True,
-            ).start()
+    else:
+        weather_data = cached
 
     context = {
         "weather_data": weather_data,
+        "weather_unavailable": weather_unavailable,
         "matchup": matchups,
         "one_row": one_row,
         "homepage": HomePage.objects.last(),

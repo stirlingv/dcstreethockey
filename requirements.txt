@@ -7,7 +7,7 @@ channels==4.1.0
 charset-normalizer==3.3.2
 click==8.1.7
 dj-database-url==0.5.0
-Django==4.2.29
+Django==4.2.30
 django-autocomplete-light==3.11.0
 django-datetime-widget==0.9.3
 django-debug-toolbar==4.3.0
@@ -26,14 +26,14 @@ numpy==2.2.0
 openpyxl==3.1.5
 oauthlib==3.2.2
 packaging==24.0
-pillow==12.1.1
+pillow==12.2.0
 pip-chill==1.0.3
 psycopg==3.1.19
 pycparser==2.21
 PyJWT==2.12.1
 python-dateutil==2.8.1
 python-decouple==3.8
-python-dotenv==1.1.1
+python-dotenv==1.2.2
 python-stdnum==1.20
 pytz==2020.1
 requests==2.33.1
