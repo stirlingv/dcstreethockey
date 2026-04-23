@@ -1,0 +1,183 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Upload Photo – {{ player.first_name }} {{ player.last_name }} – DC Street Hockey{% endblock %}
+
+{% block extra_head %}
+<style>
+  .photo-upload-wrapper {
+    max-width: 560px;
+    margin: 40px auto;
+    padding: 0 16px 60px;
+  }
+  .photo-upload-header {
+    background: #8b1a1a;
+    border-radius: 8px 8px 0 0;
+    padding: 28px 32px 20px;
+    color: #fff;
+  }
+  .photo-upload-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .photo-upload-header p {
+    margin: 0;
+    opacity: 0.88;
+    font-size: 0.95rem;
+  }
+  .photo-upload-body {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 28px 32px;
+  }
+  .form-group {
+    margin-bottom: 20px;
+  }
+  .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+    font-size: 0.95rem;
+  }
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.95rem;
+  }
+  .form-group .helptext {
+    display: block;
+    font-size: 0.82rem;
+    color: #666;
+    margin-top: 4px;
+  }
+  .form-group .errorlist {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+    color: #c0392b;
+    font-size: 0.88rem;
+  }
+  .btn-submit {
+    display: inline-block;
+    background: #8b1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 11px 28px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .btn-submit:hover {
+    background: #6e1414;
+  }
+  .back-link {
+    display: inline-block;
+    margin-top: 16px;
+    font-size: 0.9rem;
+    color: #555;
+  }
+  .success-box {
+    text-align: center;
+    padding: 32px 16px;
+  }
+  .success-box .checkmark {
+    font-size: 3rem;
+    color: #2e7d32;
+    margin-bottom: 12px;
+  }
+  .success-box h2 {
+    margin: 0 0 10px;
+    font-size: 1.4rem;
+  }
+  .success-box p {
+    color: #555;
+    margin: 0 0 24px;
+  }
+  @media (max-width: 767px) {
+    .photo-upload-header {
+      padding: 20px 18px 16px;
+    }
+    .photo-upload-body {
+      padding: 20px 18px;
+    }
+    .photo-upload-header h1 {
+      font-size: 1.3rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="photo-upload-wrapper">
+  <div class="photo-upload-header">
+    <h1>Upload a photo</h1>
+    <p>{{ player.first_name }} {{ player.last_name }}</p>
+  </div>
+  <div class="photo-upload-body">
+
+    {% if submitted %}
+      <div class="success-box">
+        <div class="checkmark">&#10003;</div>
+        <h2>Photo submitted!</h2>
+        <p>The admin will review it and publish it shortly.</p>
+        <a href="{% url 'player' player.id %}" class="btn-submit" style="text-decoration:none;">Back to profile</a>
+      </div>
+
+    {% else %}
+      <p style="color:#555; margin:0 0 22px; font-size:0.95rem;">
+        Your photo will be reviewed by the admin before it appears on the site.
+      </p>
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+
+        <div class="form-group">
+          <label for="{{ form.photo.id_for_label }}">{{ form.photo.label }}</label>
+          {{ form.photo }}
+          {% if form.photo.help_text %}
+            <span class="helptext">{{ form.photo.help_text }}</span>
+          {% endif %}
+          {% if form.photo.errors %}
+            <ul class="errorlist">
+              {% for error in form.photo.errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        <div class="form-group">
+          <label for="{{ form.submitter_email.id_for_label }}">{{ form.submitter_email.label }}</label>
+          {{ form.submitter_email }}
+          {% if form.submitter_email.help_text %}
+            <span class="helptext">{{ form.submitter_email.help_text }}</span>
+          {% endif %}
+          {% if form.submitter_email.errors %}
+            <ul class="errorlist">
+              {% for error in form.submitter_email.errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        <div class="form-group">
+          <label for="{{ form.submitter_note.id_for_label }}">{{ form.submitter_note.label }}</label>
+          {{ form.submitter_note }}
+          {% if form.submitter_note.help_text %}
+            <span class="helptext">{{ form.submitter_note.help_text }}</span>
+          {% endif %}
+        </div>
+
+        <button type="submit" class="btn-submit">Submit photo</button>
+      </form>
+      <a href="{% url 'player' player.id %}" class="back-link">&larr; Back to profile</a>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

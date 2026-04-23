@@ -1,0 +1,14 @@
+{% extends "admin/base.html" %}
+
+{% block userlinks %}
+  {% if pending_photo_count %}
+  <a href="{% url 'admin:leagues_pendingplayerphoto_changelist' %}"
+     title="{{ pending_photo_count }} player photo{{ pending_photo_count|pluralize }} awaiting approval"
+     style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;
+            background:#e65c00;color:#fff;font-weight:700;font-size:12px;
+            padding:3px 10px;border-radius:12px;text-decoration:none;vertical-align:middle;">
+    &#128247; {{ pending_photo_count }} photo{{ pending_photo_count|pluralize }} to review
+  </a>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

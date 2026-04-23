@@ -32,6 +32,7 @@ from leagues.models import (
     HomePage,
     TeamPhoto,
     PlayerPhoto,
+    PendingPlayerPhoto,
     SeasonSignup,
     DraftSession,
     DraftTeam,
@@ -53,6 +54,11 @@ _DRAFT_OBJECT_NAMES = frozenset({"DraftSession", "SeasonSignup", "DraftPick"})
 
 
 class _DCHockeyAdminSite(admin.AdminSite):
+    def each_context(self, request):
+        context = super().each_context(request)
+        context["pending_photo_count"] = PendingPlayerPhoto.objects.count()
+        return context
+
     def get_app_list(self, request, app_label=None):
         app_list = super().get_app_list(request, app_label)
 
@@ -1320,6 +1326,56 @@ class TeamPhotoAdmin(admin.ModelAdmin):
 @admin.register(PlayerPhoto)
 class PlayerPhotoAdmin(admin.ModelAdmin):
     pass
+
+
+@admin.action(description="Approve selected photos and make them live")
+def approve_pending_photos(modeladmin, request, queryset):
+    approved = 0
+    for pending in queryset.select_related("player"):
+        live_photo = PlayerPhoto.objects.create(photo=pending.photo.name)
+        pending.player.player_photo = live_photo
+        pending.player.save()
+        pending.delete()
+        approved += 1
+    modeladmin.message_user(
+        request,
+        f"{approved} photo(s) approved and now live.",
+        messages.SUCCESS,
+    )
+
+
+@admin.register(PendingPlayerPhoto)
+class PendingPlayerPhotoAdmin(admin.ModelAdmin):
+    list_display = ["player", "photo_preview", "submitter_email", "submitted_at"]
+    list_filter = []
+    readonly_fields = [
+        "player",
+        "submitted_at",
+        "photo_preview_large",
+        "submitter_email",
+        "submitter_note",
+    ]
+    actions = [approve_pending_photos]
+
+    def photo_preview(self, obj):
+        if obj.photo:
+            return format_html(
+                '<img src="{}" style="height:48px; width:48px; object-fit:cover; border-radius:50%;">',
+                obj.photo.url,
+            )
+        return "—"
+
+    photo_preview.short_description = "Preview"
+
+    def photo_preview_large(self, obj):
+        if obj.photo:
+            return format_html(
+                '<img src="{}" style="max-height:240px; max-width:240px; border-radius:4px;">',
+                obj.photo.url,
+            )
+        return "—"
+
+    photo_preview_large.short_description = "Photo"
 
 
 admin.site.register(Player, PlayerAdmin)

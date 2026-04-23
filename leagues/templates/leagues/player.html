@@ -129,6 +129,52 @@
         gap: 8px;
         margin-bottom: 14px;
     }
+    /* Player avatar */
+    .player-avatar-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+    .player-avatar {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #ddd;
+        display: block;
+    }
+    .player-avatar-placeholder {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        background: #e8e8e8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.4rem;
+        font-weight: 700;
+        color: #aaa;
+        letter-spacing: -2px;
+    }
+    .player-photo-upload-link {
+        display: inline-block;
+        margin-top: 7px;
+        font-size: 0.82rem;
+        color: #888;
+        text-decoration: none;
+        border-bottom: 1px dotted #bbb;
+    }
+    .player-photo-upload-link:hover {
+        color: #555;
+    }
+    @media (max-width: 767px) {
+        .player-avatar, .player-avatar-placeholder {
+            width: 80px;
+            height: 80px;
+            font-size: 1.7rem;
+        }
+    }
 </style>
 {% endblock %}
 {% block content %}
@@ -138,6 +184,18 @@
             <div class="row">
                 <div class="{% if both_snapshots %}6u{% else %}8u{% endif %} 12u(mobile)">
                     {% if player %}
+                    <div class="player-avatar-wrap">
+                        {% if player.player_photo and player.player_photo.photo %}
+                            <img src="{{ player.player_photo.photo.url }}"
+                                 alt="{{ player.first_name }} {{ player.last_name }}"
+                                 class="player-avatar">
+                        {% else %}
+                            <div class="player-avatar-placeholder" title="No photo yet">
+                                {{ player.first_name|slice:":1" }}{{ player.last_name|slice:":1" }}
+                            </div>
+                            <a href="{% url 'upload_player_photo' player.id %}" class="player-photo-upload-link">+ Add photo</a>
+                        {% endif %}
+                    </div>
                     <div class="title">
                         {{ player.first_name }} {{ player.last_name }}
                     </div>

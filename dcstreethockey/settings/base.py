@@ -280,6 +280,7 @@ SUIT_CONFIG = {
                 "leagues.matchupgoaliestatus",
                 "leagues.teamphoto",
                 "leagues.playerphoto",
+                "leagues.pendingplayerphoto",
                 "leagues.ref",
                 "leagues.homepage",
             ],

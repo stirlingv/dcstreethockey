@@ -22,6 +22,32 @@ class PlayerPhoto(models.Model):
         return self.__unicode__()
 
 
+class PendingPlayerPhoto(models.Model):
+    """
+    Holds a player-submitted photo awaiting admin approval.
+    Once approved via the admin action, a live PlayerPhoto is created
+    and this record is deleted.
+    """
+
+    player = models.ForeignKey(
+        "Player",
+        on_delete=models.CASCADE,
+        related_name="pending_photos",
+    )
+    photo = models.ImageField(upload_to="players/pending")
+    submitter_email = models.EmailField(blank=True)
+    submitter_note = models.CharField(max_length=500, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("submitted_at",)
+
+    def __str__(self):
+        return (
+            f"Pending photo for {self.player} (submitted {self.submitted_at:%Y-%m-%d})"
+        )
+
+
 class Player(models.Model):
     GENDER_CHOICES = (
         (

@@ -5,7 +5,8 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import MatchUp, Team, Player, Roster, Week
+from .models import MatchUp, Team, Player, Roster, Week, PendingPlayerPhoto
+from .forms import PlayerPhotoUploadForm
 
 
 def get_roster_goalie(team):
@@ -366,4 +367,31 @@ def captain_urls_list(request):
             "groups": groups,
             "total": len(team_ids),
         },
+    )
+
+
+def upload_player_photo(request, player_id):
+    player = get_object_or_404(Player, id=player_id)
+
+    if request.method == "POST":
+        form = PlayerPhotoUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            PendingPlayerPhoto.objects.create(
+                player=player,
+                photo=form.cleaned_data["photo"],
+                submitter_email=form.cleaned_data.get("submitter_email", ""),
+                submitter_note=form.cleaned_data.get("submitter_note", ""),
+            )
+            return render(
+                request,
+                "leagues/upload_player_photo.html",
+                {"player": player, "submitted": True},
+            )
+    else:
+        form = PlayerPhotoUploadForm()
+
+    return render(
+        request,
+        "leagues/upload_player_photo.html",
+        {"player": player, "form": form, "submitted": False},
     )
