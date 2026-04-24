@@ -37,6 +37,19 @@
 		function handleSelect(elm){
 	  	window.location = elm.value;
 	  }
+	function toggleOdds(btn, panelId) {
+		var panel = document.getElementById(panelId);
+		var expanded = btn.getAttribute('aria-expanded') === 'true';
+		if (expanded) {
+			panel.hidden = true;
+			btn.setAttribute('aria-expanded', 'false');
+			btn.textContent = 'View Odds';
+		} else {
+			panel.hidden = false;
+			btn.setAttribute('aria-expanded', 'true');
+			btn.textContent = 'Hide Odds';
+		}
+	}
 	function filterSchedule(division) {
 		// Update active button state
 		var buttons = document.querySelectorAll('.division-filters .filter-btn');

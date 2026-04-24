@@ -17,6 +17,12 @@ from django.db.models import F, Q
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from core.betting import (
+    compute_betting_lines_for_matchups,
+    fmt_american,
+    fmt_spread,
+    win_prob_to_american,
+)
 from core.views.schedule import (
     add_goals_for_matchups,
     get_goalies_for_matchup,
@@ -24,7 +30,17 @@ from core.views.schedule import (
     get_matches_for_team,
     get_stats_for_matchup,
 )
-from leagues.models import Division, MatchUp, Player, Roster, Season, Stat, Team, Week
+from leagues.models import (
+    Division,
+    MatchUp,
+    Player,
+    Roster,
+    Season,
+    Stat,
+    Team,
+    Team_Stat,
+    Week,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -476,3 +492,376 @@ class CupsViewTest(ScheduleTestBase):
         ]
         self.assertIn(champ_matchup.id, all_match_ids)
         self.assertNotIn(self.matchup.id, all_match_ids)
+
+
+# ---------------------------------------------------------------------------
+# Betting lines — math helpers
+# ---------------------------------------------------------------------------
+
+
+class WinProbToAmericanTest(TestCase):
+    def test_even_money(self):
+        # 50% probability → +100 (or -100 depending on rounding; accept either)
+        result = win_prob_to_american(0.5)
+        self.assertIn(result, (100, -100))
+
+    def test_heavy_favorite(self):
+        # 75% probability → large negative number (favorite)
+        result = win_prob_to_american(0.75)
+        self.assertLess(result, 0)
+        self.assertLessEqual(result, -200)
+
+    def test_underdog(self):
+        # 33% probability → positive number (underdog)
+        result = win_prob_to_american(1 / 3)
+        self.assertGreater(result, 0)
+
+    def test_clamps_near_zero(self):
+        # Should not blow up at extreme probabilities
+        self.assertIsInstance(win_prob_to_american(0.0), int)
+        self.assertIsInstance(win_prob_to_american(1.0), int)
+
+    def test_symmetry(self):
+        # Prob p and (1-p) should give opposite-sign odds of the same magnitude
+        fav = win_prob_to_american(0.6)
+        dog = win_prob_to_american(0.4)
+        self.assertLess(fav, 0)
+        self.assertGreater(dog, 0)
+
+
+class FmtSpreadTest(TestCase):
+    def test_negative_spread(self):
+        self.assertEqual(fmt_spread(-1.5), "-1.5")
+
+    def test_positive_spread(self):
+        self.assertEqual(fmt_spread(1.5), "+1.5")
+
+    def test_pick_em(self):
+        self.assertEqual(fmt_spread(0.0), "PK")
+
+
+class FmtAmericanTest(TestCase):
+    def test_negative_odds(self):
+        self.assertEqual(fmt_american(-150), "-150")
+
+    def test_positive_odds(self):
+        self.assertEqual(fmt_american(130), "+130")
+
+
+# ---------------------------------------------------------------------------
+# Betting lines — compute_betting_lines_for_matchups
+# ---------------------------------------------------------------------------
+
+
+class BettingLinesBase(TestCase):
+    """Minimal fixture: two teams, one future matchup, season stats."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.home_team = Team.objects.create(
+            team_name="Home Squad",
+            team_color="Red",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.away_team = Team.objects.create(
+            team_name="Away Squad",
+            team_color="Blue",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        # Season stats: home team is clearly stronger
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.home_team,
+            win=8,
+            loss=2,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=40,
+            goals_against=20,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.away_team,
+            win=2,
+            loss=8,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=20,
+            goals_against=40,
+        )
+        future_date = datetime.date.today() + datetime.timedelta(days=3)
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        # Players on each team
+        self.home_player = Player.objects.create(first_name="Home", last_name="Player")
+        self.away_player = Player.objects.create(first_name="Away", last_name="Player")
+        Roster.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            position1=1,
+        )
+        Roster.objects.create(
+            player=self.away_player,
+            team=self.away_team,
+            position1=1,
+        )
+
+
+class ComputeBettingLinesTest(BettingLinesBase):
+    def test_empty_input_returns_empty_dict(self):
+        self.assertEqual(compute_betting_lines_for_matchups([]), {})
+
+    def test_returns_entry_for_matchup(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertIn(self.matchup.id, result)
+
+    def test_lines_have_required_keys(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        self.assertIsNotNone(lines)
+        for key in (
+            "home_spread",
+            "away_spread",
+            "total",
+            "home_ml",
+            "away_ml",
+            "vig",
+            "home_is_favorite",
+        ):
+            self.assertIn(key, lines, msg=f"Missing key: {key}")
+
+    def test_stronger_team_is_favorite(self):
+        # Home team (8-2, 4 GPG) should be favored over away team (2-8, 2 GPG)
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        self.assertTrue(lines["home_is_favorite"])
+
+    def test_favorite_has_negative_spread(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        self.assertTrue(lines["home_spread"].startswith("-"))
+
+    def test_underdog_has_positive_spread(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        self.assertTrue(lines["away_spread"].startswith("+"))
+
+    def test_favorite_has_negative_moneyline(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        self.assertTrue(lines["home_ml"].startswith("-"))
+
+    def test_underdog_has_positive_moneyline(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        self.assertTrue(lines["away_ml"].startswith("+"))
+
+    def test_vig_is_minus_110(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertEqual(result[self.matchup.id]["vig"], "-110")
+
+    def test_no_team_stats_returns_none(self):
+        # Create a matchup whose teams have no Team_Stat rows
+        no_stat_home = Team.objects.create(
+            team_name="No Stats Home",
+            team_color="Green",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        no_stat_away = Team.objects.create(
+            team_name="No Stats Away",
+            team_color="Yellow",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        future_date = datetime.date.today() + datetime.timedelta(days=4)
+        week2 = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        matchup2 = MatchUp.objects.create(
+            week=week2,
+            time=datetime.time(20, 0),
+            hometeam=no_stat_home,
+            awayteam=no_stat_away,
+        )
+        result = compute_betting_lines_for_matchups([matchup2.id])
+        self.assertIsNone(result[matchup2.id])
+
+    def test_spreads_are_opposite_signs(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        home_val = float(lines["home_spread"].replace("PK", "0"))
+        away_val = float(lines["away_spread"].replace("PK", "0"))
+        self.assertAlmostEqual(home_val + away_val, 0.0, places=5)
+
+    def test_total_is_positive(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertGreater(float(result[self.matchup.id]["total"]), 0)
+
+
+class GoalieSubPenaltyTest(BettingLinesBase):
+    """Goalie sub-needed status should shift the total upward."""
+
+    def test_sub_needed_increases_expected_goals(self):
+        # Baseline total with confirmed goalies
+        baseline = compute_betting_lines_for_matchups([self.matchup.id])
+        baseline_total = float(baseline[self.matchup.id]["total"])
+
+        # Now mark home goalie as Sub Needed
+        self.matchup.home_goalie_status = 2
+        self.matchup.save()
+        penalised = compute_betting_lines_for_matchups([self.matchup.id])
+        penalised_total = float(penalised[self.matchup.id]["total"])
+
+        self.assertGreater(penalised_total, baseline_total)
+
+
+class PlayerRecentFormTest(BettingLinesBase):
+    """Recent player form should influence the offensive estimate."""
+
+    def _add_past_matchup(self, days_ago):
+        past_date = datetime.date.today() - datetime.timedelta(days=days_ago)
+        week = Week.objects.create(
+            division=self.division, season=self.season, date=past_date
+        )
+        return MatchUp.objects.create(
+            week=week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+
+    def test_hot_home_player_pushes_total_up(self):
+        # Baseline (no recent stats): total driven purely by season averages
+        baseline = compute_betting_lines_for_matchups([self.matchup.id])
+        baseline_total = float(baseline[self.matchup.id]["total"])
+
+        # Give home player an extreme recent run (10 goals/game) to ensure the
+        # blended offensive estimate crosses the next 0.5 rounding boundary.
+        # Season GPG for home = 4.0; recent = 10.0 → blended = 6.4 → home_exp
+        # rises from 4.0 to 5.2, pushing total from 6.0 to 7.0.
+        for days_ago in range(1, 6):
+            past_matchup = self._add_past_matchup(days_ago * 3)
+            Stat.objects.create(
+                player=self.home_player,
+                team=self.home_team,
+                matchup=past_matchup,
+                goals=10,
+                assists=0,
+            )
+
+        hot = compute_betting_lines_for_matchups([self.matchup.id])
+        hot_total = float(hot[self.matchup.id]["total"])
+
+        self.assertGreater(hot_total, baseline_total)
+
+
+# ---------------------------------------------------------------------------
+# Schedule view — betting_lines in context
+# ---------------------------------------------------------------------------
+
+
+class ScheduleViewBettingLinesTest(TestCase):
+    """Integration: schedule view must include betting_lines in context."""
+
+    def setUp(self):
+        self.client = Client()
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.home_team = Team.objects.create(
+            team_name="Schedule Home",
+            team_color="Red",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.away_team = Team.objects.create(
+            team_name="Schedule Away",
+            team_color="Blue",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        future_date = datetime.date.today() + datetime.timedelta(days=3)
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+
+    def test_betting_lines_key_in_context(self):
+        response = self.client.get(reverse("schedule"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("betting_lines", response.context)
+
+    def test_betting_lines_is_dict(self):
+        response = self.client.get(reverse("schedule"))
+        self.assertIsInstance(response.context["betting_lines"], dict)
+
+    def test_no_lines_without_team_stats(self):
+        # With no Team_Stat rows, the matchup's lines should be None
+        response = self.client.get(reverse("schedule"))
+        lines = response.context["betting_lines"].get(self.matchup.id)
+        self.assertIsNone(lines)
+
+    def test_lines_rendered_with_team_stats(self):
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.home_team,
+            win=5,
+            loss=3,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=25,
+            goals_against=20,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.away_team,
+            win=3,
+            loss=5,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=20,
+            goals_against=25,
+        )
+        response = self.client.get(reverse("schedule"))
+        self.assertEqual(response.status_code, 200)
+        lines = response.context["betting_lines"].get(self.matchup.id)
+        self.assertIsNotNone(lines)
+        # Verify the sportsbook panel appears in the rendered HTML
+        self.assertContains(response, "betting-lines")
+        self.assertContains(response, "SPREAD")
+        self.assertContains(response, "TOTAL")
+        self.assertContains(response, "MONEYLINE")
+        self.assertContains(response, "For entertainment purposes only")

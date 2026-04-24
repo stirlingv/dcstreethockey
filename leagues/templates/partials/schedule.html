@@ -47,6 +47,50 @@
                             </td>
                         </tr>
                     </table>
+                    {% if view == "schedule" %}{% with betting_lines|get_item:match.id as lines %}{% if lines %}
+                    <div class="bl-toggle-row">
+                        <button class="bl-toggle-btn" onclick="toggleOdds(this, 'bl-panel-{{ match.id }}')" aria-expanded="false">
+                            View Odds
+                        </button>
+                    </div>
+                    <div class="betting-lines" id="bl-panel-{{ match.id }}" hidden>
+                        <div class="bl-grid bl-header-row">
+                            <span class="bl-team-col"></span>
+                            <span class="bl-col-label">SPREAD</span>
+                            <span class="bl-col-label">TOTAL</span>
+                            <span class="bl-col-label">MONEYLINE</span>
+                        </div>
+                        <div class="bl-grid bl-team-row">
+                            <span class="bl-team-name">{{ match.awayteam.team_name }}</span>
+                            <span class="bl-cell{% if not lines.home_is_favorite %} bl-fav-spread{% endif %}">
+                                <span class="bl-main">{{ lines.away_spread }}</span>
+                                <span class="bl-vig">{{ lines.vig }}</span>
+                            </span>
+                            <span class="bl-cell">
+                                <span class="bl-main">o{{ lines.total }}</span>
+                                <span class="bl-vig">{{ lines.vig }}</span>
+                            </span>
+                            <span class="bl-cell{% if not lines.home_is_favorite %} bl-fav-ml{% endif %}">
+                                <span class="bl-main">{{ lines.away_ml }}</span>
+                            </span>
+                        </div>
+                        <div class="bl-grid bl-team-row">
+                            <span class="bl-team-name">{{ match.hometeam.team_name }}</span>
+                            <span class="bl-cell{% if lines.home_is_favorite %} bl-fav-spread{% endif %}">
+                                <span class="bl-main">{{ lines.home_spread }}</span>
+                                <span class="bl-vig">{{ lines.vig }}</span>
+                            </span>
+                            <span class="bl-cell">
+                                <span class="bl-main">u{{ lines.total }}</span>
+                                <span class="bl-vig">{{ lines.vig }}</span>
+                            </span>
+                            <span class="bl-cell{% if lines.home_is_favorite %} bl-fav-ml{% endif %}">
+                                <span class="bl-main">{{ lines.home_ml }}</span>
+                            </span>
+                        </div>
+                        <div class="bl-disclaimer">For entertainment purposes only</div>
+                    </div>
+                    {% endif %}{% endwith %}{% endif %}
                 </div> <!-- /game -->
             {% endfor %} <!-- match -->
         {% if view == "schedule" %}

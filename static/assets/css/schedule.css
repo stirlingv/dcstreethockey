@@ -62,6 +62,127 @@
 }
 
 
+/* ── Betting Lines ─────────────────────────────────────────────────────── */
+
+.bl-toggle-row {
+    margin: 6px 0 2px;
+}
+
+.bl-toggle-btn {
+    background: none;
+    border: 1px solid #3a3f52;
+    border-radius: 4px;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 10px;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.bl-toggle-btn:hover,
+.bl-toggle-btn[aria-expanded="true"] {
+    border-color: #6b7280;
+    color: #9ca3af;
+}
+
+.betting-lines {
+    background: #181c26;
+    border-radius: 6px;
+    padding: 8px 12px 6px;
+    margin: 4px 0 4px;
+    border: 1px solid #2a2e3a;
+}
+
+.bl-grid {
+    display: grid;
+    grid-template-columns: 130px 1fr 1fr 1fr;
+    align-items: center;
+    gap: 2px 8px;
+}
+
+.bl-header-row {
+    margin-bottom: 3px;
+}
+
+.bl-col-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.bl-team-col {
+    /* spacer */
+}
+
+.bl-team-row {
+    padding: 4px 0;
+    border-top: 1px solid #2a2e3a;
+}
+
+.bl-team-name {
+    font-size: 12px;
+    color: #9ca3af;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bl-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: #1e2230;
+    border-radius: 4px;
+    padding: 4px 6px;
+    min-width: 0;
+    cursor: default;
+    transition: background 0.15s;
+}
+
+.bl-cell:hover {
+    background: #252a3a;
+}
+
+.bl-main {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e8f0;
+    line-height: 1.2;
+}
+
+.bl-vig {
+    font-size: 10px;
+    color: #6b7280;
+    line-height: 1.2;
+    margin-top: 1px;
+}
+
+/* Favorite: spread cell gets green accent */
+.bl-fav-spread .bl-main {
+    color: #4ade80;
+}
+
+/* Favorite: moneyline cell gets red (negative number = you risk more) */
+.bl-fav-ml .bl-main {
+    color: #f87171;
+}
+
+.bl-disclaimer {
+    font-size: 10px;
+    color: #374151;
+    text-align: right;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+/* ── Responsive betting lines ──────────────────────────────────────────── */
+
 @media (max-width: 768px) {
     #content-wrapper.schedule .schedule-section {
         padding: 12px 14px;
@@ -82,5 +203,22 @@
         text-align: center;
         font-weight: 600;
         color: #d80000;
+    }
+
+    .bl-grid {
+        grid-template-columns: 100px 1fr 1fr 1fr;
+        gap: 2px 4px;
+    }
+
+    .bl-team-name {
+        font-size: 11px;
+    }
+
+    .bl-main {
+        font-size: 13px;
+    }
+
+    .bl-cell {
+        padding: 3px 4px;
     }
 }
