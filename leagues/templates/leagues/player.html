@@ -179,18 +179,36 @@
         color: #666;
     }
     @media (max-width: 767px) {
+        /* Keep avatar left + name/stats right — don't stack vertically */
         .player-header-row {
-            flex-direction: column;
-            align-items: center;
-        }
-        .player-header-text {
-            text-align: center;
-            width: 100%;
+            align-items: flex-start;
+            gap: 12px;
         }
         .player-avatar, .player-avatar-placeholder {
-            width: 72px;
-            height: 72px;
-            font-size: 1.6rem;
+            width: 60px;
+            height: 60px;
+            font-size: 1.3rem;
+        }
+        /* Tighten the player name */
+        .player-header-text .title {
+            font-size: 1.3em;
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+        /* Compact the career-stat lines */
+        .player-header-text h2 {
+            font-size: 0.88em;
+            margin-bottom: 2px;
+        }
+        .player-header-text h3 {
+            font-size: 0.8em;
+            line-height: 1.4;
+            margin-bottom: 1px;
+        }
+        /* Shrink the snapshot section heading */
+        .snapshot-section-heading {
+            font-size: 0.85em;
+            margin-bottom: 4px;
         }
     }
 </style>
@@ -246,27 +264,27 @@
                 <div class="{% if both_snapshots %}6u{% else %}4u{% endif %} 12u(mobile)">
                     {% if is_primarily_goalie %}
                         {% if goalie_trend %}
-                        <h3>Goalie Trends Snapshot</h3>
+                        <h3 class="snapshot-section-heading">Goalie Trends Snapshot</h3>
                         <canvas id="goalieSnapshotChart" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
                         {% endif %}
                     {% elif both_snapshots %}
                         <div class="snapshot-pair">
                             <div>
-                                <h3>Offensive Trends</h3>
+                                <h3 class="snapshot-section-heading">Offensive Trends</h3>
                                 <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
                             </div>
                             <div>
-                                <h3>Goalie Trends</h3>
+                                <h3 class="snapshot-section-heading">Goalie Trends</h3>
                                 <canvas id="goalieSnapshotChart" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
                             </div>
                         </div>
                     {% else %}
                         {% if offensive_stats %}
-                        <h3>Player Trends Snapshot</h3>
+                        <h3 class="snapshot-section-heading">Player Trends Snapshot</h3>
                         <canvas id="playerTrendsSnapshot" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
                         {% endif %}
                         {% if goalie_trend %}
-                        <h3>Goalie Trends Snapshot</h3>
+                        <h3 class="snapshot-section-heading">Goalie Trends Snapshot</h3>
                         <canvas id="goalieSnapshotChart" style="cursor: pointer;" onclick="window.location.href='{% url 'player_trends' %}?player_id={{ player.id }}'"></canvas>
                         {% endif %}
                     {% endif %}
