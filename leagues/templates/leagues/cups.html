@@ -7,12 +7,14 @@
                 <div class="title">
                     Championship Games
                 </div>
+                <div class="pill-group">
                 {% for division in divisions %}
-                    <div class="optionsdiv {% if division.division == active_division %}activeoption{% endif %} "
-                        onclick="javascript:handleDivision('{% url "cups" division.division %}')">
+                    <div class="pill-item {% if division.division == active_division %}activeoption{% endif %}"
+                        onclick="handleDivision('{% url "cups" division.division %}')">
                         {{division}}
                     </div>
                 {% endfor %}
+                </div>
                 {% include 'partials/cups.html' %}
             </div>
         </div>

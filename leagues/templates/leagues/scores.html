@@ -12,14 +12,14 @@
             <div class="title">
                 Scores
             </div>
-            <div class="division-filters">
-                <button class="filter-btn {% if active_division == 0 %}active{% endif %}"
-                        onclick="handleDivision('{% url "scores" %}')">All</button>
+            <div class="pill-group">
+                <div class="pill-item {% if active_division == 0 %}activeoption{% endif %}"
+                     onclick="handleDivision('{% url "scores" %}')">All</div>
                 {% for division in divisions %}
-                    <button class="filter-btn {% if division.division == active_division %}active{% endif %}"
-                            onclick="handleDivision('{% url "scores" division.division %}')">
+                    <div class="pill-item {% if division.division == active_division %}activeoption{% endif %}"
+                         onclick="handleDivision('{% url "scores" division.division %}')">
                         {{division}}
-                    </button>
+                    </div>
                 {% endfor %}
             </div>
             {% include 'partials/scores.html' %}

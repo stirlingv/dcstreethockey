@@ -17,17 +17,11 @@
             <h3 class="division">{{team.division}}</h3>
             <div class="stat-scope-note">Roster stats include regular season + playoffs.</div>
             <div class="cleardiv">
-            <div id="rosteroptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('roster')">
-                Roster
-            </div>
-            <div id="scheduleoptiondiv" class="optionsdiv" onclick="javascript:handleOption('schedule')">
-                Schedule
-            </div>
-            <div id="scoresoptiondiv" class="optionsdiv" onclick="javascript:handleOption('scores')">
-                Scores
-            </div>
-            <div id="pastoptiondiv" class="optionsdiv" onclick="javascript:handleOption('past')">
-                Past Seasons
+            <div class="pill-group">
+                <div id="rosteroptiondiv" class="pill-item activeoption" onclick="javascript:handleOption('roster')">Roster</div>
+                <div id="scheduleoptiondiv" class="pill-item" onclick="javascript:handleOption('schedule')">Schedule</div>
+                <div id="scoresoptiondiv" class="pill-item" onclick="javascript:handleOption('scores')">Scores</div>
+                <div id="pastoptiondiv" class="pill-item" onclick="javascript:handleOption('past')">Past Seasons</div>
             </div>
 
             <section id="schedulesection" class="hidden">
@@ -69,40 +63,40 @@
                 roster.className = "stats show";
                 scores.className = "hidden";
                 past.className = "hidden";
-                scheduleoption.className = "optionsdiv"
-                rosteroption.className = "optionsdiv activeoption"
-                scoresoption.className = "optionsdiv"
-                pastoption.className = "optionsdiv"
+                scheduleoption.className = "pill-item"
+                rosteroption.className = "pill-item activeoption"
+                scoresoption.className = "pill-item"
+                pastoption.className = "pill-item"
                 break;
             case "scores":
                 schedule.className = "hidden";
                 roster.className = "hidden";
                 scores.className = "show";
                 past.className = "hidden";
-                scheduleoption.className = "optionsdiv"
-                rosteroption.className = "optionsdiv"
-                scoresoption.className = "optionsdiv activeoption"
-                pastoption.className = "optionsdiv"
+                scheduleoption.className = "pill-item"
+                rosteroption.className = "pill-item"
+                scoresoption.className = "pill-item activeoption"
+                pastoption.className = "pill-item"
                 break;
             case "past":
                 schedule.className = "hidden";
                 roster.className = "hidden";
                 scores.className = "hidden";
                 past.className = "stats show";
-                scheduleoption.className = "optionsdiv"
-                rosteroption.className = "optionsdiv"
-                scoresoption.className = "optionsdiv"
-                pastoption.className = "optionsdiv activeoption"
+                scheduleoption.className = "pill-item"
+                rosteroption.className = "pill-item"
+                scoresoption.className = "pill-item"
+                pastoption.className = "pill-item activeoption"
                 break;
             default:
                 schedule.className = "show";
                 roster.className = "hidden";
                 scores.className = "hidden";
                 past.className = "hidden";
-                scheduleoption.className = "optionsdiv activeoption"
-                rosteroption.className = "optionsdiv"
-                scoresoption.className = "optionsdiv"
-                pastoption.className = "optionsdiv"
+                scheduleoption.className = "pill-item activeoption"
+                rosteroption.className = "pill-item"
+                scoresoption.className = "pill-item"
+                pastoption.className = "pill-item"
         }
     }
 	function handleDivision(dest){

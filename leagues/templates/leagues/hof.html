@@ -15,12 +15,14 @@
                     <option value="NA" {% if selected_gender == 'NA' %}selected{% endif %}>Prefer not to say</option>
                 </select>
             </div>
-            <div id="combinedoptiondiv" class="optionsdiv activeoption" onclick="javascript:handleOption('combined')">Combined</div>
-            <div id="d1optiondiv" class="optionsdiv" onclick="javascript:handleOption('d1')">D1</div>
-            <div id="d2optiondiv" class="optionsdiv" onclick="javascript:handleOption('d2')">D2</div>
-            <div id="draftoptiondiv" class="optionsdiv" onclick="javascript:handleOption('draft')">Draft</div>
-            <div id="monaoptiondiv" class="optionsdiv" onclick="javascript:handleOption('mona')">Mon-A</div>
-            <div id="monboptiondiv" class="optionsdiv" onclick="javascript:handleOption('monb')">Mon-B</div>
+            <div class="pill-group">
+                <div id="combinedoptiondiv" class="pill-item activeoption" onclick="javascript:handleOption('combined')">Combined</div>
+                <div id="d1optiondiv" class="pill-item" onclick="javascript:handleOption('d1')">D1</div>
+                <div id="d2optiondiv" class="pill-item" onclick="javascript:handleOption('d2')">D2</div>
+                <div id="draftoptiondiv" class="pill-item" onclick="javascript:handleOption('draft')">Draft</div>
+                <div id="monaoptiondiv" class="pill-item" onclick="javascript:handleOption('mona')">Mon-A</div>
+                <div id="monboptiondiv" class="pill-item" onclick="javascript:handleOption('monb')">Mon-B</div>
+            </div>
 
             <section id="combinedsection" class="stats show">
                 {% include 'partials/hof_player_rankings.html' with player_ranks=all_ranks section_name="combined" %}
@@ -56,10 +58,10 @@
         var sections = ["combined", "d1", "d2", "draft", "mona", "monb"];
         sections.forEach(function(section) {
             document.getElementById(section + "section").className = "hidden";
-            document.getElementById(section + "optiondiv").className = "optionsdiv";
+            document.getElementById(section + "optiondiv").className = "pill-item";
         });
         document.getElementById(name + "section").className = "stats show";
-        document.getElementById(name + "optiondiv").className = "optionsdiv activeoption";
+        document.getElementById(name + "optiondiv").className = "pill-item activeoption";
     }
 
     function handleDivision(dest) {

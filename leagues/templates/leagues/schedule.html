@@ -14,13 +14,13 @@
                 Schedule
             </div>
 
-			<div class="division-filters">
-				<button class="filter-btn active" data-division="all" onclick="filterSchedule('all')">All</button>
-				<button class="filter-btn" data-division="Monday A League" onclick="filterSchedule('Monday A League')">Monday A</button>
-				<button class="filter-btn" data-division="Monday B League" onclick="filterSchedule('Monday B League')">Monday B</button>
-				<button class="filter-btn" data-division="Sunday D1" onclick="filterSchedule('Sunday D1')">Sunday D1</button>
-				<button class="filter-btn" data-division="Sunday D2" onclick="filterSchedule('Sunday D2')">Sunday D2</button>
-				<button class="filter-btn" data-division="Wednesday Draft League" onclick="filterSchedule('Wednesday')">Wednesday</button>
+			<div class="pill-group" id="divisionFilter">
+				<div class="pill-item activeoption" data-division="all" onclick="filterSchedule('all')">All</div>
+				<div class="pill-item" data-division="Monday A League" onclick="filterSchedule('Monday A League')">Monday A</div>
+				<div class="pill-item" data-division="Monday B League" onclick="filterSchedule('Monday B League')">Monday B</div>
+				<div class="pill-item" data-division="Sunday D1" onclick="filterSchedule('Sunday D1')">Sunday D1</div>
+				<div class="pill-item" data-division="Sunday D2" onclick="filterSchedule('Sunday D2')">Sunday D2</div>
+				<div class="pill-item" data-division="Wednesday Draft League" onclick="filterSchedule('Wednesday')">Wednesday</div>
 			</div>
             {% include 'partials/schedule.html' %}
 		</div>
@@ -54,13 +54,13 @@
 		}
 	}
 	function filterSchedule(division) {
-		// Update active button state
-		var buttons = document.querySelectorAll('.division-filters .filter-btn');
+		// Update active pill state
+		var buttons = document.querySelectorAll('#divisionFilter .pill-item');
 		buttons.forEach(function(btn) {
-			btn.classList.remove('active');
+			btn.classList.remove('activeoption');
 			if (btn.getAttribute('data-division') === division ||
 			    (division === 'Wednesday' && btn.getAttribute('data-division') === 'Wednesday Draft League')) {
-				btn.classList.add('active');
+				btn.classList.add('activeoption');
 			}
 		});
 
