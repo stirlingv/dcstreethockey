@@ -9,7 +9,10 @@ from django.views.generic.list import ListView
 
 from leagues.models import Division, MatchUp, Player, Roster, Stat, Team, Week
 
-from core.betting import compute_betting_lines_for_matchups
+from core.betting import (
+    compute_betting_lines_for_matchups,
+    compute_player_props_for_matchups,
+)
 
 from .home import (
     _WEATHER_ERROR_TTL,
@@ -278,6 +281,7 @@ def schedule(request):
         for match in division_games
     ]
     context["betting_lines"] = compute_betting_lines_for_matchups(all_matchup_ids)
+    context["player_props"] = compute_player_props_for_matchups(all_matchup_ids)
 
     return render(request, "leagues/schedule.html", context=context)
 

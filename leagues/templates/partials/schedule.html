@@ -47,12 +47,15 @@
                             </td>
                         </tr>
                     </table>
-                    {% if view == "schedule" %}{% with betting_lines|get_item:match.id as lines %}{% if lines %}
+                    {% if view == "schedule" %}
+                    {% with betting_lines|get_item:match.id as lines %}{% with player_props|get_item:match.id as props %}
+                    {% if lines or props %}
                     <div class="bl-toggle-row">
-                        <button class="bl-toggle-btn" onclick="toggleOdds(this, 'bl-panel-{{ match.id }}')" aria-expanded="false">
-                            View Odds
-                        </button>
+                        {% if lines %}<button class="bl-toggle-btn" onclick="toggleOdds(this, 'bl-panel-{{ match.id }}')" aria-expanded="false">Game Lines</button>{% endif %}
+                        {% if props %}<button class="bl-toggle-btn" onclick="toggleOdds(this, 'props-panel-{{ match.id }}')" aria-expanded="false">Player Props</button>{% endif %}
                     </div>
+                    {% endif %}
+                    {% if lines %}
                     <div class="betting-lines" id="bl-panel-{{ match.id }}" hidden>
                         <div class="bl-grid bl-header-row">
                             <span class="bl-team-col"></span>
@@ -88,9 +91,50 @@
                                 <span class="bl-main">{{ lines.home_ml }}</span>
                             </span>
                         </div>
+                        <div class="bl-3way">
+                            <div class="bl-3way-header">60 MIN LINE</div>
+                            <div class="bl-3way-grid">
+                                <div class="bl-3way-cell">
+                                    <span class="bl-3way-team-label">{{ match.hometeam.team_name }}</span>
+                                    <span class="bl-main{% if lines.home_is_favorite %} bl-fav-ml{% endif %}">{{ lines.home_3way }}</span>
+                                </div>
+                                <div class="bl-3way-cell">
+                                    <span class="bl-3way-team-label">Draw / OT</span>
+                                    <span class="bl-main">{{ lines.draw_3way }}</span>
+                                </div>
+                                <div class="bl-3way-cell">
+                                    <span class="bl-3way-team-label">{{ match.awayteam.team_name }}</span>
+                                    <span class="bl-main{% if not lines.home_is_favorite %} bl-fav-ml{% endif %}">{{ lines.away_3way }}</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="bl-disclaimer">For entertainment purposes only</div>
                     </div>
-                    {% endif %}{% endwith %}{% endif %}
+                    {% endif %}
+                    {% if props %}
+                    <div class="props-panel" id="props-panel-{{ match.id }}" hidden>
+                        <div class="props-panel-header">
+                            <span class="props-section-title">Player Props</span>
+                            <span class="props-section-count">{{ props.total }} players</span>
+                            <span class="props-legend"><span class="props-legend-goal">&#9632;</span> Goal &nbsp;<span class="props-legend-point">&#9632;</span> Point</span>
+                        </div>
+                        <div class="props-list">
+                            {% for p in props.by_goal %}
+                            <div class="props-row">
+                                <span class="props-player-info">
+                                    <span class="props-team-tag">{{ p.team_abbr }}</span>
+                                    <span class="props-name">{{ p.name }}</span>
+                                    <span class="props-pos">{{ p.pos }}</span>
+                                </span>
+                                <span class="props-odds">{{ p.goal_odds }}</span>
+                                <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="bl-disclaimer">For entertainment purposes only</div>
+                    </div>
+                    {% endif %}
+                    {% endwith %}{% endwith %}{% endif %}
                 </div> <!-- /game -->
             {% endfor %} <!-- match -->
         {% if view == "schedule" %}

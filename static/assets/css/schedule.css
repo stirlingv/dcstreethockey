@@ -181,6 +181,186 @@
     font-style: italic;
 }
 
+/* ── 60-min (3-way) line ───────────────────────────────────────────────── */
+
+.bl-3way {
+    padding: 6px 0 2px;
+    border-top: 1px solid #2a2e3a;
+    margin-top: 4px;
+}
+
+.bl-3way-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.bl-3way-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2px 8px;
+}
+
+.bl-3way-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: #1e2230;
+    border-radius: 4px;
+    padding: 4px 6px;
+    min-width: 0;
+}
+
+.bl-3way-team-label {
+    font-size: 10px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 2px;
+}
+
+/* ── Player Props panel ────────────────────────────────────────────────── */
+
+.props-panel {
+    background: #181c26;
+    border-radius: 6px;
+    padding: 8px 12px 6px;
+    margin: 4px 0 4px;
+    border: 1px solid #2a2e3a;
+}
+
+.props-panel-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.props-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.props-section-count {
+    font-size: 10px;
+    color: #4b5563;
+}
+
+/* Each player row: name area + two odds columns */
+.props-row {
+    display: grid;
+    grid-template-columns: 1fr 52px 52px;
+    align-items: center;
+    padding: 4px 0;
+    border-top: 1px solid #1e2230;
+}
+
+.props-player-info {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.props-team-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #4b5563;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    min-width: 28px;
+    flex-shrink: 0;
+}
+
+.props-name {
+    font-size: 13px;
+    color: #d1d5db;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.props-pos {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b7280;
+    flex-shrink: 0;
+}
+
+.props-odds {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e2e8f0;
+    text-align: center;
+}
+
+/* Point odds use a blue tint to distinguish from goal odds */
+.props-point-odds {
+    color: #93c5fd;
+}
+
+.props-legend {
+    margin-left: auto;
+    font-size: 10px;
+    color: #4b5563;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.props-legend-goal {
+    color: #e2e8f0;
+}
+
+.props-legend-point {
+    color: #93c5fd;
+}
+
+.props-list {
+    max-height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #3a3f52 transparent;
+}
+
+.props-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.props-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.props-list::-webkit-scrollbar-thumb {
+    background-color: #3a3f52;
+    border-radius: 2px;
+}
+
+/* ── Desktop: two-column props grid ───────────────────────────────────── */
+
+@media (min-width: 769px) {
+    .props-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 16px;
+        max-height: 220px;
+    }
+}
+
 /* ── Responsive betting lines ──────────────────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -220,5 +400,17 @@
 
     .bl-cell {
         padding: 3px 4px;
+    }
+
+    .props-row {
+        grid-template-columns: 1fr 44px 44px;
+    }
+
+    .props-name {
+        font-size: 12px;
+    }
+
+    .props-odds {
+        font-size: 12px;
     }
 }

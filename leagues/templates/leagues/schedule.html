@@ -43,11 +43,14 @@
 		if (expanded) {
 			panel.hidden = true;
 			btn.setAttribute('aria-expanded', 'false');
-			btn.textContent = 'View Odds';
+			btn.textContent = btn.getAttribute('data-label');
 		} else {
+			if (!btn.getAttribute('data-label')) {
+				btn.setAttribute('data-label', btn.textContent);
+			}
 			panel.hidden = false;
 			btn.setAttribute('aria-expanded', 'true');
-			btn.textContent = 'Hide Odds';
+			btn.textContent = 'Hide';
 		}
 	}
 	function filterSchedule(division) {

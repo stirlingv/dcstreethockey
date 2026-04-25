@@ -19,6 +19,7 @@ from django.urls import reverse
 
 from core.betting import (
     compute_betting_lines_for_matchups,
+    compute_player_props_for_matchups,
     fmt_american,
     fmt_spread,
     win_prob_to_american,
@@ -645,6 +646,9 @@ class ComputeBettingLinesTest(BettingLinesBase):
             "away_ml",
             "vig",
             "home_is_favorite",
+            "home_3way",
+            "away_3way",
+            "draw_3way",
         ):
             self.assertIn(key, lines, msg=f"Missing key: {key}")
 
@@ -717,6 +721,42 @@ class ComputeBettingLinesTest(BettingLinesBase):
     def test_total_is_positive(self):
         result = compute_betting_lines_for_matchups([self.matchup.id])
         self.assertGreater(float(result[self.matchup.id]["total"]), 0)
+
+    def test_3way_draw_always_positive_odds(self):
+        # Draw/OT is always a minority outcome — odds must be positive (underdog).
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertTrue(result[self.matchup.id]["draw_3way"].startswith("+"))
+
+    def test_3way_favorite_matches_2way_favorite(self):
+        # The team favored in the 2-way ML should also have better (lower
+        # American) 3-way regulation-win odds than the underdog.
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        home_3 = int(lines["home_3way"])
+        away_3 = int(lines["away_3way"])
+        if lines["home_is_favorite"]:
+            self.assertLess(home_3, away_3)
+        else:
+            self.assertLess(away_3, home_3)
+
+    def test_3way_higher_ot_rate_shifts_draw_odds_lower(self):
+        # A team with a high OT rate should produce a shorter (lower) draw price
+        # than one with no OT history (where the floor probability is used).
+        #
+        # Baseline: both teams have 0 OT games (draw uses THREEWAY_MIN_DRAW_PROB).
+        baseline = compute_betting_lines_for_matchups([self.matchup.id])
+        baseline_draw_odds = int(baseline[self.matchup.id]["draw_3way"])
+
+        # Give both teams a 50% OT rate — draw should become shorter odds.
+        from leagues.models import Team_Stat as TS
+
+        TS.objects.filter(team=self.home_team).update(otw=5, otl=5, win=0, loss=0)
+        TS.objects.filter(team=self.away_team).update(otw=5, otl=5, win=0, loss=0)
+
+        high_ot = compute_betting_lines_for_matchups([self.matchup.id])
+        high_ot_draw_odds = int(high_ot[self.matchup.id]["draw_3way"])
+
+        self.assertLess(high_ot_draw_odds, baseline_draw_odds)
 
 
 class GoalieSubPenaltyTest(BettingLinesBase):
@@ -865,3 +905,313 @@ class ScheduleViewBettingLinesTest(TestCase):
         self.assertContains(response, "TOTAL")
         self.assertContains(response, "MONEYLINE")
         self.assertContains(response, "For entertainment purposes only")
+
+
+# ---------------------------------------------------------------------------
+# Player props — compute_player_props_for_matchups
+# ---------------------------------------------------------------------------
+
+
+class PlayerPropsBase(TestCase):
+    """Fixture: two teams, one future matchup, season stats, and stat history."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.home_team = Team.objects.create(
+            team_name="Props Home",
+            team_color="Red",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.away_team = Team.objects.create(
+            team_name="Props Away",
+            team_color="Blue",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.home_team,
+            win=5,
+            loss=3,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=25,
+            goals_against=20,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.away_team,
+            win=3,
+            loss=5,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=20,
+            goals_against=25,
+        )
+        future_date = datetime.date.today() + datetime.timedelta(days=3)
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        # Home player with enough game history
+        self.home_player = Player.objects.create(first_name="Home", last_name="Scorer")
+        Roster.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            position1=1,  # Center
+        )
+        # Away player with enough game history
+        self.away_player = Player.objects.create(first_name="Away", last_name="Forward")
+        Roster.objects.create(
+            player=self.away_player,
+            team=self.away_team,
+            position1=2,  # Wing
+        )
+        # Create 5 past games with stats for each player (meets PROP_MIN_GAMES)
+        for i in range(5):
+            past_date = datetime.date.today() - datetime.timedelta(days=(i + 1) * 5)
+            past_week = Week.objects.create(
+                division=self.division, season=self.season, date=past_date
+            )
+            past_matchup = MatchUp.objects.create(
+                week=past_week,
+                time=datetime.time(19, 0),
+                hometeam=self.home_team,
+                awayteam=self.away_team,
+            )
+            Stat.objects.create(
+                player=self.home_player,
+                team=self.home_team,
+                matchup=past_matchup,
+                goals=1 if i % 2 == 0 else 0,
+                assists=1 if i % 3 == 0 else 0,
+            )
+            Stat.objects.create(
+                player=self.away_player,
+                team=self.away_team,
+                matchup=past_matchup,
+                goals=0,
+                assists=1 if i % 2 == 0 else 0,
+            )
+
+
+class ComputePlayerPropsTest(PlayerPropsBase):
+    def test_empty_input_returns_empty_dict(self):
+        self.assertEqual(compute_player_props_for_matchups([]), {})
+
+    def test_returns_entry_for_matchup(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        self.assertIn(self.matchup.id, result)
+
+    def test_result_has_expected_keys(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        props = result[self.matchup.id]
+        self.assertIsNotNone(props)
+        self.assertIn("by_goal", props)
+        self.assertIn("by_point", props)
+        self.assertIn("total", props)
+
+    def test_home_player_appears_in_by_goal(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        names = [p["name"] for p in result[self.matchup.id]["by_goal"]]
+        self.assertIn("Home Scorer", names)
+
+    def test_away_player_appears_in_by_goal(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        names = [p["name"] for p in result[self.matchup.id]["by_goal"]]
+        self.assertIn("Away Forward", names)
+
+    def test_player_prop_has_required_keys(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        player = result[self.matchup.id]["by_goal"][0]
+        for key in ("name", "pos", "team_abbr", "goal_odds", "point_odds", "games"):
+            self.assertIn(key, player)
+
+    def test_position_label_correct(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        home_entry = next(
+            p for p in result[self.matchup.id]["by_goal"] if p["name"] == "Home Scorer"
+        )
+        self.assertEqual(home_entry["pos"], "C")
+
+    def test_goal_odds_are_american_format(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        for p in result[self.matchup.id]["by_goal"]:
+            odds = p["goal_odds"]
+            self.assertTrue(
+                odds.startswith("+") or odds.startswith("-"),
+                msg=f"Unexpected odds format: {odds}",
+            )
+
+    def test_player_with_no_games_excluded(self):
+        # A rostered player with zero recorded games should not appear —
+        # we need at least one game of evidence (PROP_MIN_GAMES=1).
+        no_games_player = Player.objects.create(first_name="Never", last_name="Played")
+        Roster.objects.create(player=no_games_player, team=self.home_team, position1=2)
+        result = compute_player_props_for_matchups([self.matchup.id])
+        names = [p["name"] for p in result[self.matchup.id]["by_goal"]]
+        self.assertNotIn("Never Played", names)
+
+    def test_goalie_not_included_in_props(self):
+        goalie = Player.objects.create(first_name="Net", last_name="Minder")
+        Roster.objects.create(
+            player=goalie, team=self.home_team, position1=4, is_primary_goalie=True
+        )
+        result = compute_player_props_for_matchups([self.matchup.id])
+        names = [p["name"] for p in result[self.matchup.id]["by_goal"]]
+        self.assertNotIn("Net Minder", names)
+
+    def test_both_teams_mixed_in_by_goal(self):
+        # Both home and away players should appear in the same by_goal list.
+        result = compute_player_props_for_matchups([self.matchup.id])
+        names = [p["name"] for p in result[self.matchup.id]["by_goal"]]
+        self.assertIn("Home Scorer", names)
+        self.assertIn("Away Forward", names)
+
+    def test_total_reflects_player_count(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        props = result[self.matchup.id]
+        # by_goal and by_point have the same players; total should equal len
+        self.assertEqual(props["total"], len(props["by_goal"]))
+
+    def test_team_abbr_present_on_each_player(self):
+        result = compute_player_props_for_matchups([self.matchup.id])
+        for p in result[self.matchup.id]["by_goal"]:
+            self.assertTrue(len(p["team_abbr"]) > 0)
+
+    def test_no_qualifying_players_returns_none(self):
+        # Build a matchup with no stat history on either side.
+        new_team_a = Team.objects.create(
+            team_name="Empty A",
+            team_color="White",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        new_team_b = Team.objects.create(
+            team_name="Empty B",
+            team_color="Black",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        future_date = datetime.date.today() + datetime.timedelta(days=10)
+        w = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        m = MatchUp.objects.create(
+            week=w,
+            time=datetime.time(20, 0),
+            hometeam=new_team_a,
+            awayteam=new_team_b,
+        )
+        result = compute_player_props_for_matchups([m.id])
+        self.assertIsNone(result[m.id])
+
+
+class GoalieSubBoostPropsTest(PlayerPropsBase):
+    """Sub Needed status should inflate scoring odds."""
+
+    def test_sub_needed_inflates_goal_odds(self):
+        # Baseline: Unconfirmed goalie (default)
+        baseline = compute_player_props_for_matchups([self.matchup.id])
+        baseline_all = {p["name"]: p for p in baseline[self.matchup.id]["by_goal"]}
+
+        # Away goalie sub needed → home players score against a sub → better odds
+        self.matchup.away_goalie_status = 2
+        self.matchup.save()
+        boosted = compute_player_props_for_matchups([self.matchup.id])
+        boosted_all = {p["name"]: p for p in boosted[self.matchup.id]["by_goal"]}
+
+        # Higher scoring probability always produces a numerically lower American
+        # odds integer: a favorite goes -150 → -180 (more negative), an underdog
+        # goes +200 → +160 (less positive). Both directions mean boost_odds < base_odds.
+        base_odds = int(baseline_all["Home Scorer"]["goal_odds"])
+        boost_odds = int(boosted_all["Home Scorer"]["goal_odds"])
+        self.assertLess(boost_odds, base_odds)
+
+
+class ScheduleViewPlayerPropsTest(TestCase):
+    """Integration: schedule view must include player_props in context."""
+
+    def setUp(self):
+        self.client = Client()
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.home_team = Team.objects.create(
+            team_name="View Props Home",
+            team_color="Red",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.away_team = Team.objects.create(
+            team_name="View Props Away",
+            team_color="Blue",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        future_date = datetime.date.today() + datetime.timedelta(days=3)
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+
+    def test_player_props_key_in_context(self):
+        response = self.client.get(reverse("schedule"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("player_props", response.context)
+
+    def test_player_props_is_dict(self):
+        response = self.client.get(reverse("schedule"))
+        self.assertIsInstance(response.context["player_props"], dict)
+
+    def test_props_panel_rendered_with_stat_history(self):
+        player = Player.objects.create(first_name="Star", last_name="Forward")
+        Roster.objects.create(player=player, team=self.home_team, position1=1)
+        for i in range(4):
+            past_date = datetime.date.today() - datetime.timedelta(days=(i + 1) * 4)
+            pw = Week.objects.create(
+                division=self.division, season=self.season, date=past_date
+            )
+            pm = MatchUp.objects.create(
+                week=pw,
+                time=datetime.time(19, 0),
+                hometeam=self.home_team,
+                awayteam=self.away_team,
+            )
+            Stat.objects.create(
+                player=player,
+                team=self.home_team,
+                matchup=pm,
+                goals=1,
+                assists=1,
+            )
+        response = self.client.get(reverse("schedule"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "props-panel")
+        self.assertContains(response, "Player Props")
+        self.assertContains(response, "Star Forward")
