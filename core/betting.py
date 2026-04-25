@@ -25,7 +25,7 @@ import datetime
 from collections import defaultdict
 from math import exp
 
-from django.db.models import Q
+from django.db.models import Count, Q
 
 from leagues.models import MatchUp, Roster, Stat, Team, Team_Stat
 
@@ -69,16 +69,45 @@ PROP_POINT_GOALIE_WEIGHT = 0.2
 # Scoring probability multiplier when the opposing goalie status is "Sub Needed".
 PROP_SUB_BOOST = 1.3
 
+# Minimum team games in the current season before the goalie quality adjustment
+# is applied.  A team's season GA average is meaningless with only 1–2 games
+# played, so we skip the adjustment entirely until there is enough sample to
+# produce a stable baseline.
+PROP_GOALIE_MIN_TEAM_GAMES = 5
+
+# Hard cap on per-game goal and point probabilities.  Even the best scorers in
+# this league score in ~75% of their appearances, so 0.72 is an honest ceiling
+# that prevents extreme goalie factors or hot streaks from producing unrealistic
+# odds (e.g. -567 implying a near-certainty to score every game).
+PROP_MAX_PROB = 0.72
+
 # Shrinkage prior for player props.
-# We blend each player's observed scoring frequency with PROP_PRIOR_GAMES
-# "phantom" games played at the baseline rate. This prevents small samples
-# from producing extreme probabilities (e.g. 5-for-5 → raw 100% → -1900).
-# A player going 5/5 on goals instead shows ~-167; 10/10 shows ~-300.
-# The prior rates are conservative baselines for a high-scoring floor hockey
-# league; goals are less frequent than points (assists inflate point rate).
+#
+# For goal probability we use a career-proportional prior (see below).
+# For point probability we use a fixed phantom-game count.
+#
+# PROP_PRIOR_GAMES serves two roles:
+#   • Fixed phantom-game count for the point-rate shrinkage (all players).
+#   • Minimum phantom-game count for the goal-rate shrinkage (newcomers
+#     with fewer than PROP_PRIOR_GAMES career appearances).
 PROP_PRIOR_GAMES = 5
-PROP_PRIOR_GOAL_RATE = 0.25  # ~25% of games with ≥1 goal as baseline prior
+PROP_PRIOR_GOAL_RATE = 0.25  # league-average baseline (newcomer fallback)
 PROP_PRIOR_POINT_RATE = 0.40  # ~40% of games with ≥1 point as baseline prior
+
+# Maximum phantom-game count used when anchoring goal-rate shrinkage to a
+# player's career rate.  Veterans with ≥ this many appearances get the full
+# weight; players below it scale linearly down to PROP_PRIOR_GAMES.
+#
+# Effect: a 2/2 hot streak barely moves a 173-game veteran's estimate, while
+# a newcomer with 5 career games is still mostly governed by the league prior.
+PROP_CAREER_PRIOR_MAX_GAMES = 50
+
+# Weight of the league-average baseline when blending a player's career goal
+# rate into their personalized prior.  A player needs roughly CAREER_PRIOR_WEIGHT
+# career stat rows before their own history dominates over the league average.
+# Set to 20 so veterans with 50+ appearances converge strongly to their true rate
+# while players with only a handful of games stay close to the league average.
+CAREER_PRIOR_WEIGHT = 20
 
 # Wednesday Draft League division ID. Each draft season uses entirely new
 # teams, so cross-season lookback must follow the player's roster history
@@ -629,6 +658,45 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
             player_had_goal[key] = goals > 0
             player_had_point[key] = goals > 0 or assists > 0
 
+    # ── 3d. Career goal-rate prior per player (one aggregation query) ────────
+    #
+    # Using a flat league-average prior for everyone undervalues veterans who
+    # consistently score and overvalues players who happened to score in every
+    # game they appeared in over a short recent window.
+    #
+    # We compute each non-goalie player's career goal rate as:
+    #   (career games with ≥1 goal) / (career stat rows)
+    # and blend it toward the league average using CAREER_PRIOR_WEIGHT phantom
+    # rows.  The result replaces the flat PROP_PRIOR_GOAL_RATE for each player
+    # in the shrinkage formula, so a veteran scorer pulls their prior upward
+    # even when their recent 10-game window is cold.
+    #
+    # We also switch the recent-window denominator from team games to the
+    # player's own appearances (stat rows in the window), so a game the player
+    # missed no longer counts as a zero against them.
+    # pid → (personalized goal prior rate, prior strength)
+    # Prior strength scales with career sample size up to PROP_CAREER_PRIOR_MAX_GAMES,
+    # with PROP_PRIOR_GAMES as the minimum floor.  This ensures that a 2-game
+    # hot streak has little effect on a veteran's estimate, while newcomers
+    # remain anchored to the league average until they build a track record.
+    career_data: dict[int, tuple] = {}
+    for row in (
+        Stat.objects.filter(player_id__in=all_player_ids)
+        .values("player_id")
+        .annotate(
+            career_rows=Count("matchup_id", distinct=True),
+            career_goal_games=Count("matchup_id", distinct=True, filter=Q(goals__gt=0)),
+        )
+    ):
+        pid = row["player_id"]
+        rows = row["career_rows"]
+        g_games = row["career_goal_games"]
+        rate = (g_games + CAREER_PRIOR_WEIGHT * PROP_PRIOR_GOAL_RATE) / (
+            rows + CAREER_PRIOR_WEIGHT
+        )
+        strength = max(PROP_PRIOR_GAMES, min(rows, PROP_CAREER_PRIOR_MAX_GAMES))
+        career_data[pid] = (rate, strength)
+
     # ── 4. Goalie career stats for GAA (one query) ───────────────────────────
     all_goalie_ids = [gid for gids in goalie_ids_by_team.values() for gid in gids]
     _prop_goalie_ga: dict[int, int] = defaultdict(int)
@@ -667,7 +735,10 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
         if ts is None:
             return 1.0
         games = ts.win + ts.otw + ts.loss + ts.otl + ts.tie
-        if games == 0:
+        # Require a minimum sample before trusting the season GA average as a
+        # baseline.  With fewer games the average is too noisy to produce a
+        # meaningful comparison against a goalie's career GAA.
+        if games < PROP_GOALIE_MIN_TEAM_GAMES:
             return 1.0
         team_avg_ga = ts.goals_against / games
         return gaa / team_avg_ga if team_avg_ga > 0 else 1.0
@@ -680,12 +751,10 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
         else:
             window = game_window.get(team_id, [])
 
-        # Denominator = games the *team* played in the window.
-        # A game where the player was absent counts as 0 goals/assists.
-        total = len(window)
-
-        # Numerator = games where the player actually appeared (has a stat row).
-        # Must meet minimum before showing a prop.
+        # Denominator = games this player *appeared* in within the window
+        # (has any stat row).  This avoids penalising players for games they
+        # missed: a game with no stat row is ambiguous between "absent" and
+        # "present but scoreless", so we exclude it from the denominator.
         appearances = sum(1 for mid in window if (pid, mid) in player_appeared)
         if appearances < PROP_MIN_GAMES:
             return None
@@ -695,23 +764,28 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
             1 for mid in window if player_had_point.get((pid, mid), False)
         )
 
-        # Shrinkage: blend observed rate with a conservative prior to prevent
-        # extreme probabilities from small samples.
-        smoothed_total = total + PROP_PRIOR_GAMES
-        p_goal_raw = (
-            goal_count + PROP_PRIOR_GAMES * PROP_PRIOR_GOAL_RATE
-        ) / smoothed_total
-        p_point_raw = (
-            point_count + PROP_PRIOR_GAMES * PROP_PRIOR_POINT_RATE
-        ) / smoothed_total
+        # Personalized goal prior from career history.  Veterans converge to
+        # their own historical rate; newcomers default to the league average.
+        # prior_strength scales with career sample size so a small hot streak
+        # cannot override years of evidence about a player's true scoring rate.
+        p_goal_prior, prior_strength = career_data.get(
+            pid, (PROP_PRIOR_GOAL_RATE, PROP_PRIOR_GAMES)
+        )
+
+        p_goal_raw = (goal_count + prior_strength * p_goal_prior) / (
+            appearances + prior_strength
+        )
+        p_point_raw = (point_count + PROP_PRIOR_GAMES * PROP_PRIOR_POINT_RATE) / (
+            appearances + PROP_PRIOR_GAMES
+        )
 
         # Dampen the goalie factor before applying.
         # Assists depend less on goalie quality than goals do.
         adj_goal = 1 + (opp_goalie_factor - 1) * PROP_GOAL_GOALIE_WEIGHT
         adj_point = 1 + (opp_goalie_factor - 1) * PROP_POINT_GOALIE_WEIGHT
 
-        p_goal = min(0.85, max(0.05, p_goal_raw * adj_goal))
-        p_point = min(0.85, max(0.05, p_point_raw * adj_point))
+        p_goal = min(PROP_MAX_PROB, max(0.05, p_goal_raw * adj_goal))
+        p_point = min(PROP_MAX_PROB, max(0.05, p_point_raw * adj_point))
 
         return {
             "p_goal": p_goal,

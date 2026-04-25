@@ -1215,3 +1215,140 @@ class ScheduleViewPlayerPropsTest(TestCase):
         self.assertContains(response, "props-panel")
         self.assertContains(response, "Player Props")
         self.assertContains(response, "Star Forward")
+
+
+class CareerRatePriorTest(PlayerPropsBase):
+    """Career-rate prior: a player with a higher career goal rate should get
+    better (shorter) odds than a player with the same recent form but a lower
+    career rate, all else being equal."""
+
+    def test_high_career_rate_beats_low_career_rate_same_recent_form(self):
+        # Build a second matchup between two new teams so there is no
+        # cross-contamination with PlayerPropsBase fixtures.
+        veteran = Player.objects.create(first_name="Veteran", last_name="Scorer")
+        newcomer = Player.objects.create(first_name="Newcomer", last_name="Scorer")
+
+        team_v = Team.objects.create(
+            team_name="Veteran Team",
+            team_color="Green",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        team_n = Team.objects.create(
+            team_name="Newcomer Team",
+            team_color="Orange",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=team_v,
+            win=4,
+            loss=4,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=20,
+            goals_against=20,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=team_n,
+            win=4,
+            loss=4,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=20,
+            goals_against=20,
+        )
+        Roster.objects.create(player=veteran, team=team_v, position1=1)
+        Roster.objects.create(player=newcomer, team=team_n, position1=1)
+
+        future_date = self.week.date + datetime.timedelta(days=1)
+        new_week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        matchup = MatchUp.objects.create(
+            week=new_week,
+            time=datetime.time(20, 0),
+            hometeam=team_v,
+            awayteam=team_n,
+        )
+
+        # Give veteran 20 career stat rows (15 with goals = 75% career rate)
+        # plus 5 recent rows matching the newcomer's recent form (2/5 goals).
+        for i in range(20):
+            past_date = datetime.date.today() - datetime.timedelta(days=(i + 8) * 7)
+            pw = Week.objects.create(
+                division=self.division, season=self.season, date=past_date
+            )
+            pm = MatchUp.objects.create(
+                week=pw,
+                time=datetime.time(19, 0),
+                hometeam=team_v,
+                awayteam=team_n,
+            )
+            Stat.objects.create(
+                player=veteran,
+                team=team_v,
+                matchup=pm,
+                goals=1 if i < 15 else 0,
+                assists=0,
+            )
+
+        # Give newcomer only 5 career stat rows — same 2/5 goals as veteran's
+        # recent window, so recent form is identical but career rate is lower.
+        for i in range(5):
+            past_date = datetime.date.today() - datetime.timedelta(days=(i + 1) * 7)
+            pw = Week.objects.create(
+                division=self.division, season=self.season, date=past_date
+            )
+            pm = MatchUp.objects.create(
+                week=pw,
+                time=datetime.time(19, 0),
+                hometeam=team_v,
+                awayteam=team_n,
+            )
+            Stat.objects.create(
+                player=newcomer,
+                team=team_n,
+                matchup=pm,
+                goals=1 if i < 2 else 0,
+                assists=0,
+            )
+            # Veteran's recent 5 rows mirror newcomer: 2 goals out of 5
+            Stat.objects.create(
+                player=veteran,
+                team=team_v,
+                matchup=pm,
+                goals=1 if i < 2 else 0,
+                assists=0,
+            )
+
+        result = compute_player_props_for_matchups([matchup.id])
+        props = result[matchup.id]
+        self.assertIsNotNone(props)
+
+        vet_entry = next(
+            (p for p in props["by_goal"] if p["name"] == "Veteran Scorer"), None
+        )
+        new_entry = next(
+            (p for p in props["by_goal"] if p["name"] == "Newcomer Scorer"), None
+        )
+        self.assertIsNotNone(vet_entry, "Veteran should qualify for props")
+        self.assertIsNotNone(new_entry, "Newcomer should qualify for props")
+
+        # Career-rate prior should give veteran shorter (better) goal odds.
+        # Lower American odds integer = shorter odds = more likely to score.
+        vet_odds = int(vet_entry["goal_odds"])
+        new_odds = int(new_entry["goal_odds"])
+        self.assertLess(
+            vet_odds,
+            new_odds,
+            msg=f"Veteran ({vet_odds}) should have shorter odds than newcomer ({new_odds})",
+        )
