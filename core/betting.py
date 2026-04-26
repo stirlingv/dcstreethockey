@@ -25,7 +25,7 @@ import datetime
 from collections import defaultdict
 from math import exp
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 
 from leagues.models import MatchUp, Roster, Stat, Team, Team_Stat
 
@@ -51,13 +51,9 @@ VIG = -110
 # Tuning constants — player props
 # ---------------------------------------------------------------------------
 
-# Minimum games played before a player prop is shown.
-# 1 means any player with at least one recorded game qualifies; the shrinkage
-# prior handles statistical uncertainty from small samples.
-PROP_MIN_GAMES = 1
-
-# How many of a player's most recent games (spanning seasons on the same team
-# name) to use when computing scoring/point frequency for props.
+# How many of a player's most recent team games to use for recent-form scoring.
+# The denominator is team games played (not inferred player appearances), so
+# games where a player recorded no stats count as zeroes rather than absences.
 PROP_HISTORY_GAMES = 10
 
 # How much of the goalie quality factor flows through to scoring/point props.
@@ -75,11 +71,11 @@ PROP_SUB_BOOST = 1.3
 # produce a stable baseline.
 PROP_GOALIE_MIN_TEAM_GAMES = 5
 
-# Hard cap on per-game goal and point probabilities.  Even the best scorers in
-# this league score in ~75% of their appearances, so 0.72 is an honest ceiling
-# that prevents extreme goalie factors or hot streaks from producing unrealistic
-# odds (e.g. -567 implying a near-certainty to score every game).
-PROP_MAX_PROB = 0.72
+# Hard cap on per-game goal and point probabilities.  Elite scorers in this
+# league top out around 80% of appearances.  The goalie-factor blowout risk
+# (which motivated the earlier 0.72 cap) is already handled by
+# PROP_GOALIE_MIN_TEAM_GAMES, so 0.80 is the honest ceiling here.
+PROP_MAX_PROB = 0.80
 
 # Shrinkage prior for player props.
 #
@@ -90,24 +86,33 @@ PROP_MAX_PROB = 0.72
 #   • Fixed phantom-game count for the point-rate shrinkage (all players).
 #   • Minimum phantom-game count for the goal-rate shrinkage (newcomers
 #     with fewer than PROP_PRIOR_GAMES career appearances).
+# Minimum phantom-game floor for prior strength; also the fixed phantom-game
+# count used when anchoring the point-rate Bayesian blend.
 PROP_PRIOR_GAMES = 5
-PROP_PRIOR_GOAL_RATE = 0.25  # league-average baseline (newcomer fallback)
-PROP_PRIOR_POINT_RATE = 0.40  # ~40% of games with ≥1 point as baseline prior
 
-# Maximum phantom-game count used when anchoring goal-rate shrinkage to a
-# player's career rate.  Veterans with ≥ this many appearances get the full
-# weight; players below it scale linearly down to PROP_PRIOR_GAMES.
-#
-# Effect: a 2/2 hot streak barely moves a 173-game veteran's estimate, while
-# a newcomer with 5 career games is still mostly governed by the league prior.
+# League-average baselines used when blending career rates toward the mean.
+# PROP_PRIOR_GOAL_RATE is the league-average goals-per-team-game (GPG).
+# PROP_PRIOR_POINT_RATE is the league-average points (goals+assists) per team-game.
+PROP_PRIOR_GOAL_RATE = 0.30
+PROP_PRIOR_POINT_RATE = 0.55
+
+# Maximum phantom-game count for prior strength; caps how strongly career
+# history resists a recent hot/cold streak.
 PROP_CAREER_PRIOR_MAX_GAMES = 50
 
-# Weight of the league-average baseline when blending a player's career goal
-# rate into their personalized prior.  A player needs roughly CAREER_PRIOR_WEIGHT
-# career stat rows before their own history dominates over the league average.
-# Set to 20 so veterans with 50+ appearances converge strongly to their true rate
-# while players with only a handful of games stay close to the league average.
+# Phantom games added when blending a player's career rate toward the league
+# average.  Higher = more regression to the mean for players with thin histories.
 CAREER_PRIOR_WEIGHT = 20
+
+# Exponential recency decay applied across seasons when computing career priors.
+# A value of 0.75 means last season counts 75% as much as the current season,
+# two seasons ago counts 56%, etc.  Captures aging/improvement trends.
+PROP_SEASON_DECAY = 0.75
+
+# Fraction by which a player's career multi-point rate (games with ≥2 goals+assists)
+# boosts their career prior.  A player with a 40% multi-point rate gets a
+# 1 + 0.40 * 0.25 = 1.10 multiplier — reflecting elite scoring upside.
+PROP_MULTI_POINT_BOOST = 0.25
 
 # Wednesday Draft League division ID. Each draft season uses entirely new
 # teams, so cross-season lookback must follow the player's roster history
@@ -641,10 +646,11 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
     for mids in player_game_window.values():
         all_window_ids.update(mids)
 
-    # Index by (player_id, matchup_id) for O(1) lookup in _player_props
-    player_had_goal: dict[tuple, bool] = {}
-    player_had_point: dict[tuple, bool] = {}
-    player_appeared: set = set()  # (player_id, matchup_id) pairs with any stat row
+    # Goals and points recorded per (player, matchup) in the recent window.
+    # Missing keys mean 0 — the team-game window is the denominator, so games
+    # where the player has no stat row count as zeroes, not absences.
+    player_goal_totals: dict[tuple, int] = defaultdict(int)
+    player_point_totals: dict[tuple, int] = defaultdict(int)
 
     if all_window_ids:
         for row in Stat.objects.filter(
@@ -654,48 +660,110 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
             key = (row["player_id"], row["matchup_id"])
             goals = row["goals"] or 0
             assists = row["assists"] or 0
-            player_appeared.add(key)
-            player_had_goal[key] = goals > 0
-            player_had_point[key] = goals > 0 or assists > 0
+            player_goal_totals[key] += goals
+            player_point_totals[key] += goals + assists
 
-    # ── 3d. Career goal-rate prior per player (one aggregation query) ────────
+    # ── 3d. Career prior: per-season production, recency-weighted ────────────
     #
-    # Using a flat league-average prior for everyone undervalues veterans who
-    # consistently score and overvalues players who happened to score in every
-    # game they appeared in over a short recent window.
+    # Groups every Stat row by (player, team, season) to get per-season goal
+    # and point totals.  Seasons are then weighted exponentially by recency
+    # (most recent = 1.0, prior season = PROP_SEASON_DECAY, two seasons ago =
+    # PROP_SEASON_DECAY^2, etc.) so that a player's recent productivity counts
+    # more than their output from three seasons ago.
     #
-    # We compute each non-goalie player's career goal rate as:
-    #   (career games with ≥1 goal) / (career stat rows)
-    # and blend it toward the league average using CAREER_PRIOR_WEIGHT phantom
-    # rows.  The result replaces the flat PROP_PRIOR_GOAL_RATE for each player
-    # in the shrinkage formula, so a veteran scorer pulls their prior upward
-    # even when their recent 10-game window is cold.
+    # The effective career rate is blended toward the league-average baseline
+    # (PROP_PRIOR_GOAL_RATE / PROP_PRIOR_POINT_RATE) using CAREER_PRIOR_WEIGHT
+    # phantom games, so players with thin histories stay close to the mean.
     #
-    # We also switch the recent-window denominator from team games to the
-    # player's own appearances (stat rows in the window), so a game the player
-    # missed no longer counts as a zero against them.
-    # pid → (personalized goal prior rate, prior strength)
-    # Prior strength scales with career sample size up to PROP_CAREER_PRIOR_MAX_GAMES,
-    # with PROP_PRIOR_GAMES as the minimum floor.  This ensures that a 2-game
-    # hot streak has little effect on a veteran's estimate, while newcomers
-    # remain anchored to the league average until they build a track record.
-    career_data: dict[int, tuple] = {}
-    for row in (
+    # Multi-point games (≥2 goals+assists in one game) signal elite upside that
+    # isn't fully captured by averages alone; they apply a small multiplier.
+    #
+    # career_data[pid] = (career_gpg, career_ppp, prior_strength)
+    career_season_rows = list(
         Stat.objects.filter(player_id__in=all_player_ids)
-        .values("player_id")
+        .values(
+            "player_id",
+            "team_id",
+            "team__season__year",
+            "team__season__season_type",
+        )
         .annotate(
-            career_rows=Count("matchup_id", distinct=True),
-            career_goal_games=Count("matchup_id", distinct=True, filter=Q(goals__gt=0)),
+            season_goals=Sum("goals"),
+            season_assists=Sum("assists"),
+            season_stat_games=Count("matchup_id", distinct=True),
+            season_multi_pt=Count(
+                "matchup_id",
+                distinct=True,
+                filter=(
+                    Q(goals__gte=2)
+                    | Q(assists__gte=2)
+                    | Q(goals__gte=1, assists__gte=1)
+                ),
+            ),
         )
-    ):
-        pid = row["player_id"]
-        rows = row["career_rows"]
-        g_games = row["career_goal_games"]
-        rate = (g_games + CAREER_PRIOR_WEIGHT * PROP_PRIOR_GOAL_RATE) / (
-            rows + CAREER_PRIOR_WEIGHT
+        .order_by(
+            "player_id",
+            "-team__season__year",
+            "-team__season__season_type",
         )
-        strength = max(PROP_PRIOR_GAMES, min(rows, PROP_CAREER_PRIOR_MAX_GAMES))
-        career_data[pid] = (rate, strength)
+    )
+
+    # Team season game counts for all historical teams (reliable denominator).
+    _career_team_ids = {row["team_id"] for row in career_season_rows}
+    _career_team_games: dict[int, int] = {}
+    for ts in Team_Stat.objects.filter(team_id__in=_career_team_ids):
+        g = ts.win + ts.otw + ts.loss + ts.otl + ts.tie
+        if g > 0:
+            _career_team_games[ts.team_id] = g
+
+    # Group seasons by player (query is already ordered by player_id).
+    _player_seasons: dict[int, list] = defaultdict(list)
+    for row in career_season_rows:
+        _player_seasons[row["player_id"]].append(row)
+
+    career_data: dict[int, tuple] = {}  # pid → (career_gpg, career_ppp, prior_strength)
+    for pid, seasons in _player_seasons.items():
+        # seasons ordered most-recent-first by the query above
+        eff_goals = eff_points = eff_games = eff_multi = 0.0
+        total_stat_games = 0
+
+        for i, s in enumerate(seasons):
+            # Prefer Team_Stat game count; fall back to player's own stat-game
+            # count if the historical team has no Team_Stat row.
+            team_games = _career_team_games.get(
+                s["team_id"], s["season_stat_games"] or 0
+            )
+            if team_games == 0:
+                continue
+            w = PROP_SEASON_DECAY**i
+            eff_goals += w * (s["season_goals"] or 0)
+            eff_points += w * ((s["season_goals"] or 0) + (s["season_assists"] or 0))
+            eff_games += w * team_games
+            eff_multi += w * (s["season_multi_pt"] or 0)
+            total_stat_games += s["season_stat_games"] or 0
+
+        if eff_games == 0:
+            continue
+
+        # Bayesian blend of recency-weighted career rates toward league average.
+        career_gpg = (eff_goals + CAREER_PRIOR_WEIGHT * PROP_PRIOR_GOAL_RATE) / (
+            eff_games + CAREER_PRIOR_WEIGHT
+        )
+        career_ppp = (eff_points + CAREER_PRIOR_WEIGHT * PROP_PRIOR_POINT_RATE) / (
+            eff_games + CAREER_PRIOR_WEIGHT
+        )
+
+        # Multi-point quality boost: players who regularly record 2+ stats/game
+        # get a modest upward nudge, reflecting explosive scoring upside.
+        multi_rate = eff_multi / eff_games
+        quality_mult = 1.0 + multi_rate * PROP_MULTI_POINT_BOOST
+        career_gpg *= quality_mult
+        career_ppp *= quality_mult
+
+        prior_strength = max(
+            PROP_PRIOR_GAMES, min(total_stat_games, PROP_CAREER_PRIOR_MAX_GAMES)
+        )
+        career_data[pid] = (career_gpg, career_ppp, prior_strength)
 
     # ── 4. Goalie career stats for GAA (one query) ───────────────────────────
     all_goalie_ids = [gid for gids in goalie_ids_by_team.values() for gid in gids]
@@ -745,54 +813,59 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
 
     # ── Helper: props for one player ─────────────────────────────────────────
     def _player_props(pid: int, team_id: int, opp_goalie_factor: float) -> dict | None:
-        # Use draft-specific per-player window or shared non-draft team window.
         if team_info.get(team_id, {}).get("division") == _DRAFT_DIVISION:
             window = player_game_window.get(pid, [])
         else:
             window = game_window.get(team_id, [])
 
-        # Denominator = games this player *appeared* in within the window
-        # (has any stat row).  This avoids penalising players for games they
-        # missed: a game with no stat row is ambiguous between "absent" and
-        # "present but scoreless", so we exclude it from the denominator.
-        appearances = sum(1 for mid in window if (pid, mid) in player_appeared)
-        if appearances < PROP_MIN_GAMES:
+        # Players with no career history at all are excluded from props.
+        career = career_data.get(pid)
+        if career is None:
             return None
+        career_gpg, career_ppp, prior_strength = career
 
-        goal_count = sum(1 for mid in window if player_had_goal.get((pid, mid), False))
-        point_count = sum(
-            1 for mid in window if player_had_point.get((pid, mid), False)
+        # Recent form: sum actual goals/points over all team-game window entries.
+        # Missing keys default to 0 — scoreless games and absent games are both
+        # treated as zero, since we cannot reliably distinguish them.
+        window_size = len(window)
+        recent_goals = sum(player_goal_totals.get((pid, mid), 0) for mid in window)
+        recent_points = sum(player_point_totals.get((pid, mid), 0) for mid in window)
+
+        # Bayesian blend: anchor recent per-game rate to the career prior.
+        # prior_strength phantom games pull the estimate toward the career GPG,
+        # preventing a short hot or cold streak from dominating the estimate.
+        denom_goal = window_size + prior_strength
+        blended_gpg = (
+            (recent_goals + prior_strength * career_gpg) / denom_goal
+            if denom_goal
+            else career_gpg
         )
 
-        # Personalized goal prior from career history.  Veterans converge to
-        # their own historical rate; newcomers default to the league average.
-        # prior_strength scales with career sample size so a small hot streak
-        # cannot override years of evidence about a player's true scoring rate.
-        p_goal_prior, prior_strength = career_data.get(
-            pid, (PROP_PRIOR_GOAL_RATE, PROP_PRIOR_GAMES)
+        denom_point = window_size + PROP_PRIOR_GAMES
+        blended_ppp = (
+            (recent_points + PROP_PRIOR_GAMES * career_ppp) / denom_point
+            if denom_point
+            else career_ppp
         )
 
-        p_goal_raw = (goal_count + prior_strength * p_goal_prior) / (
-            appearances + prior_strength
-        )
-        p_point_raw = (point_count + PROP_PRIOR_GAMES * PROP_PRIOR_POINT_RATE) / (
-            appearances + PROP_PRIOR_GAMES
-        )
+        # Apply goalie quality factor as a rate multiplier in linear (GPG) space
+        # before the Poisson conversion, so the adjustment is proportional.
+        adj_goal = 1.0 + (opp_goalie_factor - 1.0) * PROP_GOAL_GOALIE_WEIGHT
+        adj_point = 1.0 + (opp_goalie_factor - 1.0) * PROP_POINT_GOALIE_WEIGHT
+        adj_gpg = max(0.0, blended_gpg * adj_goal)
+        adj_ppp = max(0.0, blended_ppp * adj_point)
 
-        # Dampen the goalie factor before applying.
-        # Assists depend less on goalie quality than goals do.
-        adj_goal = 1 + (opp_goalie_factor - 1) * PROP_GOAL_GOALIE_WEIGHT
-        adj_point = 1 + (opp_goalie_factor - 1) * PROP_POINT_GOALIE_WEIGHT
-
-        p_goal = min(PROP_MAX_PROB, max(0.05, p_goal_raw * adj_goal))
-        p_point = min(PROP_MAX_PROB, max(0.05, p_point_raw * adj_point))
+        # Poisson: P(at least 1 goal) = 1 − e^(−GPG)
+        # Multi-goal games naturally contribute more to GPG than single-goal games.
+        p_goal = min(PROP_MAX_PROB, max(0.05, 1.0 - exp(-adj_gpg)))
+        p_point = min(PROP_MAX_PROB, max(0.05, 1.0 - exp(-adj_ppp)))
 
         return {
             "p_goal": p_goal,
             "p_point": p_point,
             "goal_odds": fmt_american(win_prob_to_american(p_goal)),
             "point_odds": fmt_american(win_prob_to_american(p_point)),
-            "games": appearances,
+            "games": window_size,
         }
 
     # ── Build props per matchup ───────────────────────────────────────────────
