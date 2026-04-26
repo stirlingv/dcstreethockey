@@ -47,7 +47,7 @@
                             </td>
                         </tr>
                     </table>
-                    {% if view == "schedule" %}
+                    {% if view == "schedule" and match.hometeam.division.division != 1 %}
                     {% with betting_lines|get_item:match.id as lines %}{% with player_props|get_item:match.id as props %}
                     {% if lines or props %}
                     <div class="bl-toggle-row">

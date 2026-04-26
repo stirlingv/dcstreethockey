@@ -829,7 +829,7 @@ class ScheduleViewBettingLinesTest(TestCase):
         self.season = Season.objects.create(
             year=2025, season_type=1, is_current_season=True
         )
-        self.division = Division.objects.create(division=1)
+        self.division = Division.objects.create(division=2)
         self.home_team = Team.objects.create(
             team_name="Schedule Home",
             team_color="Red",
@@ -1154,7 +1154,7 @@ class ScheduleViewPlayerPropsTest(TestCase):
         self.season = Season.objects.create(
             year=2025, season_type=1, is_current_season=True
         )
-        self.division = Division.objects.create(division=1)
+        self.division = Division.objects.create(division=2)
         self.home_team = Team.objects.create(
             team_name="View Props Home",
             team_color="Red",
