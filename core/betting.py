@@ -60,6 +60,7 @@ PROP_HISTORY_GAMES = 10
 # Goals are more directly goalie-dependent than assists, so the dampening
 # differs between the two props.
 PROP_GOAL_GOALIE_WEIGHT = 0.4
+PROP_ASSIST_GOALIE_WEIGHT = 0.15
 PROP_POINT_GOALIE_WEIGHT = 0.2
 
 # Scoring probability multiplier when the opposing goalie status is "Sub Needed".
@@ -94,6 +95,7 @@ PROP_PRIOR_GAMES = 5
 # PROP_PRIOR_GOAL_RATE is the league-average goals-per-team-game (GPG).
 # PROP_PRIOR_POINT_RATE is the league-average points (goals+assists) per team-game.
 PROP_PRIOR_GOAL_RATE = 0.30
+PROP_PRIOR_ASSIST_RATE = 0.25
 PROP_PRIOR_POINT_RATE = 0.55
 
 # Maximum phantom-game count for prior strength; caps how strongly career
@@ -650,7 +652,7 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
     # Missing keys mean 0 — the team-game window is the denominator, so games
     # where the player has no stat row count as zeroes, not absences.
     player_goal_totals: dict[tuple, int] = defaultdict(int)
-    player_point_totals: dict[tuple, int] = defaultdict(int)
+    player_assist_totals: dict[tuple, int] = defaultdict(int)
 
     if all_window_ids:
         for row in Stat.objects.filter(
@@ -658,10 +660,8 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
             matchup_id__in=all_window_ids,
         ).values("player_id", "matchup_id", "goals", "assists"):
             key = (row["player_id"], row["matchup_id"])
-            goals = row["goals"] or 0
-            assists = row["assists"] or 0
-            player_goal_totals[key] += goals
-            player_point_totals[key] += goals + assists
+            player_goal_totals[key] += row["goals"] or 0
+            player_assist_totals[key] += row["assists"] or 0
 
     # ── 3d. Career prior: per-season production, recency-weighted ────────────
     #
@@ -721,10 +721,10 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
     for row in career_season_rows:
         _player_seasons[row["player_id"]].append(row)
 
-    career_data: dict[int, tuple] = {}  # pid → (career_gpg, career_ppp, prior_strength)
+    career_data: dict[int, tuple] = {}  # pid → (career_gpg, career_apg, prior_strength)
     for pid, seasons in _player_seasons.items():
         # seasons ordered most-recent-first by the query above
-        eff_goals = eff_points = eff_games = eff_multi = 0.0
+        eff_goals = eff_assists = eff_games = eff_multi = 0.0
         total_stat_games = 0
 
         for i, s in enumerate(seasons):
@@ -737,7 +737,7 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
                 continue
             w = PROP_SEASON_DECAY**i
             eff_goals += w * (s["season_goals"] or 0)
-            eff_points += w * ((s["season_goals"] or 0) + (s["season_assists"] or 0))
+            eff_assists += w * (s["season_assists"] or 0)
             eff_games += w * team_games
             eff_multi += w * (s["season_multi_pt"] or 0)
             total_stat_games += s["season_stat_games"] or 0
@@ -749,7 +749,7 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
         career_gpg = (eff_goals + CAREER_PRIOR_WEIGHT * PROP_PRIOR_GOAL_RATE) / (
             eff_games + CAREER_PRIOR_WEIGHT
         )
-        career_ppp = (eff_points + CAREER_PRIOR_WEIGHT * PROP_PRIOR_POINT_RATE) / (
+        career_apg = (eff_assists + CAREER_PRIOR_WEIGHT * PROP_PRIOR_ASSIST_RATE) / (
             eff_games + CAREER_PRIOR_WEIGHT
         )
 
@@ -758,12 +758,12 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
         multi_rate = eff_multi / eff_games
         quality_mult = 1.0 + multi_rate * PROP_MULTI_POINT_BOOST
         career_gpg *= quality_mult
-        career_ppp *= quality_mult
+        career_apg *= quality_mult
 
         prior_strength = max(
             PROP_PRIOR_GAMES, min(total_stat_games, PROP_CAREER_PRIOR_MAX_GAMES)
         )
-        career_data[pid] = (career_gpg, career_ppp, prior_strength)
+        career_data[pid] = (career_gpg, career_apg, prior_strength)
 
     # ── 4. Goalie career stats for GAA (one query) ───────────────────────────
     all_goalie_ids = [gid for gids in goalie_ids_by_team.values() for gid in gids]
@@ -822,48 +822,51 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
         career = career_data.get(pid)
         if career is None:
             return None
-        career_gpg, career_ppp, prior_strength = career
+        career_gpg, career_apg, prior_strength = career
 
-        # Recent form: sum actual goals/points over all team-game window entries.
-        # Missing keys default to 0 — scoreless games and absent games are both
-        # treated as zero, since we cannot reliably distinguish them.
+        # Recent form: sum actual goals and assists over all team-game window
+        # entries.  Missing keys default to 0 — scoreless games and absent games
+        # are both treated as zero, since we cannot reliably distinguish them.
         window_size = len(window)
         recent_goals = sum(player_goal_totals.get((pid, mid), 0) for mid in window)
-        recent_points = sum(player_point_totals.get((pid, mid), 0) for mid in window)
+        recent_assists = sum(player_assist_totals.get((pid, mid), 0) for mid in window)
 
         # Bayesian blend: anchor recent per-game rate to the career prior.
-        # prior_strength phantom games pull the estimate toward the career GPG,
-        # preventing a short hot or cold streak from dominating the estimate.
-        denom_goal = window_size + prior_strength
+        # Both goals and assists use the same prior_strength so the two rates
+        # are anchored symmetrically to career history.
+        denom = window_size + prior_strength
         blended_gpg = (
-            (recent_goals + prior_strength * career_gpg) / denom_goal
-            if denom_goal
+            (recent_goals + prior_strength * career_gpg) / denom
+            if denom
             else career_gpg
         )
-
-        denom_point = window_size + PROP_PRIOR_GAMES
-        blended_ppp = (
-            (recent_points + PROP_PRIOR_GAMES * career_ppp) / denom_point
-            if denom_point
-            else career_ppp
+        blended_apg = (
+            (recent_assists + prior_strength * career_apg) / denom
+            if denom
+            else career_apg
         )
 
-        # Apply goalie quality factor as a rate multiplier in linear (GPG) space
+        # Apply goalie quality factor as a rate multiplier in linear space
         # before the Poisson conversion, so the adjustment is proportional.
         adj_goal = 1.0 + (opp_goalie_factor - 1.0) * PROP_GOAL_GOALIE_WEIGHT
-        adj_point = 1.0 + (opp_goalie_factor - 1.0) * PROP_POINT_GOALIE_WEIGHT
+        adj_assist = 1.0 + (opp_goalie_factor - 1.0) * PROP_ASSIST_GOALIE_WEIGHT
         adj_gpg = max(0.0, blended_gpg * adj_goal)
-        adj_ppp = max(0.0, blended_ppp * adj_point)
+        adj_apg = max(0.0, blended_apg * adj_assist)
 
-        # Poisson: P(at least 1 goal) = 1 − e^(−GPG)
-        # Multi-goal games naturally contribute more to GPG than single-goal games.
+        # Poisson: P(at least 1 goal/assist) = 1 − e^(−rate)
+        # P(point) is derived from the same two processes — not blended separately —
+        # so that P(point) = P(goal OR assist) is mathematically consistent:
+        #   1 − e^(−GPG) × e^(−APG)  =  1 − e^(−(GPG + APG))
         p_goal = min(PROP_MAX_PROB, max(0.05, 1.0 - exp(-adj_gpg)))
-        p_point = min(PROP_MAX_PROB, max(0.05, 1.0 - exp(-adj_ppp)))
+        p_assist = min(PROP_MAX_PROB, max(0.05, 1.0 - exp(-adj_apg)))
+        p_point = min(PROP_MAX_PROB, max(0.05, 1.0 - exp(-(adj_gpg + adj_apg))))
 
         return {
             "p_goal": p_goal,
+            "p_assist": p_assist,
             "p_point": p_point,
             "goal_odds": fmt_american(win_prob_to_american(p_goal)),
+            "assist_odds": fmt_american(win_prob_to_american(p_assist)),
             "point_odds": fmt_american(win_prob_to_american(p_point)),
             "games": window_size,
         }
@@ -906,14 +909,20 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
             prop_results[matchup.id] = None
             continue
 
-        # Two independent sorts — one per prop type, matching the DraftKings
-        # convention of separate sections for each bet type.
+        # Three independent sorts — one per prop type, matching the DraftKings /
+        # FanDuel convention of separate markets for Goal, Assist, and Point.
+        _prob_keys = {"p_goal", "p_assist", "p_point"}
+
         def _strip(player):
-            return {k: v for k, v in player.items() if k not in ("p_goal", "p_point")}
+            return {k: v for k, v in player.items() if k not in _prob_keys}
 
         by_goal = [
             _strip(p)
             for p in sorted(all_players, key=lambda x: x["p_goal"], reverse=True)
+        ]
+        by_assist = [
+            _strip(p)
+            for p in sorted(all_players, key=lambda x: x["p_assist"], reverse=True)
         ]
         by_point = [
             _strip(p)
@@ -922,6 +931,7 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
 
         prop_results[matchup.id] = {
             "by_goal": by_goal,
+            "by_assist": by_assist,
             "by_point": by_point,
             "total": len(all_players),
         }

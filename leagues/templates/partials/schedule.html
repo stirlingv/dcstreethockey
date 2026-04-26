@@ -116,7 +116,7 @@
                         <div class="props-panel-header">
                             <span class="props-section-title">Player Props</span>
                             <span class="props-section-count">{{ props.total }} players</span>
-                            <span class="props-legend"><span class="props-legend-goal">&#9632;</span> Goal &nbsp;<span class="props-legend-point">&#9632;</span> Point</span>
+                            <span class="props-legend"><span class="props-legend-goal">&#9632;</span> Goal &nbsp;<span class="props-legend-assist">&#9632;</span> Assist &nbsp;<span class="props-legend-point">&#9632;</span> Point</span>
                         </div>
                         <div class="props-list">
                             {% for p in props.by_goal %}
@@ -127,6 +127,7 @@
                                     <span class="props-pos">{{ p.pos }}</span>
                                 </span>
                                 <span class="props-odds">{{ p.goal_odds }}</span>
+                                <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
                                 <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
                             </div>
                             {% endfor %}

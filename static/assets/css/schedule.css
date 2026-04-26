@@ -212,6 +212,7 @@
 .props-panel-header {
     display: flex;
     align-items: baseline;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 2px;
 }
@@ -229,10 +230,10 @@
     color: #4b5563;
 }
 
-/* Each player row: name area + two odds columns */
+/* Each player row: name area + three odds columns (Goal / Assist / Point) */
 .props-row {
     display: grid;
-    grid-template-columns: 1fr 52px 52px;
+    grid-template-columns: 1fr 48px 48px 48px;
     align-items: center;
     padding: 4px 0;
     border-top: 1px solid #1e2230;
@@ -280,7 +281,11 @@
     text-align: center;
 }
 
-/* Point odds use a blue tint to distinguish from goal odds */
+/* Assist odds use a green tint; point odds use a blue tint */
+.props-assist-odds {
+    color: #6ee7b7;
+}
+
 .props-point-odds {
     color: #93c5fd;
 }
@@ -297,6 +302,10 @@
 
 .props-legend-goal {
     color: #e2e8f0;
+}
+
+.props-legend-assist {
+    color: #6ee7b7;
 }
 
 .props-legend-point {
@@ -376,7 +385,7 @@
     }
 
     .props-row {
-        grid-template-columns: 1fr 44px 44px;
+        grid-template-columns: 1fr 40px 40px 40px;
     }
 
     .props-name {
