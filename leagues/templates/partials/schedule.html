@@ -8,7 +8,7 @@
                 <h3>{{division}} | {{date|date:"l, N j"}}</h3>
                 {% with date|date:"Y-m-d" as date_str %}{% with weather_data|get_item:date_str as weather %}{% if weather and weather.playability != "good" %}
                 <div class="sched-weather-inline">
-                    <span class="sched-forecast-badge {% if weather.playability == 'uncertain' %}sched-forecast-uncertain{% else %}sched-forecast-bad{% endif %}">{% if weather.playability == "uncertain" %}&#9888; Some chance of rain{% else %}{% if weather.thunder %}&#9889; Thunderstorms possible{% else %}&#127783; Rain or snow likely{% endif %}{% endif %}</span>
+                    <span class="sched-forecast-badge {% if weather.playability == 'uncertain' %}sched-forecast-uncertain{% else %}sched-forecast-bad{% endif %}">{% if weather.playability == "uncertain" %}&#9888; Some chance of rain <span class="play-forecast-info"><button type="button" class="play-forecast-info-btn" aria-label="About this forecast">&#9432;</button><span class="play-forecast-info-tooltip" role="tooltip">The forecast mentions precipitation in the hours around game time &mdash; the percentage shown reflects game-time conditions only. Not an official cancellation; check with your captain.</span></span>{% else %}{% if weather.thunder %}&#9889; Thunderstorms possible{% else %}&#127783; Rain or snow likely{% endif %}{% endif %}</span>
                     <span class="sched-forecast-detail">{{ weather.description|capfirst }} &middot; {{ weather.temp|floatformat:0 }}&deg;F{% if weather.pop_pct is not None %} &middot; {{ weather.pop_pct }}% chance of rain{% endif %}</span>
                 </div>
                 {% endif %}{% endwith %}{% endwith %}

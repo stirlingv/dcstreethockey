@@ -7,6 +7,7 @@ from django.urls import reverse
 
 from core.views.home import (
     _compute_playability,
+    _compute_window_max_pop,
     _compute_window_playability,
     _find_best_forecast_slot,
     _worse_playability,
@@ -271,6 +272,50 @@ class ComputeWindowPlayabilityTest(TestCase):
         ]
         result = _compute_window_playability(periods, game_date, game_time)
         self.assertEqual(result, "likely_cancelled")
+
+
+class ComputeWindowMaxPopTest(TestCase):
+    """Unit tests for _compute_window_max_pop()."""
+
+    def test_returns_none_when_no_periods_in_window(self):
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 0)
+        periods = [_make_period("2025-06-15T13:00:00-04:00", pop_pct=80)]  # 6h before
+        self.assertIsNone(_compute_window_max_pop(periods, game_date, game_time))
+
+    def test_returns_max_across_window(self):
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 0)
+        periods = [
+            _make_period("2025-06-15T15:00:00-04:00", pop_pct=40),  # 4h before
+            _make_period("2025-06-15T17:00:00-04:00", pop_pct=25),  # 2h before
+            _make_period("2025-06-15T19:00:00-04:00", pop_pct=5),  # game time
+        ]
+        self.assertEqual(_compute_window_max_pop(periods, game_date, game_time), 40)
+
+    def test_regression_warning_with_zero_game_time_pop(self):
+        # Reproduces the bug: window has rain before game but game-time PoP is 0.
+        # Window max should be 30, not 0.
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 0)
+        periods = [
+            _make_period(
+                "2025-06-15T17:00:00-04:00",
+                pop_pct=30,
+                short_forecast="Chance Rain Showers",
+            ),
+            _make_period(
+                "2025-06-15T19:00:00-04:00",
+                pop_pct=0,
+                short_forecast="Mostly Cloudy",
+            ),
+        ]
+        self.assertEqual(_compute_window_max_pop(periods, game_date, game_time), 30)
+
+    def test_defaults_to_7pm_when_no_game_time(self):
+        game_date = datetime.date(2025, 6, 15)
+        periods = [_make_period("2025-06-15T17:00:00-04:00", pop_pct=35)]
+        self.assertEqual(_compute_window_max_pop(periods, game_date, None), 35)
 
 
 class WeatherIntegrationTest(TestCase):

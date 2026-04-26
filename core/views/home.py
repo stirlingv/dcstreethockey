@@ -94,6 +94,28 @@ def _find_best_forecast_slot(periods, game_date, game_time):
     return best_period
 
 
+def _compute_window_max_pop(periods, game_date, game_time):
+    """Return the highest precipitation probability across the pre-game window, or None."""
+    if game_time is not None:
+        target_dt = datetime.datetime.combine(game_date, game_time).replace(
+            tzinfo=_EASTERN
+        )
+    else:
+        target_dt = datetime.datetime.combine(game_date, datetime.time(19, 0)).replace(
+            tzinfo=_EASTERN
+        )
+
+    max_pop = None
+    for period in periods:
+        start = datetime.datetime.fromisoformat(period["startTime"])
+        diff_seconds = (start - target_dt).total_seconds()
+        if -4 * 3600 <= diff_seconds <= 3600:
+            pop = (period.get("probabilityOfPrecipitation") or {}).get("value")
+            if pop is not None:
+                max_pop = pop if max_pop is None else max(max_pop, pop)
+    return max_pop
+
+
 def _compute_window_playability(periods, game_date, game_time):
     """
     Check every NWS hourly period from 4 hours before game time through
@@ -162,20 +184,26 @@ def _fetch_weather(api_key, game_times):
             # Playability: worst condition in the 4-hour pre-game window
             window_play = _compute_window_playability(periods, game_date, game_time)
 
+            # Max PoP across the window — used for display so the shown percentage
+            # matches the warning badge, which is window-based not game-time-only.
+            window_max_pop = _compute_window_max_pop(periods, game_date, game_time)
+
             # Fall back to single-period assessment if window is outside the
             # 7-day forecast horizon.
             if window_play is None and display_period:
-                pop_pct = (display_period.get("probabilityOfPrecipitation") or {}).get(
-                    "value"
-                ) or 0
+                fallback_pop = (
+                    display_period.get("probabilityOfPrecipitation") or {}
+                ).get("value") or 0
                 window_play = _compute_playability(
-                    pop_pct, display_period["shortForecast"]
+                    fallback_pop, display_period["shortForecast"]
                 )
 
             if display_period:
-                pop_pct = (display_period.get("probabilityOfPrecipitation") or {}).get(
-                    "value"
-                )
+                display_pop = (
+                    display_period.get("probabilityOfPrecipitation") or {}
+                ).get("value")
+                # Show the window's max PoP so the displayed % matches the warning.
+                pop_pct = window_max_pop if window_max_pop is not None else display_pop
                 short = display_period["shortForecast"]
                 weather_data[game_date_str] = {
                     "temp": display_period["temperature"],
