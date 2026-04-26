@@ -1352,3 +1352,165 @@ class CareerRatePriorTest(PlayerPropsBase):
             new_odds,
             msg=f"Veteran ({vet_odds}) should have shorter odds than newcomer ({new_odds})",
         )
+
+
+class CrossDivisionCareerDecayTest(TestCase):
+    """Career stats from a different division should be discounted relative to
+    same-division stats when computing player props."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.div2 = Division.objects.create(division=2)
+        self.div5 = Division.objects.create(division=5)
+
+        # Target matchup is in D2
+        self.home_team = Team.objects.create(
+            team_name="Cross Home",
+            team_color="Red",
+            division=self.div2,
+            season=self.season,
+            is_active=True,
+        )
+        self.away_team = Team.objects.create(
+            team_name="Cross Away",
+            team_color="Blue",
+            division=self.div2,
+            season=self.season,
+            is_active=True,
+        )
+        Team_Stat.objects.create(
+            division=self.div2,
+            season=self.season,
+            team=self.home_team,
+            win=5,
+            loss=3,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=25,
+            goals_against=20,
+        )
+        Team_Stat.objects.create(
+            division=self.div2,
+            season=self.season,
+            team=self.away_team,
+            win=3,
+            loss=5,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=20,
+            goals_against=25,
+        )
+        future_date = datetime.date.today() + datetime.timedelta(days=3)
+        week = Week.objects.create(
+            division=self.div2, season=self.season, date=future_date
+        )
+        self.matchup = MatchUp.objects.create(
+            week=week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+
+        # D5 team used only for cross-division career history
+        self.d5_team = Team.objects.create(
+            team_name="Cross D5 Team",
+            team_color="Green",
+            division=self.div5,
+            season=self.season,
+            is_active=True,
+        )
+        Team_Stat.objects.create(
+            division=self.div5,
+            season=self.season,
+            team=self.d5_team,
+            win=5,
+            loss=3,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=30,
+            goals_against=20,
+        )
+
+    def test_same_division_career_beats_cross_division_career(self):
+        """A player whose career is in D2 should have shorter odds than an
+        equally prolific player whose career is entirely in a different division,
+        because the cross-division history is discounted."""
+        same_div_player = Player.objects.create(
+            first_name="SameDiv", last_name="Player"
+        )
+        cross_div_player = Player.objects.create(
+            first_name="CrossDiv", last_name="Player"
+        )
+
+        Roster.objects.create(player=same_div_player, team=self.home_team, position1=1)
+        Roster.objects.create(player=cross_div_player, team=self.home_team, position1=1)
+
+        # Give both players identical career stats — but same_div_player's
+        # history is in D2 (matching the target matchup) while cross_div_player's
+        # history is entirely in D5.
+        for i in range(10):
+            past_date = datetime.date.today() - datetime.timedelta(days=(i + 3) * 7)
+            pw_d2 = Week.objects.create(
+                division=self.div2, season=self.season, date=past_date
+            )
+            pm_d2 = MatchUp.objects.create(
+                week=pw_d2,
+                time=datetime.time(19, 0),
+                hometeam=self.home_team,
+                awayteam=self.away_team,
+            )
+            Stat.objects.create(
+                player=same_div_player,
+                team=self.home_team,
+                matchup=pm_d2,
+                goals=1,
+                assists=0,
+            )
+
+            pw_d5 = Week.objects.create(
+                division=self.div5, season=self.season, date=past_date
+            )
+            pm_d5 = MatchUp.objects.create(
+                week=pw_d5,
+                time=datetime.time(19, 0),
+                hometeam=self.d5_team,
+                awayteam=self.away_team,
+            )
+            Stat.objects.create(
+                player=cross_div_player,
+                team=self.d5_team,
+                matchup=pm_d5,
+                goals=1,
+                assists=0,
+            )
+
+        result = compute_player_props_for_matchups([self.matchup.id])
+        props = result.get(self.matchup.id)
+        self.assertIsNotNone(props)
+
+        same_entry = next((p for p in props["by_goal"] if "SameDiv" in p["name"]), None)
+        cross_entry = next(
+            (p for p in props["by_goal"] if "CrossDiv" in p["name"]), None
+        )
+        self.assertIsNotNone(
+            same_entry, "Same-division player should qualify for props"
+        )
+        self.assertIsNotNone(
+            cross_entry, "Cross-division player should qualify for props"
+        )
+
+        same_odds = int(same_entry["goal_odds"])
+        cross_odds = int(cross_entry["goal_odds"])
+        self.assertLess(
+            same_odds,
+            cross_odds,
+            msg=(
+                f"Same-div player ({same_odds}) should have shorter odds than "
+                f"cross-div player ({cross_odds})"
+            ),
+        )
