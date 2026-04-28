@@ -101,6 +101,34 @@
             seasonGoals.home, tonightSaved.home, homeTonight, baseline.awayGA);
     }
 
+    // ── Player select: Select2 for mobile-friendly search ─────────────────
+    //
+    // The player dropdown in each stat row can hold 20-40 names. Native
+    // mobile pickers are scroll-only; Select2 adds a search box.
+    // Select2 is already on the page (loaded by dal for the goalie fields),
+    // so we just apply it to player selects. Initialization runs on `load`
+    // to match dal's timing and guarantee django.jQuery.fn.select2 exists.
+    // New rows added via "Add another Stat" are handled via the jQuery
+    // `formset:added` event that Django admin fires on the inline group.
+
+    function applySelect2ToPlayerSelect(selectEl) {
+        var jq = window.django && window.django.jQuery;
+        if (!jq || !jq.fn || !jq.fn.select2) return;
+        // Skip if already initialized.
+        if (jq(selectEl).data('select2')) return;
+        jq(selectEl).select2({
+            width: '100%',
+            placeholder: 'Search players\u2026',
+            allowClear: true,
+        });
+    }
+
+    function applySelect2ToAllPlayerSelects() {
+        document.querySelectorAll(
+            'select[name^="stat_set-"][name$="-player"]'
+        ).forEach(applySelect2ToPlayerSelect);
+    }
+
     // ── Initialisation ────────────────────────────────────────────────────
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -114,6 +142,22 @@
         baseline.awayGA = read('away_stat-goals_against');
 
         updateSuggestions();
+    });
+
+    window.addEventListener('load', function () {
+        applySelect2ToAllPlayerSelects();
+
+        // Django admin triggers `formset:added` via jQuery on the inline
+        // group when the user clicks "Add another Stat". Listen at the
+        // document level so bubbling catches it regardless of DOM structure.
+        var jq = window.django && window.django.jQuery;
+        if (jq) {
+            jq(document).on('formset:added', function (event, $row, formsetName) {
+                if (formsetName !== 'stat_set') return;
+                var sel = $row.find('select[name$="-player"]')[0];
+                if (sel) applySelect2ToPlayerSelect(sel);
+            });
+        }
     });
 
     // ── Event delegation ──────────────────────────────────────────────────
