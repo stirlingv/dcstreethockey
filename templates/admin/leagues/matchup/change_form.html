@@ -1,9 +1,226 @@
 {% extends "admin/change_form.html" %}
 {% block extrahead %}
 {% if player_team_map_json %}
-<script>var statPlayerTeamMap = {{ player_team_map_json|safe }};</script>
+<script>
+  var statPlayerTeamMap = {{ player_team_map_json|safe }};
+  {% if home_team_id and away_team_id %}
+  var statHomeTeamId = {{ home_team_id }};
+  var statAwayTeamId = {{ away_team_id }};
+  var statTonightSaved = {{ stat_tonight_json|safe }};
+  var statSeasonGoals  = {{ stat_season_json|safe }};
+  {% endif %}
+</script>
 {% endif %}
 {{ block.super }}
+{% endblock %}
+
+{% block after_field_sets %}
+{% if home_stat_form and away_stat_form %}
+<style>
+  .game-outcome-module { margin-bottom: 24px; }
+  .game-outcome-module h2 {
+    padding: 8px 12px;
+    background: #417690;
+    color: #fff;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .game-outcome-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid #ddd;
+    border-top: none;
+  }
+  .game-outcome-col {
+    padding: 16px 20px;
+  }
+  .game-outcome-col:first-child {
+    border-right: 1px solid #e0e0e0;
+  }
+  .team-outcome-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: #333;
+    margin: 0 0 14px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .outcome-stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 10px;
+    align-items: flex-start;
+  }
+  .outcome-stat-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .outcome-stat-item label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0;
+    min-width: 30px;
+    padding-top: 6px;
+  }
+  .outcome-stat-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .outcome-stat-item input[type=number] {
+    width: 55px !important;
+    text-align: center;
+    padding: 5px 4px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 14px;
+    -moz-appearance: textfield;
+  }
+  .outcome-stat-item input[type=number]::-webkit-inner-spin-button,
+  .outcome-stat-item input[type=number]::-webkit-outer-spin-button {
+    opacity: 1;
+  }
+  .stat-suggestion {
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+    display: none;
+  }
+  .outcome-errors {
+    background: #fce4e4;
+    border: 1px solid #f5c6c6;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #b71c1c;
+  }
+  @media (max-width: 767px) {
+    .game-outcome-grid {
+      grid-template-columns: 1fr;
+    }
+    .game-outcome-col:first-child {
+      border-right: none;
+      border-bottom: 1px solid #e0e0e0;
+    }
+  }
+</style>
+<div class="module game-outcome-module">
+  <h2>Game Outcome</h2>
+  <div class="game-outcome-grid">
+
+    <div class="game-outcome-col">
+      <p class="team-outcome-label">{{ away_team_name }}</p>
+      {% if away_stat_form.errors %}
+      <div class="outcome-errors">
+        {% for field in away_stat_form %}{% for error in field.errors %}{{ error }}<br>{% endfor %}{% endfor %}
+      </div>
+      {% endif %}
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ away_stat_form.win.id_for_label }}">W</label>
+          <div class="outcome-stat-input-group">{{ away_stat_form.win }}</div>
+        </div>
+        <div class="outcome-stat-item">
+          <label for="{{ away_stat_form.otw.id_for_label }}">OTW</label>
+          <div class="outcome-stat-input-group">{{ away_stat_form.otw }}</div>
+        </div>
+      </div>
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ away_stat_form.loss.id_for_label }}">L</label>
+          <div class="outcome-stat-input-group">{{ away_stat_form.loss }}</div>
+        </div>
+        <div class="outcome-stat-item">
+          <label for="{{ away_stat_form.otl.id_for_label }}">OTL</label>
+          <div class="outcome-stat-input-group">{{ away_stat_form.otl }}</div>
+        </div>
+      </div>
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ away_stat_form.tie.id_for_label }}">T</label>
+          <div class="outcome-stat-input-group">{{ away_stat_form.tie }}</div>
+        </div>
+      </div>
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ away_stat_form.goals_for.id_for_label }}">GF</label>
+          <div class="outcome-stat-input-group">
+            {{ away_stat_form.goals_for }}
+            <span id="away-gf-suggestion" class="stat-suggestion"></span>
+          </div>
+        </div>
+        <div class="outcome-stat-item">
+          <label for="{{ away_stat_form.goals_against.id_for_label }}">GA</label>
+          <div class="outcome-stat-input-group">
+            {{ away_stat_form.goals_against }}
+            <span id="away-ga-suggestion" class="stat-suggestion"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-outcome-col">
+      <p class="team-outcome-label">{{ home_team_name }}</p>
+      {% if home_stat_form.errors %}
+      <div class="outcome-errors">
+        {% for field in home_stat_form %}{% for error in field.errors %}{{ error }}<br>{% endfor %}{% endfor %}
+      </div>
+      {% endif %}
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ home_stat_form.win.id_for_label }}">W</label>
+          <div class="outcome-stat-input-group">{{ home_stat_form.win }}</div>
+        </div>
+        <div class="outcome-stat-item">
+          <label for="{{ home_stat_form.otw.id_for_label }}">OTW</label>
+          <div class="outcome-stat-input-group">{{ home_stat_form.otw }}</div>
+        </div>
+      </div>
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ home_stat_form.loss.id_for_label }}">L</label>
+          <div class="outcome-stat-input-group">{{ home_stat_form.loss }}</div>
+        </div>
+        <div class="outcome-stat-item">
+          <label for="{{ home_stat_form.otl.id_for_label }}">OTL</label>
+          <div class="outcome-stat-input-group">{{ home_stat_form.otl }}</div>
+        </div>
+      </div>
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ home_stat_form.tie.id_for_label }}">T</label>
+          <div class="outcome-stat-input-group">{{ home_stat_form.tie }}</div>
+        </div>
+      </div>
+      <div class="outcome-stat-row">
+        <div class="outcome-stat-item">
+          <label for="{{ home_stat_form.goals_for.id_for_label }}">GF</label>
+          <div class="outcome-stat-input-group">
+            {{ home_stat_form.goals_for }}
+            <span id="home-gf-suggestion" class="stat-suggestion"></span>
+          </div>
+        </div>
+        <div class="outcome-stat-item">
+          <label for="{{ home_stat_form.goals_against.id_for_label }}">GA</label>
+          <div class="outcome-stat-input-group">
+            {{ home_stat_form.goals_against }}
+            <span id="home-ga-suggestion" class="stat-suggestion"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block submit_buttons_bottom %}

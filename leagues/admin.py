@@ -3,7 +3,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.db import models
-from django.db.models import Q, Max, Prefetch
+from django.db.models import Q, Max, Prefetch, Sum
 from django.utils.http import urlencode
 from django.utils.html import format_html
 from django.utils import timezone
@@ -14,7 +14,7 @@ from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 
 from dal import autocomplete
-from .forms import MatchUpForm
+from .forms import MatchUpForm, TeamStatForm
 from .fields import TwelveHourTimeField
 from .widgets import Time12HourWidget
 from leagues.models import (
@@ -557,9 +557,10 @@ class MatchUpAdmin(admin.ModelAdmin):
     def change_view(self, request, object_id, form_url="", extra_context=None):
         extra_context = extra_context or {}
         try:
-            match = MatchUp.objects.select_related("hometeam", "awayteam").get(
-                pk=object_id
-            )
+            match = MatchUp.objects.select_related(
+                "hometeam", "awayteam", "week__division", "week__season"
+            ).get(pk=object_id)
+
             roster_entries = Roster.objects.filter(
                 team__in=[match.hometeam_id, match.awayteam_id]
             ).values("player_id", "team_id")
@@ -567,11 +568,90 @@ class MatchUpAdmin(admin.ModelAdmin):
                 str(r["player_id"]): str(r["team_id"]) for r in roster_entries
             }
             extra_context["player_team_map_json"] = json.dumps(player_team_map)
+
+            home_stat = Team_Stat.objects.filter(
+                team=match.hometeam,
+                division=match.week.division,
+                season=match.week.season,
+            ).first()
+            away_stat = Team_Stat.objects.filter(
+                team=match.awayteam,
+                division=match.week.division,
+                season=match.week.season,
+            ).first()
+
+            if request.method == "POST":
+                home_stat_form = TeamStatForm(
+                    request.POST, instance=home_stat, prefix="home_stat"
+                )
+                away_stat_form = TeamStatForm(
+                    request.POST, instance=away_stat, prefix="away_stat"
+                )
+                if home_stat_form.is_valid() and away_stat_form.is_valid():
+                    request._home_stat_form = home_stat_form
+                    request._away_stat_form = away_stat_form
+                    request._matchup_for_stat = match
+            else:
+                home_stat_form = TeamStatForm(instance=home_stat, prefix="home_stat")
+                away_stat_form = TeamStatForm(instance=away_stat, prefix="away_stat")
+
+            extra_context["home_stat_form"] = home_stat_form
+            extra_context["away_stat_form"] = away_stat_form
+            extra_context["home_team_name"] = match.hometeam.team_name
+            extra_context["away_team_name"] = match.awayteam.team_name
+            extra_context["home_team_id"] = match.hometeam.pk
+            extra_context["away_team_id"] = match.awayteam.pk
+
+            def _goal_map(qs):
+                return {
+                    row["team_id"]: row["total"]
+                    for row in qs.values("team_id").annotate(total=Sum("goals"))
+                }
+
+            tonight = _goal_map(Stat.objects.filter(matchup=match))
+            season = _goal_map(
+                Stat.objects.filter(
+                    team__in=[match.hometeam, match.awayteam],
+                    matchup__week__season=match.week.season,
+                    matchup__week__division=match.week.division,
+                )
+            )
+            extra_context["stat_tonight_json"] = json.dumps(
+                {
+                    "home": tonight.get(match.hometeam.pk, 0),
+                    "away": tonight.get(match.awayteam.pk, 0),
+                }
+            )
+            extra_context["stat_season_json"] = json.dumps(
+                {
+                    "home": season.get(match.hometeam.pk, 0),
+                    "away": season.get(match.awayteam.pk, 0),
+                }
+            )
+
         except MatchUp.DoesNotExist:
             extra_context["player_team_map_json"] = "{}"
         return super().change_view(
             request, object_id, form_url=form_url, extra_context=extra_context
         )
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        match = getattr(request, "_matchup_for_stat", None)
+        if not match:
+            return
+        for attr, team in [
+            ("_home_stat_form", match.hometeam),
+            ("_away_stat_form", match.awayteam),
+        ]:
+            stat_form = getattr(request, attr, None)
+            if stat_form and stat_form.is_valid():
+                stat = stat_form.save(commit=False)
+                if not stat.pk:
+                    stat.team = team
+                    stat.division = match.week.division
+                    stat.season = match.week.season
+                stat.save()
 
     class Media:
         js = ("admin/js/stat_autofill_team.js",)

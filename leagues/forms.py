@@ -1,7 +1,7 @@
 # leagues/forms.py
 from django import forms
 from dal import autocomplete
-from .models import MatchUp
+from .models import MatchUp, Team_Stat
 from .widgets import Time12HourWidget
 from .fields import TwelveHourTimeField
 
@@ -16,6 +16,28 @@ class MatchUpForm(forms.ModelForm):
             "away_goalie": autocomplete.ModelSelect2(url="goalie-autocomplete"),
             "home_goalie": autocomplete.ModelSelect2(url="goalie-autocomplete"),
         }
+
+
+class TeamStatForm(forms.ModelForm):
+    class Meta:
+        model = Team_Stat
+        fields = ["win", "otw", "loss", "otl", "tie", "goals_for", "goals_against"]
+        labels = {
+            "win": "W",
+            "otw": "OTW",
+            "loss": "L",
+            "otl": "OTL",
+            "tie": "T",
+            "goals_for": "GF",
+            "goals_against": "GA",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update(
+                {"style": "width:55px;text-align:center;", "min": "0"}
+            )
 
 
 class PlayerPhotoUploadForm(forms.Form):
