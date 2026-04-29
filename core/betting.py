@@ -80,16 +80,18 @@ PROP_MAX_PROB = 0.80
 
 # Shrinkage prior for player props.
 #
-# For goal probability we use a career-proportional prior (see below).
-# For point probability we use a fixed phantom-game count.
+# Goals use the full career prior_strength (proportional to career games played,
+# capped at PROP_CAREER_PRIOR_MAX_GAMES) — goal-scoring is a stable, individual
+# skill, so career history should resist short hot/cold streaks strongly.
 #
-# PROP_PRIOR_GAMES serves two roles:
-#   • Fixed phantom-game count for the point-rate shrinkage (all players).
-#   • Minimum phantom-game count for the goal-rate shrinkage (newcomers
-#     with fewer than PROP_PRIOR_GAMES career appearances).
-# Minimum phantom-game floor for prior strength; also the fixed phantom-game
-# count used when anchoring the point-rate Bayesian blend.
+# Assists use a scaled fraction of prior_strength: assists are more situational
+# (line-mate dependent) so recent form should matter more, but not so much that
+# a few zero-assist games collapse the estimate to near-zero.  The floor ensures
+# newcomers with thin careers are still pulled toward the league average.
+#
+# PROP_PRIOR_GAMES is the minimum floor for both priors.
 PROP_PRIOR_GAMES = 5
+PROP_ASSIST_PRIOR_FRACTION = 0.5  # assists use this fraction of prior_strength
 
 # League-average baselines used when blending career rates toward the mean.
 # PROP_PRIOR_GOAL_RATE is the league-average goals-per-team-game (GPG).
@@ -883,19 +885,22 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
         recent_assists = sum(player_assist_totals.get((pid, mid), 0) for mid in window)
 
         # Bayesian blend: anchor recent per-game rate to the career prior.
-        # Goals use the full career prior_strength (up to 50 phantom games) —
-        # goal-scoring is a stable individual skill. Assists use only
-        # PROP_PRIOR_GAMES (5 phantom games) because assist rates are more
-        # situational and line-mate-dependent, so recent form should dominate.
+        # Goals use the full prior_strength; assists use a scaled fraction so
+        # that career history still pulls the estimate (preventing near-zero
+        # odds after a few scoreless assist games), but recent form has more
+        # influence on assists than on goals.
+        assist_prior = max(
+            PROP_PRIOR_GAMES, prior_strength * PROP_ASSIST_PRIOR_FRACTION
+        )
         denom_goal = window_size + prior_strength
         blended_gpg = (
             (recent_goals + prior_strength * career_gpg) / denom_goal
             if denom_goal
             else career_gpg
         )
-        denom_assist = window_size + PROP_PRIOR_GAMES
+        denom_assist = window_size + assist_prior
         blended_apg = (
-            (recent_assists + PROP_PRIOR_GAMES * career_apg) / denom_assist
+            (recent_assists + assist_prior * career_apg) / denom_assist
             if denom_assist
             else career_apg
         )
