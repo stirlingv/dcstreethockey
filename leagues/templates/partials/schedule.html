@@ -123,7 +123,7 @@
                             <div class="props-row">
                                 <span class="props-player-info">
                                     <span class="props-team-tag">{{ p.team_abbr }}</span>
-                                    <span class="props-name">{{ p.name }}</span>
+                                    <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
                                     <span class="props-pos">{{ p.pos }}</span>
                                 </span>
                                 <span class="props-odds">{{ p.goal_odds }}</span>

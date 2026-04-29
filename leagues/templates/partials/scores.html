@@ -101,7 +101,7 @@
                             </tr>
                             {% for stat in value2.home_goalie_stats %}
                                 <tr>
-                                    <td>{{stat.player}}</td>
+                                    <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
                                     <td>{{stat.goals_against}}</td>
                                     <td>{{stat.empty_net}}</td>
                                 </tr>

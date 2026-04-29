@@ -215,7 +215,7 @@
                     {% for x in match.awayteamroster %}
                     <tr{% if x.position1 == 4 %} class="goalie-row"{% endif %}>
                         <td class="num">{{ x.player_number|default_if_none:"" }}</td>
-                        <td class="name">{{ x.player.first_name }} {{ x.player.last_name }}</td>
+                        <td class="name clickable" onclick="javascript:handleTeam('{% url "player" x.player.id %}')">{{ x.player.first_name }} {{ x.player.last_name }}</td>
                         <td class="pos">{% if x.position1 == 1 %}C{% elif x.position1 == 2 %}W{% elif x.position1 == 3 %}D{% elif x.position1 == 4 %}G{% endif %}</td>
                         <td class="stat"></td>
                         <td class="stat"></td>
@@ -253,7 +253,7 @@
                     {% for x in match.hometeamroster %}
                     <tr{% if x.position1 == 4 %} class="goalie-row"{% endif %}>
                         <td class="num">{{ x.player_number|default_if_none:"" }}</td>
-                        <td class="name">{{ x.player.first_name }} {{ x.player.last_name }}</td>
+                        <td class="name clickable" onclick="javascript:handleTeam('{% url "player" x.player.id %}')">{{ x.player.first_name }} {{ x.player.last_name }}</td>
                         <td class="pos">{% if x.position1 == 1 %}C{% elif x.position1 == 2 %}W{% elif x.position1 == 3 %}D{% elif x.position1 == 4 %}G{% endif %}</td>
                         <td class="stat"></td>
                         <td class="stat"></td>

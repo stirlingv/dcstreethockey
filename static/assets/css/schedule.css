@@ -258,12 +258,22 @@
     flex-shrink: 0;
 }
 
+#content a.props-name,
+a.props-name,
 .props-name {
     font-size: 13px;
-    color: #d1d5db;
+    color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-decoration: none;
+}
+
+#content a.props-name:hover,
+a.props-name:hover,
+.props-name:hover {
+    color: #ffffff;
+    text-decoration: underline;
 }
 
 .props-pos {

@@ -964,7 +964,13 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
                 continue
             if p:
                 all_players.append(
-                    {"name": f"{first} {last}", "pos": pos, "team_abbr": abbr, **p}
+                    {
+                        "player_id": pid,
+                        "name": f"{first} {last}",
+                        "pos": pos,
+                        "team_abbr": abbr,
+                        **p,
+                    }
                 )
 
         if not all_players:
