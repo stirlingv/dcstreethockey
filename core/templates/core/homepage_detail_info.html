@@ -62,7 +62,7 @@
                                     <p>
                                         <table class="game-schedule{% if match.is_cancelled %} game-cancelled{% endif %}">
                                             <tr>
-                                                {{ match.time|date:"g:i A" }}
+                                                <a href="{% url 'matchup_detail' match.id %}" class="matchup-time-link">{{ match.time|date:"g:i A" }}</a>
                                                 {% if match.is_cancelled %}<span class="game-cancelled-badge">Cancelled</span>{% endif %}
                                             </tr>
                                             <tr>

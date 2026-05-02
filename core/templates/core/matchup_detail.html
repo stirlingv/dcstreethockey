@@ -1,0 +1,214 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% load helpers %}
+
+{% block title %}{{ matchup.awayteam.team_name }} @ {{ matchup.hometeam.team_name }} | DC Street Hockey{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'assets/css/schedule.css' %}">
+{% endblock %}
+
+{% block content %}
+<div id="content-wrapper" class="schedule">
+    <div id="content">
+        <div class="container">
+
+            <!-- Matchup header card -->
+            <div class="matchup-detail-card">
+                <div class="matchup-detail-meta">
+                    {{ matchup.hometeam.division }}
+                    &middot;
+                    {{ matchup.week.date|date:"l, N j" }}
+                    &middot;
+                    {{ matchup.time|date:"g:i A" }}
+                    {% if matchup.is_cancelled %}<span class="game-cancelled-badge">Cancelled</span>{% endif %}
+                </div>
+
+                <div class="matchup-detail-teams">
+                    <div class="matchup-detail-team">
+                        <img src="{% jersey_path %}{{ matchup.awayteam.team_color|lower }}_jersey.png"
+                             alt="{{ matchup.awayteam.team_color }} jersey"
+                             class="matchup-detail-jersey">
+                        <a href="{% url 'teams' matchup.awayteam.id %}" class="matchup-team-link">{{ matchup.awayteam.team_name }}</a>
+                        <div class="matchup-team-record">
+                            {% if matchup.awayteam.season.year < 2022 %}
+                                {{ matchup.away_wins }}-{{ matchup.away_losses }}-{{ matchup.away_ties }}
+                            {% else %}
+                                {{ matchup.away_wins }}-{{ matchup.away_otw }}-{{ matchup.away_otl }}-{{ matchup.away_losses }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="matchup-detail-vs">@</div>
+
+                    <div class="matchup-detail-team">
+                        <img src="{% jersey_path %}{{ matchup.hometeam.team_color|lower }}_jersey.png"
+                             alt="{{ matchup.hometeam.team_color }} jersey"
+                             class="matchup-detail-jersey">
+                        <a href="{% url 'teams' matchup.hometeam.id %}" class="matchup-team-link">{{ matchup.hometeam.team_name }}</a>
+                        <div class="matchup-team-record">
+                            {% if matchup.hometeam.season.year < 2022 %}
+                                {{ matchup.home_wins }}-{{ matchup.home_losses }}-{{ matchup.home_ties }}
+                            {% else %}
+                                {{ matchup.home_wins }}-{{ matchup.home_otw }}-{{ matchup.home_otl }}-{{ matchup.home_losses }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if lines %}
+            <!-- Game Lines -->
+            <div class="matchup-detail-section">
+                <div class="matchup-section-label">Game Lines</div>
+                <div class="betting-lines">
+                    <div class="bl-grid bl-header-row">
+                        <span class="bl-team-col"></span>
+                        <span class="bl-col-label">SPREAD</span>
+                        <span class="bl-col-label">TOTAL</span>
+                        <span class="bl-col-label">MONEYLINE</span>
+                    </div>
+                    <div class="bl-grid bl-team-row">
+                        <span class="bl-team-name">{{ matchup.awayteam.team_name }}</span>
+                        <span class="bl-cell{% if not lines.home_is_favorite %} bl-fav-spread{% endif %}">
+                            <span class="bl-main">{{ lines.away_spread }}</span>
+                            <span class="bl-vig">{{ lines.vig }}</span>
+                        </span>
+                        <span class="bl-cell">
+                            <span class="bl-main">o{{ lines.total }}</span>
+                            <span class="bl-vig">{{ lines.vig }}</span>
+                        </span>
+                        <span class="bl-cell{% if not lines.home_is_favorite %} bl-fav-ml{% endif %}">
+                            <span class="bl-main">{{ lines.away_ml }}</span>
+                        </span>
+                    </div>
+                    <div class="bl-grid bl-team-row">
+                        <span class="bl-team-name">{{ matchup.hometeam.team_name }}</span>
+                        <span class="bl-cell{% if lines.home_is_favorite %} bl-fav-spread{% endif %}">
+                            <span class="bl-main">{{ lines.home_spread }}</span>
+                            <span class="bl-vig">{{ lines.vig }}</span>
+                        </span>
+                        <span class="bl-cell">
+                            <span class="bl-main">u{{ lines.total }}</span>
+                            <span class="bl-vig">{{ lines.vig }}</span>
+                        </span>
+                        <span class="bl-cell{% if lines.home_is_favorite %} bl-fav-ml{% endif %}">
+                            <span class="bl-main">{{ lines.home_ml }}</span>
+                        </span>
+                    </div>
+                    <div class="bl-3way">
+                        <div class="bl-3way-header">60 MIN LINE</div>
+                        <div class="bl-3way-grid">
+                            <div class="bl-3way-cell">
+                                <span class="bl-3way-team-label">{{ matchup.hometeam.team_name }}</span>
+                                <span class="bl-main{% if lines.home_is_favorite %} bl-fav-ml{% endif %}">{{ lines.home_3way }}</span>
+                            </div>
+                            <div class="bl-3way-cell">
+                                <span class="bl-3way-team-label">Draw / OT</span>
+                                <span class="bl-main">{{ lines.draw_3way }}</span>
+                            </div>
+                            <div class="bl-3way-cell">
+                                <span class="bl-3way-team-label">{{ matchup.awayteam.team_name }}</span>
+                                <span class="bl-main{% if not lines.home_is_favorite %} bl-fav-ml{% endif %}">{{ lines.away_3way }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bl-disclaimer">For entertainment purposes only</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if props %}
+            <!-- Player Props -->
+            <div class="matchup-detail-section">
+                <div class="matchup-section-label">
+                    Player Props
+                    <span class="props-section-count">{{ props.total }} players</span>
+                    <span class="props-legend">
+                        <span class="props-legend-goal">&#9632;</span> Goal &nbsp;
+                        <span class="props-legend-assist">&#9632;</span> Assist &nbsp;
+                        <span class="props-legend-point">&#9632;</span> Point
+                    </span>
+                </div>
+
+                <div class="matchup-prop-tabs">
+                    <button class="matchup-prop-tab active" onclick="showPropSort('goal', this)">Goals</button>
+                    <button class="matchup-prop-tab" onclick="showPropSort('assist', this)">Assists</button>
+                    <button class="matchup-prop-tab" onclick="showPropSort('point', this)">Points</button>
+                </div>
+
+                <div class="props-panel">
+                    <div class="props-row bl-header-row">
+                        <span class="bl-team-col"></span>
+                        <span class="bl-col-label">GOAL</span>
+                        <span class="bl-col-label">ASSIST</span>
+                        <span class="bl-col-label">POINT</span>
+                    </div>
+                    <div class="props-list matchup-props-list" id="props-by-goal">
+                        {% for p in props.by_goal %}
+                        <div class="props-row">
+                            <span class="props-player-info">
+                                <span class="props-team-tag">{{ p.team_abbr }}</span>
+                                <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
+                                <span class="props-pos">{{ p.pos }}</span>
+                            </span>
+                            <span class="props-odds">{{ p.goal_odds }}</span>
+                            <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
+                            <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="props-list matchup-props-list" id="props-by-assist" hidden>
+                        {% for p in props.by_assist %}
+                        <div class="props-row">
+                            <span class="props-player-info">
+                                <span class="props-team-tag">{{ p.team_abbr }}</span>
+                                <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
+                                <span class="props-pos">{{ p.pos }}</span>
+                            </span>
+                            <span class="props-odds">{{ p.goal_odds }}</span>
+                            <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
+                            <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="props-list matchup-props-list" id="props-by-point" hidden>
+                        {% for p in props.by_point %}
+                        <div class="props-row">
+                            <span class="props-player-info">
+                                <span class="props-team-tag">{{ p.team_abbr }}</span>
+                                <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
+                                <span class="props-pos">{{ p.pos }}</span>
+                            </span>
+                            <span class="props-odds">{{ p.goal_odds }}</span>
+                            <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
+                            <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="bl-disclaimer">For entertainment purposes only</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if not lines and not props %}
+            <div class="matchup-no-lines">Game lines and player props are not available for this matchup.</div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+<script>
+function showPropSort(sortKey, btn) {
+    ['goal', 'assist', 'point'].forEach(function(k) {
+        var el = document.getElementById('props-by-' + k);
+        if (el) el.hidden = (k !== sortKey);
+    });
+    document.querySelectorAll('.matchup-prop-tab').forEach(function(b) {
+        b.classList.remove('active');
+    });
+    if (btn) btn.classList.add('active');
+}
+</script>
+{% endblock %}

@@ -11,5 +11,5 @@ from .players import (
     player_trends_view,
     player_view,
 )
-from .schedule import MatchUpDetailView, cups, schedule, scores, teams
+from .schedule import MatchUpDetailView, cups, matchup_detail, schedule, scores, teams
 from .standings import TeamStatDetailView

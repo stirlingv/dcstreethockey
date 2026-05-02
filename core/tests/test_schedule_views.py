@@ -1514,3 +1514,91 @@ class CrossDivisionCareerDecayTest(TestCase):
                 f"cross-div player ({cross_odds})"
             ),
         )
+
+
+# ---------------------------------------------------------------------------
+# matchup_detail view
+# ---------------------------------------------------------------------------
+
+
+class MatchupDetailViewTest(ScheduleTestBase):
+    """Tests for the matchup_detail view at /matchup/<id>/."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = Client()
+        self.url = reverse("matchup_detail", args=[self.matchup.id])
+
+    def test_returns_200_for_valid_matchup(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_returns_404_for_missing_matchup(self):
+        response = self.client.get(reverse("matchup_detail", args=[99999]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_context_contains_matchup(self):
+        response = self.client.get(self.url)
+        self.assertIn("matchup", response.context)
+        self.assertEqual(response.context["matchup"].id, self.matchup.id)
+
+    def test_context_contains_lines_and_props_keys(self):
+        response = self.client.get(self.url)
+        self.assertIn("lines", response.context)
+        self.assertIn("props", response.context)
+
+    def test_d1_matchup_suppresses_lines_and_props(self):
+        # ScheduleTestBase uses division=1 (D1) — lines should be None
+        response = self.client.get(self.url)
+        self.assertIsNone(response.context["lines"])
+        self.assertIsNone(response.context["props"])
+
+    def test_non_d1_matchup_returns_lines_context(self):
+        d2 = Division.objects.create(division=2)
+        home = Team.objects.create(
+            team_name="D2 Home",
+            team_color="Green",
+            division=d2,
+            season=self.season,
+            is_active=True,
+        )
+        away = Team.objects.create(
+            team_name="D2 Away",
+            team_color="Yellow",
+            division=d2,
+            season=self.season,
+            is_active=True,
+        )
+        week2 = Week.objects.create(
+            division=d2,
+            season=self.season,
+            date=self.past_date,
+        )
+        matchup2 = MatchUp.objects.create(
+            week=week2,
+            time=datetime.time(20, 0),
+            hometeam=home,
+            awayteam=away,
+        )
+        response = self.client.get(reverse("matchup_detail", args=[matchup2.id]))
+        self.assertEqual(response.status_code, 200)
+        # lines and props keys always present; may be None without sufficient stats
+        self.assertIn("lines", response.context)
+        self.assertIn("props", response.context)
+
+    def test_matchup_record_annotations_present(self):
+        response = self.client.get(self.url)
+        m = response.context["matchup"]
+        for attr in (
+            "home_wins",
+            "home_losses",
+            "home_ties",
+            "home_otw",
+            "home_otl",
+            "away_wins",
+            "away_losses",
+            "away_ties",
+            "away_otw",
+            "away_otl",
+        ):
+            self.assertTrue(hasattr(m, attr), f"Missing annotation: {attr}")

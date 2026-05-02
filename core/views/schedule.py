@@ -4,7 +4,7 @@ from collections import OrderedDict, defaultdict
 from django.core.cache import cache
 from django.db.models import Case, F, IntegerField, Max, Q, Sum, When
 from django.db.models.functions import Coalesce, Lower
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.views.generic.list import ListView
 
 from leagues.models import Division, MatchUp, Player, Roster, Stat, Team, Week
@@ -393,6 +393,42 @@ def scores(request, division=0):
                 matchups = add_goals_for_matchups(matchups)
                 context["matchups"] = get_detailed_matchups(matchups)
     return render(request, "leagues/scores.html", context=context)
+
+
+def matchup_detail(request, matchup_id):
+    matchup = get_object_or_404(
+        MatchUp.objects.select_related(
+            "hometeam__division",
+            "hometeam__season",
+            "awayteam__division",
+            "awayteam__season",
+            "week",
+        ).annotate(
+            home_wins=Coalesce(Max("hometeam__team_stat__win"), 0),
+            home_losses=Coalesce(Max("hometeam__team_stat__loss"), 0),
+            home_ties=Coalesce(Max("hometeam__team_stat__tie"), 0),
+            home_otw=Coalesce(Max("hometeam__team_stat__otw"), 0),
+            home_otl=Coalesce(Max("hometeam__team_stat__otl"), 0),
+            away_wins=Coalesce(Max("awayteam__team_stat__win"), 0),
+            away_losses=Coalesce(Max("awayteam__team_stat__loss"), 0),
+            away_ties=Coalesce(Max("awayteam__team_stat__tie"), 0),
+            away_otw=Coalesce(Max("awayteam__team_stat__otw"), 0),
+            away_otl=Coalesce(Max("awayteam__team_stat__otl"), 0),
+        ),
+        id=matchup_id,
+    )
+
+    lines = None
+    props = None
+    if matchup.hometeam.division.division != 1:
+        lines = compute_betting_lines_for_matchups([matchup_id]).get(matchup_id)
+        props = compute_player_props_for_matchups([matchup_id]).get(matchup_id)
+
+    return render(
+        request,
+        "core/matchup_detail.html",
+        {"matchup": matchup, "lines": lines, "props": props},
+    )
 
 
 def cups(request, division=1):

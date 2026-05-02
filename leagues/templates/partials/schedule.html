@@ -16,7 +16,7 @@
             {% for match in value2 %}
                 <div class="game{% if match.is_cancelled %} game-cancelled{% endif %}">
                     {% if view == "schedule" %}
-                        <h3>{{match.time}}{% if match.is_cancelled %} <span class="game-cancelled-badge">Cancelled</span>{% endif %}</h3>
+                        <h3><a href="{% url 'matchup_detail' match.id %}" class="matchup-time-link">{{match.time}}</a>{% if match.is_cancelled %} <span class="game-cancelled-badge">Cancelled</span>{% endif %}</h3>
                     {% else %}
                         <h3>{{match.time}} | {{date}}{% if match.is_cancelled %} <span class="game-cancelled-badge">Cancelled</span>{% endif %}</h3>
                     {% endif %}

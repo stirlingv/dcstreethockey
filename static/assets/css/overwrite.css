@@ -1115,6 +1115,17 @@ div div#content .matchupheader{
     letter-spacing: 0.05em;
 }
 
+@media screen and (min-width: 737px) {
+    #content a.matchup-time-link {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    #content a.matchup-time-link:hover {
+        text-decoration: underline;
+    }
+}
+
 .game-cancelled {
     opacity: 0.55;
 }
