@@ -37,6 +37,18 @@
 		function handleSelect(elm){
 	  	window.location = elm.value;
 	  }
+	function showPropSort(sortKey, el) {
+		var panel = el.closest('.props-panel');
+		panel.querySelectorAll('.props-list[data-sort]').forEach(function(list) {
+			list.style.display = list.getAttribute('data-sort') === sortKey ? '' : 'none';
+		});
+		panel.querySelectorAll('.props-sort-col').forEach(function(col) {
+			var key = col.getAttribute('data-sort');
+			var isActive = key === sortKey;
+			col.classList.toggle('props-sort-active', isActive);
+			col.textContent = key.toUpperCase() + (isActive ? ' ▲' : '');
+		});
+	}
 	function toggleOdds(btn, panelId) {
 		var panel = document.getElementById(panelId);
 		var expanded = btn.getAttribute('aria-expanded') === 'true';

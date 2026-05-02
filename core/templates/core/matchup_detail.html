@@ -124,27 +124,16 @@
                 <div class="matchup-section-label">
                     Player Props
                     <span class="props-section-count">{{ props.total }} players</span>
-                    <span class="props-legend">
-                        <span class="props-legend-goal">&#9632;</span> Goal &nbsp;
-                        <span class="props-legend-assist">&#9632;</span> Assist &nbsp;
-                        <span class="props-legend-point">&#9632;</span> Point
-                    </span>
-                </div>
-
-                <div class="matchup-prop-tabs">
-                    <button class="matchup-prop-tab active" onclick="showPropSort('goal', this)">Goals</button>
-                    <button class="matchup-prop-tab" onclick="showPropSort('assist', this)">Assists</button>
-                    <button class="matchup-prop-tab" onclick="showPropSort('point', this)">Points</button>
                 </div>
 
                 <div class="props-panel">
-                    <div class="props-row bl-header-row">
+                    <div class="props-row props-sort-header">
                         <span class="bl-team-col"></span>
-                        <span class="bl-col-label">GOAL</span>
-                        <span class="bl-col-label">ASSIST</span>
-                        <span class="bl-col-label">POINT</span>
+                        <span class="props-sort-col props-sort-active" onclick="showPropSort('goal', this)" data-sort="goal">GOAL &#9650;</span>
+                        <span class="props-sort-col" onclick="showPropSort('assist', this)" data-sort="assist">ASSIST</span>
+                        <span class="props-sort-col" onclick="showPropSort('point', this)" data-sort="point">POINT</span>
                     </div>
-                    <div class="props-list matchup-props-list" id="props-by-goal">
+                    <div class="props-list matchup-props-list" data-sort="goal">
                         {% for p in props.by_goal %}
                         <div class="props-row">
                             <span class="props-player-info">
@@ -158,7 +147,7 @@
                         </div>
                         {% endfor %}
                     </div>
-                    <div class="props-list matchup-props-list" id="props-by-assist" hidden>
+                    <div class="props-list matchup-props-list" data-sort="assist" style="display:none">
                         {% for p in props.by_assist %}
                         <div class="props-row">
                             <span class="props-player-info">
@@ -172,7 +161,7 @@
                         </div>
                         {% endfor %}
                     </div>
-                    <div class="props-list matchup-props-list" id="props-by-point" hidden>
+                    <div class="props-list matchup-props-list" data-sort="point" style="display:none">
                         {% for p in props.by_point %}
                         <div class="props-row">
                             <span class="props-player-info">
@@ -200,15 +189,17 @@
 </div>
 
 <script>
-function showPropSort(sortKey, btn) {
-    ['goal', 'assist', 'point'].forEach(function(k) {
-        var el = document.getElementById('props-by-' + k);
-        if (el) el.hidden = (k !== sortKey);
+function showPropSort(sortKey, el) {
+    var panel = el.closest('.props-panel');
+    panel.querySelectorAll('.props-list[data-sort]').forEach(function(list) {
+        list.style.display = list.getAttribute('data-sort') === sortKey ? '' : 'none';
     });
-    document.querySelectorAll('.matchup-prop-tab').forEach(function(b) {
-        b.classList.remove('active');
+    panel.querySelectorAll('.props-sort-col').forEach(function(col) {
+        var key = col.getAttribute('data-sort');
+        var isActive = key === sortKey;
+        col.classList.toggle('props-sort-active', isActive);
+        col.textContent = key.toUpperCase() + (isActive ? ' ▲' : '');
     });
-    if (btn) btn.classList.add('active');
 }
 </script>
 {% endblock %}

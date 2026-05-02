@@ -451,34 +451,25 @@ a.props-name:hover,
     gap: 8px;
 }
 
-.matchup-prop-tabs {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 10px;
-}
-
-.matchup-prop-tab {
-    background: none;
-    border: 1px solid #e2e6e8;
-    border-radius: 20px;
+.props-sort-col {
+    font-size: 10px;
+    font-weight: 700;
     color: #6b7280;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-transform: uppercase;
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 5px 16px;
-    transition: all 0.15s;
-    min-height: 44px;
+    padding: 10px 2px;
+    user-select: none;
+    transition: color 0.15s;
 }
 
-.matchup-prop-tab:hover {
-    border-color: #9ca3af;
-    color: #374151;
+.props-sort-col:hover {
+    color: #9ca3af;
 }
 
-.matchup-prop-tab.active {
-    background: #1a1a2e;
-    border-color: #1a1a2e;
-    color: #fff;
+.props-sort-col.props-sort-active {
+    color: #e2e8f0;
 }
 
 .matchup-props-list {
@@ -516,10 +507,6 @@ a.props-name:hover,
         padding: 0 4px;
     }
 
-    .matchup-prop-tab {
-        font-size: 11px;
-        padding: 5px 12px;
-    }
 }
 
 /* ── end Matchup Detail ────────────────────────────────────────────────── */

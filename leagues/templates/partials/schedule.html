@@ -116,10 +116,43 @@
                         <div class="props-panel-header">
                             <span class="props-section-title">Player Props</span>
                             <span class="props-section-count">{{ props.total }} players</span>
-                            <span class="props-legend"><span class="props-legend-goal">&#9632;</span> Goal &nbsp;<span class="props-legend-assist">&#9632;</span> Assist &nbsp;<span class="props-legend-point">&#9632;</span> Point</span>
                         </div>
-                        <div class="props-list">
+                        <div class="props-row">
+                            <span class="bl-team-col"></span>
+                            <span class="props-sort-col props-sort-active" onclick="showPropSort('goal', this)" data-sort="goal">GOAL &#9650;</span>
+                            <span class="props-sort-col" onclick="showPropSort('assist', this)" data-sort="assist">ASSIST</span>
+                            <span class="props-sort-col" onclick="showPropSort('point', this)" data-sort="point">POINT</span>
+                        </div>
+                        <div class="props-list" data-sort="goal">
                             {% for p in props.by_goal %}
+                            <div class="props-row">
+                                <span class="props-player-info">
+                                    <span class="props-team-tag">{{ p.team_abbr }}</span>
+                                    <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
+                                    <span class="props-pos">{{ p.pos }}</span>
+                                </span>
+                                <span class="props-odds">{{ p.goal_odds }}</span>
+                                <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
+                                <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="props-list" data-sort="assist" style="display:none">
+                            {% for p in props.by_assist %}
+                            <div class="props-row">
+                                <span class="props-player-info">
+                                    <span class="props-team-tag">{{ p.team_abbr }}</span>
+                                    <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
+                                    <span class="props-pos">{{ p.pos }}</span>
+                                </span>
+                                <span class="props-odds">{{ p.goal_odds }}</span>
+                                <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
+                                <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="props-list" data-sort="point" style="display:none">
+                            {% for p in props.by_point %}
                             <div class="props-row">
                                 <span class="props-player-info">
                                     <span class="props-team-tag">{{ p.team_abbr }}</span>
