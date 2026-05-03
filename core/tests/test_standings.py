@@ -1,8 +1,10 @@
 import unittest
-from django.test import TestCase
+from unittest.mock import Mock, patch
+
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
-from unittest.mock import Mock, patch
+from django.test import Client, TestCase
+
 from leagues.models import Team_Stat
 
 
@@ -639,6 +641,123 @@ class StandingsIntegrationTestCase(TestCase):
         Team.objects.all().delete()
         Season.objects.all().delete()
         Division.objects.all().delete()
+
+
+class StandingsViewContextTest(TestCase):
+    """Tests for the new view context: rank, gp, goal_differential, division grouping."""
+
+    def setUp(self):
+        from leagues.models import Division, Season, Team, Team_Stat
+
+        self.client = Client()
+        self.division = Division.objects.create(division=1)  # Sunday D1
+        self.season = Season.objects.create(year=2025, season_type=1)
+        self.team_a = Team.objects.create(
+            team_name="Alpha",
+            team_color="Red",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.team_b = Team.objects.create(
+            team_name="Bravo",
+            team_color="Blue",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        # Alpha: 3W 1OTW 1OTL 1L, GF=20 GA=15
+        Team_Stat.objects.create(
+            team=self.team_a,
+            division=self.division,
+            win=3,
+            otw=1,
+            otl=1,
+            loss=1,
+            tie=0,
+            goals_for=20,
+            goals_against=15,
+        )
+        # Bravo: 1W 0OTW 0OTL 4L, GF=10 GA=25
+        Team_Stat.objects.create(
+            team=self.team_b,
+            division=self.division,
+            win=1,
+            otw=0,
+            otl=0,
+            loss=4,
+            tie=0,
+            goals_for=10,
+            goals_against=25,
+        )
+
+    def _get(self):
+        from django.urls import reverse
+
+        return self.client.get(reverse("team_standings"))
+
+    def test_returns_200(self):
+        self.assertEqual(self._get().status_code, 200)
+
+    def test_context_has_division_keys(self):
+        ctx = self._get().context
+        for key in (
+            "sunday_d1",
+            "sunday_d2",
+            "wednesday_east",
+            "wednesday_west",
+            "monday_a",
+            "monday_b",
+        ):
+            self.assertIn(key, ctx)
+
+    def test_rank_assigned_sequentially(self):
+        teams = self._get().context["sunday_d1"]
+        self.assertEqual(len(teams), 2)
+        self.assertEqual(teams[0].rank, 1)
+        self.assertEqual(teams[1].rank, 2)
+
+    def test_rank_1_is_highest_points_team(self):
+        teams = self._get().context["sunday_d1"]
+        # Alpha has 3*3 + 1*2 + 1 = 12 pts; Bravo has 3 pts
+        self.assertEqual(teams[0].team.team_name, "Alpha")
+
+    def test_gp_equals_all_game_outcomes(self):
+        teams = self._get().context["sunday_d1"]
+        alpha = next(t for t in teams if t.team.team_name == "Alpha")
+        # 3W + 1OTW + 1OTL + 1L + 0tie = 6
+        self.assertEqual(alpha.gp, 6)
+
+    def test_goal_differential_positive(self):
+        teams = self._get().context["sunday_d1"]
+        alpha = next(t for t in teams if t.team.team_name == "Alpha")
+        self.assertEqual(alpha.goal_differential, 5)  # 20 - 15
+
+    def test_goal_differential_negative(self):
+        teams = self._get().context["sunday_d1"]
+        bravo = next(t for t in teams if t.team.team_name == "Bravo")
+        self.assertEqual(bravo.goal_differential, -15)  # 10 - 25
+
+    def test_inactive_team_excluded(self):
+        from leagues.models import Team, Team_Stat
+
+        inactive = Team.objects.create(
+            team_name="Inactive",
+            team_color="Grey",
+            division=self.division,
+            season=self.season,
+            is_active=False,
+        )
+        Team_Stat.objects.create(
+            team=inactive,
+            division=self.division,
+            win=10,
+            goals_for=50,
+            goals_against=10,
+        )
+        teams = self._get().context["sunday_d1"]
+        names = [t.team.team_name for t in teams]
+        self.assertNotIn("Inactive", names)
 
 
 if __name__ == "__main__":

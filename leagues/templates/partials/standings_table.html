@@ -1,0 +1,50 @@
+{% load static %}
+<div class="table-wrap">
+    <table class="team-stats-table">
+        <colgroup>
+            <col class="col-name">
+            <col class="col-stat"><!-- W -->
+            <col class="col-stat"><!-- OTW -->
+            <col class="col-stat"><!-- L -->
+            <col class="col-stat"><!-- OTL -->
+            <col class="col-stat col-pts"><!-- Pts -->
+            <col class="col-stat"><!-- GF -->
+            <col class="col-stat"><!-- GA -->
+            <col class="col-stat"><!-- DIFF -->
+            <col class="col-stat"><!-- GP -->
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="col-name">Team</th>
+                <th class="col-stat has-tip" data-tip="Regulation Wins">W</th>
+                <th class="col-stat has-tip" data-tip="Overtime / Shootout Wins">OTW</th>
+                <th class="col-stat has-tip" data-tip="Regulation Losses">L</th>
+                <th class="col-stat has-tip" data-tip="Overtime / Shootout Losses">OTL</th>
+                <th class="col-stat col-pts has-tip" data-tip="Points — W=3, OTW=2, OTL/Tie=1, L=0">Pts</th>
+                <th class="col-stat has-tip" data-tip="Goals For">GF</th>
+                <th class="col-stat has-tip" data-tip="Goals Against">GA</th>
+                <th class="col-stat has-tip" data-tip="Goal Differential (GF minus GA)">DIFF</th>
+                <th class="col-stat has-tip" data-tip="Games Played">GP</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ts in teams %}
+            <tr class="clickable" onclick="handleTeam('{% url "teams" ts.team.id %}')">
+                <td class="col-name">{{ ts.team.team_name }}</td>
+                <td class="col-stat">{{ ts.win }}</td>
+                <td class="col-stat">{{ ts.otw }}</td>
+                <td class="col-stat">{{ ts.loss }}</td>
+                <td class="col-stat">{{ ts.otl }}</td>
+                <td class="col-stat col-pts">{{ ts.total_points }}</td>
+                <td class="col-stat">{{ ts.goals_for }}</td>
+                <td class="col-stat">{{ ts.goals_against }}</td>
+                <td class="col-stat {% if ts.goal_differential > 0 %}diff-positive{% elif ts.goal_differential < 0 %}diff-negative{% endif %}">{% if ts.goal_differential > 0 %}+{% endif %}{{ ts.goal_differential }}</td>
+                <td class="col-stat">{{ ts.gp }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="10" class="empty-msg">No stats entered yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<p class="standings-legend">W=3 pts &nbsp;&bull;&nbsp; OTW=2 pts &nbsp;&bull;&nbsp; OTL/Tie=1 pt &nbsp;&bull;&nbsp; L=0 pts &nbsp;&nbsp;&mdash;&nbsp;&nbsp; Tiebreakers: Reg. Wins &rarr; Head-to-Head &rarr; Goal Diff</p>

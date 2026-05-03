@@ -232,3 +232,41 @@ class TeamStatDetailView(ListView):
                     )
 
         return ListAsQuerySet(team_stat_list, model=Team_Stat)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        team_list = list(context["team_list"])
+
+        for ts in team_list:
+            ts.gp = ts.win + ts.otw + ts.otl + ts.loss + ts.tie
+            ts.goal_differential = ts.goals_for - ts.goals_against
+
+        def _ranked(teams):
+            for i, ts in enumerate(teams):
+                ts.rank = i + 1
+            return teams
+
+        wed_all = [t for t in team_list if str(t.division) == "Wednesday Draft League"]
+        context.update(
+            {
+                "sunday_d1": _ranked(
+                    [t for t in team_list if str(t.division) == "Sunday D1"]
+                ),
+                "sunday_d2": _ranked(
+                    [t for t in team_list if str(t.division) == "Sunday D2"]
+                ),
+                "wednesday_east": _ranked(
+                    [t for t in wed_all if t.team.conference == 1]
+                ),
+                "wednesday_west": _ranked(
+                    [t for t in wed_all if t.team.conference == 2]
+                ),
+                "monday_a": _ranked(
+                    [t for t in team_list if str(t.division) == "Monday A League"]
+                ),
+                "monday_b": _ranked(
+                    [t for t in team_list if str(t.division) == "Monday B League"]
+                ),
+            }
+        )
+        return context

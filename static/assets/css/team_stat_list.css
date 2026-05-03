@@ -1,12 +1,302 @@
-.standings-info-icon:hover .standings-tooltip {
-    visibility: visible;
-    opacity: 1;
+/* ── Page structure ─────────────────────────────────── */
+.standings-section {
+    margin-bottom: 36px;
+}
+.standings-section-title {
+    font-size: 1em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #2d3748;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin-bottom: 16px;
+}
+.standings-group {
+    margin-bottom: 20px;
+}
+.standings-group-label {
+    font-size: 0.78em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #718096;
+    margin-bottom: 6px;
 }
 
-@media (max-width: 768px) {
-    .standings-tooltip {
-        width: 280px !important;
-        margin-left: -140px !important;
-        font-size: 12px !important;
+/* ── Table wrapper (enables horizontal scroll on mobile) ── */
+.table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 6px;
+}
+
+/* ── Side-by-side grid ──────────────────────────────── */
+.standings-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+@media (max-width: 767px) {
+    .standings-split {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
+}
+
+/* ── Table base ─────────────────────────────────────── */
+.team-stats-table {
+    width: 100%;
+    min-width: 580px;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 15px;
+    background: #fff;
+}
+.team-stats-table th,
+.team-stats-table td {
+    padding: 11px 8px;
+    text-align: center;
+    border-bottom: 1px solid #edf2f7;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.team-stats-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.team-stats-table th {
+    background: #f7fafc;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #4a5568;
+    border-bottom: 2px solid #e2e8f0;
+    position: relative; /* anchor for ::after tooltip */
+}
+.team-stats-table th.has-tip {
+    overflow: visible; /* allow ::after tooltip to escape cell bounds */
+}
+.team-stats-table td.col-name,
+.team-stats-table th.col-name {
+    text-overflow: ellipsis;
+}
+
+/* ── Column header tooltips ─────────────────────────── */
+.team-stats-table thead th.has-tip {
+    cursor: help;
+}
+.team-stats-table thead th.has-tip:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2d3748;
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: nowrap;
+    z-index: 500;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+/* Last two columns: pin tooltip to right edge so it doesn't overflow */
+.team-stats-table thead th.has-tip:last-child:hover::after,
+.team-stats-table thead th.has-tip:nth-last-child(2):hover::after {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+/* ── Fixed column widths (via colgroup) ─────────────── */
+.team-stats-table col.col-name  { width: 130px; }
+.team-stats-table col.col-stat  { width: 50px; }
+/* min-width must cover name col + 9 stat cols to prevent name squishing */
+/* 130 + (9 × 50) = 580px */
+
+/* ── Sticky team name column ────────────────────────── */
+.team-stats-table .col-name {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    text-align: left;
+    padding-left: 12px;
+    background: inherit;
+    box-shadow: 3px 0 5px -2px rgba(0, 0, 0, 0.07);
+}
+/* Ensure header sticky cell stays above body */
+.team-stats-table thead .col-name {
+    background: #f7fafc;
+    z-index: 3;
+}
+/* Match sticky bg on hover */
+.team-stats-table tbody tr:hover .col-name {
+    background: #ebf4ff;
+}
+
+/* ── Points column highlight ────────────────────────── */
+.team-stats-table .col-pts {
+    background-color: rgba(26, 82, 118, 0.07);
+    font-weight: 700;
+    color: #1a3a5c;
+}
+.team-stats-table thead .col-pts {
+    background-color: rgba(26, 82, 118, 0.13);
+}
+
+/* ── Goal differential colouring ───────────────────── */
+.diff-positive { color: #276749; font-weight: 600; }
+.diff-negative { color: #c53030; font-weight: 600; }
+
+/* ── Clickable rows ─────────────────────────────────── */
+.team-stats-table tr.clickable {
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.team-stats-table tr.clickable:hover {
+    background: #ebf4ff;
+}
+.team-stats-table tr.clickable:active {
+    background: #d6eaf8;
+}
+
+/* ── Legend line ────────────────────────────────────── */
+.standings-legend {
+    font-size: 11px;
+    color: #a0aec0;
+    margin: 4px 0 0;
+    font-style: italic;
+}
+
+/* ── Empty cell ─────────────────────────────────────── */
+.empty-msg {
+    text-align: left;
+    color: #a0aec0;
+    font-style: italic;
+    padding: 12px 14px;
+}
+
+/* ── Info tooltip ───────────────────────────────────── */
+.standings-info-icon {
+    position: relative;
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.standings-info-btn {
+    font-size: 12px;
+    color: #2b6cb0;
+    cursor: pointer;
+    border: 1px solid #2b6cb0;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-style: normal;
+    font-weight: bold;
+    background: none;
+    padding: 0;
+    line-height: 1;
+    vertical-align: middle;
+}
+.standings-tooltip {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 340px;
+    background: #2d3748 !important;
+    color: #e2e8f0 !important;
+    text-align: left;
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 12px !important;
+    font-weight: normal !important;
+    line-height: 1.6;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+    pointer-events: none;
+    /* Override any inherited heading/link styles */
+    text-transform: none !important;
+    letter-spacing: normal !important;
+}
+.standings-tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-bottom-color: #2d3748;
+}
+.standings-tooltip strong,
+.standings-tooltip div,
+.standings-tooltip ol,
+.standings-tooltip li {
+    color: #e2e8f0 !important;
+    font-size: 12px !important;
+    font-weight: normal !important;
+    text-transform: none !important;
+}
+.standings-tooltip strong {
+    display: block;
+    color: #fff !important;
+    font-weight: 700 !important;
+    margin-bottom: 8px;
+    font-size: 13px !important;
+}
+.tooltip-row { margin-bottom: 4px; }
+.tooltip-label { font-weight: 600; color: #fff; }
+.tooltip-list {
+    margin: 4px 0 8px 16px;
+    padding: 0;
+}
+.tooltip-list li { margin-bottom: 2px; }
+.tooltip-abbr {
+    font-size: 11px;
+    color: #a0aec0;
+    border-top: 1px solid #4a5568;
+    padding-top: 8px;
+    margin-top: 4px;
+}
+/* Show on hover (desktop) or JS-toggled class (mobile) */
+.standings-info-icon:hover .standings-tooltip,
+.standings-tooltip.tooltip-visible {
+    display: block;
+}
+
+/* ── Mobile adjustments ─────────────────────────────── */
+@media (max-width: 767px) {
+    .standings-tooltip {
+        width: 270px !important;
+        left: 0 !important;
+        transform: none !important;
+    }
+    .standings-tooltip::before {
+        left: 12px;
+        transform: none;
+    }
+    .team-stats-table {
+        font-size: 14px;
+        min-width: 506px; /* 110 + 9×44 */
+    }
+    .team-stats-table th,
+    .team-stats-table td {
+        padding: 10px 6px;
+    }
+    .team-stats-table col.col-name { width: 110px; }
+    .team-stats-table col.col-stat { width: 44px; }
+    /* Tooltips are hover-only — not relevant on touch devices */
+    .team-stats-table thead th.has-tip { cursor: default; }
 }
