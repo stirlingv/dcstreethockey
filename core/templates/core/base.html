@@ -20,7 +20,7 @@
 		<link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/favicon_io/apple-touch-icon.png' %}">
 		<link rel="manifest" href="{% static 'img/favicon_io/site.webmanifest' %}">
 		<link rel="stylesheet" href="{% get_static_prefix %}assets/css/main.css" />
-		<link rel="stylesheet" href="{% get_static_prefix %}assets/css/overwrite.css" />
+		<link rel="stylesheet" href="{% get_static_prefix %}assets/css/overwrite.css?v=3" />
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/selectize.js/0.12.6/css/selectize.default.min.css">
 		{% block extra_head %}{% endblock %}
 
@@ -45,6 +45,7 @@
 		<!--[if lte IE 8]><script src="{% get_static_prefix %}assets/js/ie/respond.min.js"></script><![endif]-->
 		<script src="{% get_static_prefix %}assets/js/main.js"></script>
 		<script src="{% static 'assets/js/banner.js' %}"></script>
+		<script src="{% static 'assets/js/nav-dropdown.js' %}?v=2"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 		{% block extra_scripts %}{% endblock %}
 	</body>

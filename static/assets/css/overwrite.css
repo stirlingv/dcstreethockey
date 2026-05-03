@@ -774,6 +774,28 @@ div div#content .matchupheader{
     position: relative;
     z-index: 2;
 }
+
+/* ── Dropdown chevron indicator ─────────────────────── */
+#header nav .nav-dropdown > a::after {
+    content: '▾';
+    font-size: 0.65em;
+    margin-left: 4px;
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 1;
+    opacity: 0.65;
+    transition: transform 0.18s ease;
+}
+#header nav .nav-dropdown:hover > a::after,
+#header nav .nav-dropdown.nav-open > a::after {
+    transform: rotate(180deg);
+    opacity: 1;
+}
+/* Hide chevron on tablet/mobile where dropdowns are always expanded */
+@media (max-width: 900px) {
+    #header nav .nav-dropdown > a::after { display: none; }
+}
+
 #nav .nav-dropdown .dropdown {
     display: none;
     position: absolute;
@@ -785,14 +807,27 @@ div div#content .matchupheader{
     min-width: 0;
     width: auto;
     padding: 4px 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     border-radius: 0 0 8px 8px;
     z-index: 10;
     margin: 0;
     list-style: none;
 }
+
+/* ── Triangle connector between nav item and dropdown ── */
+#nav .nav-dropdown .dropdown::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 14px;
+    border: 5px solid transparent;
+    border-bottom-color: rgba(59, 67, 70, 0.96);
+    pointer-events: none;
+}
+
 #nav .nav-dropdown:hover .dropdown,
-#nav .nav-dropdown:focus-within .dropdown {
+#nav .nav-dropdown:focus-within .dropdown,
+#nav .nav-dropdown.nav-open .dropdown {
     display: inline-block;
 }
 #nav .nav-dropdown .dropdown li a {
@@ -845,16 +880,39 @@ div div#content .matchupheader{
     font-weight: 700;
     letter-spacing: 0.04em;
     color: #fff !important;
-    padding: 16px 20px;
+    padding: 14px 48px 14px 20px;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     border-bottom: none;
-    line-height: 1.2;
+    line-height: 1.4;
     min-height: 48px;
-    display: flex;
-    align-items: center;
+    display: block;
+    position: relative;
+    text-align: left;
 }
 #navPanel .link.depth-0:first-child {
     border-top: none;
+}
+#navPanel .link.depth-0 > span.indent-0 {
+    display: none;
+}
+
+/* Accordion: section headers that toggle sub-items */
+#navPanel .nav-accordion-parent {
+    cursor: pointer;
+    user-select: none;
+}
+#navPanel .nav-accordion-indicator {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.85em;
+    opacity: 0.5;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+#navPanel .nav-accordion-open .nav-accordion-indicator {
+    transform: translateY(-50%) rotate(180deg);
+    opacity: 1;
 }
 
 /* Sub-items (Schedule, Scores, League Leaders, etc.) */
