@@ -13,7 +13,7 @@
                 </h2>
                 <h3>
                     {% if goalie_trend %}
-                        Career GAA (primary goalie seasons): {{ goalie_trend.avg_gaa|floatformat:2 }}<br>
+                        Career GAA: {{ goalie_trend.avg_gaa|floatformat:2 }}<br>
                     {% endif %}
                     {% if player_seasons and not is_primarily_goalie %}
                         Average Goals/Season: {{ average_goals|floatformat:2 }} &nbsp;
@@ -23,6 +23,12 @@
                     Displaying for: {{ timespan }} seasons, Division: {% if division == 'all' %}All Divisions{% else %}{{ division|get_division_name }}{% endif %}
                 </h3>
             {% endif %}
+            <style>
+                #playerSearchForm { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+                #playerSearchInput + .selectize-control { flex: 1; min-width: 200px; }
+                #timespan + .selectize-control,
+                #division + .selectize-control { min-width: 120px; }
+            </style>
             <form id="playerSearchForm" method="GET" action="{% url 'player_trends' %}">
                 <select id="playerSearchInput" name="player_id" class="custom-dropdown" placeholder="Enter player name" required>
                     <option value="">Enter player name</option>
@@ -30,16 +36,16 @@
                         <option value="{{ player.id }}" {% if player_id == player.id|stringformat:"s" %}selected{% endif %}>{{ player.first_name }} {{ player.last_name }}</option>
                     {% endfor %}
                 </select>
-                <label for="timespan">Seasons to Display:</label>
-                <select name="timespan" id="timespan" onchange="document.getElementById('playerSearchForm').submit();">
+                <label for="timespan" style="margin: 0; white-space: nowrap;">Seasons:</label>
+                <select name="timespan" id="timespan" class="custom-dropdown">
                     <option value="all" {% if timespan == 'all' %}selected{% endif %}>All</option>
                     <option value="5" {% if timespan == 5 %}selected{% endif %}>5</option>
                     <option value="10" {% if timespan == 10 %}selected{% endif %}>10</option>
                     <option value="15" {% if timespan == 15 %}selected{% endif %}>15</option>
                     <option value="20" {% if timespan == 20 %}selected{% endif %}>20</option>
                 </select>
-                <label for="division">Division:</label>
-                <select name="division" id="division" onchange="document.getElementById('playerSearchForm').submit();">
+                <label for="division" style="margin: 0; white-space: nowrap;">Division:</label>
+                <select name="division" id="division" class="custom-dropdown">
                     <option value="all" {% if division == 'all' %}selected{% endif %}>All Divisions</option>
                     {% for div in divisions %}
                         <option value="{{ div.0 }}" {% if division == div.0|stringformat:"s" %}selected{% endif %}>{{ div.1 }}</option>
@@ -87,6 +93,20 @@
                 if (value) {
                     document.getElementById('playerSearchForm').submit();
                 }
+            }
+        });
+        $('#timespan').selectize({
+            create: false,
+            onChange: function(value) {
+                if (value) {
+                    document.getElementById('playerSearchForm').submit();
+                }
+            }
+        });
+        $('#division').selectize({
+            create: false,
+            onChange: function(value) {
+                document.getElementById('playerSearchForm').submit();
             }
         });
     });
@@ -152,15 +172,26 @@
             type: 'line',
             data: {
                 labels: {{ goalie_trend.goalie_seasons|safe }},
-                datasets: [{
-                    label: 'GAA',
-                    data: {{ goalie_trend.goalie_gaas|safe }},
-                    borderColor: 'rgba(153, 102, 255, 1)',
-                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                    fill: false,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
-                }]
+                datasets: [
+                    {
+                        label: 'GAA',
+                        data: {{ goalie_trend.goalie_gaas|safe }},
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                        fill: false,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'GAA Trend',
+                        data: {{ goalie_trend.gaa_trend_line|safe }},
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                        fill: false,
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -176,7 +207,10 @@
                     tooltip: {
                         callbacks: {
                             title: function(items) { return items[0].label; },
-                            label: function(item) { return 'GAA: ' + item.raw; }
+                            label: function(item) {
+                                var val = item.raw.toFixed(2);
+                                return item.dataset.label + ': ' + val;
+                            }
                         }
                     }
                 }

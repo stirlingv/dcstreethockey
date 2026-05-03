@@ -521,10 +521,20 @@ def get_goalie_trend_data(player, season_mapping, division=None, timespan=None):
         return None
 
     avg_gaa = round(sum(gaas) / len(gaas), 2)
+
+    x = np.arange(len(gaas))
+    y = np.array(gaas)
+    if len(x) > 1:
+        trend = np.polyfit(x, y, 1)
+        gaa_trend_line = (trend[0] * x + trend[1]).tolist()
+    else:
+        gaa_trend_line = y.tolist()
+
     return {
         "goalie_seasons": seasons,
         "goalie_gaas": gaas,
         "avg_gaa": avg_gaa,
+        "gaa_trend_line": gaa_trend_line,
         "goalie_team_ids": goalie_team_ids,
     }
 
