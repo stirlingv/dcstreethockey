@@ -103,6 +103,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "django.template.context_processors.media",
                 "dcstreethockey.context_processors.homepage_logo",
+                "dcstreethockey.context_processors.draft_signup_url",
                 "core.context_processors.jersey_path",
                 "core.context_processors.cancelled_games",
             ],

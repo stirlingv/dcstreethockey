@@ -2,7 +2,7 @@ import datetime
 from collections import OrderedDict, defaultdict
 
 from django.core.cache import cache
-from django.db.models import Case, F, IntegerField, Max, Q, Sum, When
+from django.db.models import Case, Exists, F, IntegerField, Max, OuterRef, Q, Sum, When
 from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import get_object_or_404, render
 from django.views.generic.list import ListView
@@ -43,7 +43,24 @@ class MatchUpDetailView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super(MatchUpDetailView, self).get_context_data(**kwargs)
-        context["date_of_week"] = self.kwargs.get("date", self._next_week.date)
+        date_str = self.kwargs.get("date")
+        if date_str:
+            context["date_of_week"] = datetime.date.fromisoformat(date_str)
+        else:
+            context["date_of_week"] = self._next_week.date
+
+        cutoff = datetime.date.today() - datetime.timedelta(weeks=8)
+        printable_dates = set(
+            MatchUp.objects.filter(week__date__gte=cutoff)
+            .annotate(has_stats=Exists(Stat.objects.filter(matchup=OuterRef("pk"))))
+            .filter(has_stats=False)
+            .values_list("week__date", flat=True)
+            .distinct()
+        )
+        # Always include the current date so it appears in the dropdown
+        printable_dates.add(context["date_of_week"])
+        context["available_dates"] = sorted(printable_dates)
+
         matchups = list(
             MatchUp.objects.filter(week__date=context["date_of_week"])
             .order_by("time")
@@ -75,6 +92,47 @@ class MatchUpDetailView(ListView):
         context["matchups"] = dmatchups
 
         return context
+
+
+def scoresheet_select(request):
+    """Landing page: choose which game date to print scoresheets for."""
+    today = datetime.date.today()
+    cutoff_past = today - datetime.timedelta(days=7)
+
+    matchups = (
+        MatchUp.objects.filter(week__date__gte=cutoff_past)
+        .annotate(has_stats=Exists(Stat.objects.filter(matchup=OuterRef("pk"))))
+        .select_related("hometeam__division", "week")
+        .order_by("week__date", "time")
+    )
+
+    dates_data = OrderedDict()
+    for m in matchups:
+        d = m.week.date
+        if d not in dates_data:
+            dates_data[d] = {
+                "date": d,
+                "game_count": 0,
+                "printable_count": 0,
+                "divisions": [],
+            }
+        dates_data[d]["game_count"] += 1
+        if not m.has_stats:
+            dates_data[d]["printable_count"] += 1
+        if m.hometeam.division:
+            div_str = str(m.hometeam.division)
+            if div_str not in dates_data[d]["divisions"]:
+                dates_data[d]["divisions"].append(div_str)
+
+    printable = [v for v in dates_data.values() if v["printable_count"] > 0]
+    upcoming = [v for v in printable if v["date"] >= today]
+    recent = [v for v in printable if v["date"] < today]
+
+    return render(
+        request,
+        "leagues/scoresheet_select.html",
+        {"upcoming": upcoming, "recent": recent},
+    )
 
 
 def get_stats_for_matchup(match):

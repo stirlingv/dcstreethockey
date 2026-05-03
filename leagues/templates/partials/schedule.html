@@ -4,7 +4,7 @@
     {% for division, value2 in value.items %}
         {% if view == "schedule" %}
             <section id="schedulesection" class="schedule-section" data-division="{{division}}">
-                <a href="{% url 'rosters' date=date %}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
+                <a href="{% url 'scoresheet_print' date=date %}" class="print-image"><img src="{% get_static_prefix %}images/print.png" alt="" /></a>
                 <h3>{{division}} | {{date|date:"l, N j"}}</h3>
                 {% with date|date:"Y-m-d" as date_str %}{% with weather_data|get_item:date_str as weather %}{% if weather and weather.playability != "good" %}
                 <div class="sched-weather-inline">

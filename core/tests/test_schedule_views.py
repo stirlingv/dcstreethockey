@@ -1602,3 +1602,158 @@ class MatchupDetailViewTest(ScheduleTestBase):
             "away_otl",
         ):
             self.assertTrue(hasattr(m, attr), f"Missing annotation: {attr}")
+
+
+# ---------------------------------------------------------------------------
+# MatchUpDetailView (print page at /roster/YYYY-MM-DD)
+# ---------------------------------------------------------------------------
+
+
+class MatchUpDetailViewTest(ScheduleTestBase):
+    def setUp(self):
+        super().setUp()
+        self.client = Client()
+        self.url = f"/roster/{self.past_date}"
+
+    def test_date_url_returns_200(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_available_dates_in_context(self):
+        response = self.client.get(self.url)
+        self.assertIn("available_dates", response.context)
+
+    def test_available_dates_contains_unstatted_date(self):
+        # Fixture matchup has no stats — its date should appear
+        response = self.client.get(self.url)
+        self.assertIn(self.past_date, response.context["available_dates"])
+
+    def test_available_dates_excludes_fully_statted_date(self):
+        # Enter a stat for the fixture matchup so that date becomes "done"
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=1,
+        )
+        # Create a separate future date (still printable) so the view has something to show
+        future_date = datetime.date.today() + datetime.timedelta(days=7)
+        future_week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        MatchUp.objects.create(
+            week=future_week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        response = self.client.get(f"/roster/{future_date}")
+        # past_date is fully statted — should not be in dropdown
+        self.assertNotIn(self.past_date, response.context["available_dates"])
+
+    def test_available_dates_always_includes_current_date(self):
+        # Even if all matchups on this date have stats, it stays in the dropdown
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=1,
+        )
+        response = self.client.get(self.url)
+        self.assertIn(self.past_date, response.context["available_dates"])
+
+    def test_available_dates_excludes_dates_older_than_eight_weeks(self):
+        old_date = datetime.date.today() - datetime.timedelta(weeks=10)
+        old_week = Week.objects.create(
+            division=self.division, season=self.season, date=old_date
+        )
+        MatchUp.objects.create(
+            week=old_week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        response = self.client.get(self.url)
+        self.assertNotIn(old_date, response.context["available_dates"])
+
+    def test_date_of_week_is_date_object(self):
+        response = self.client.get(self.url)
+        self.assertIsInstance(response.context["date_of_week"], datetime.date)
+        self.assertEqual(response.context["date_of_week"], self.past_date)
+
+
+# ---------------------------------------------------------------------------
+# scoresheet_select view (landing page at /roster/)
+# ---------------------------------------------------------------------------
+
+
+class ScoresheetSelectViewTest(ScheduleTestBase):
+    def setUp(self):
+        super().setUp()
+        self.client = Client()
+
+    def test_returns_200(self):
+        response = self.client.get(reverse("rosters"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_upcoming_and_recent_in_context(self):
+        response = self.client.get(reverse("rosters"))
+        self.assertIn("upcoming", response.context)
+        self.assertIn("recent", response.context)
+
+    def test_recent_includes_unstatted_past_date(self):
+        # Fixture matchup is 7 days ago with no stats — should appear in recent
+        response = self.client.get(reverse("rosters"))
+        recent_dates = [info["date"] for info in response.context["recent"]]
+        self.assertIn(self.past_date, recent_dates)
+
+    def test_upcoming_includes_future_unstatted_date(self):
+        future_date = datetime.date.today() + datetime.timedelta(days=5)
+        future_week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        MatchUp.objects.create(
+            week=future_week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        response = self.client.get(reverse("rosters"))
+        upcoming_dates = [info["date"] for info in response.context["upcoming"]]
+        self.assertIn(future_date, upcoming_dates)
+
+    def test_fully_statted_date_excluded(self):
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=1,
+        )
+        response = self.client.get(reverse("rosters"))
+        all_dates = [info["date"] for info in response.context["upcoming"]] + [
+            info["date"] for info in response.context["recent"]
+        ]
+        self.assertNotIn(self.past_date, all_dates)
+
+    def test_card_includes_division_name(self):
+        response = self.client.get(reverse("rosters"))
+        recent = response.context["recent"]
+        self.assertTrue(len(recent) > 0)
+        self.assertTrue(len(recent[0]["divisions"]) > 0)
+
+    def test_date_older_than_seven_days_not_shown(self):
+        old_date = datetime.date.today() - datetime.timedelta(days=10)
+        old_week = Week.objects.create(
+            division=self.division, season=self.season, date=old_date
+        )
+        MatchUp.objects.create(
+            week=old_week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        response = self.client.get(reverse("rosters"))
+        all_dates = [info["date"] for info in response.context["upcoming"]] + [
+            info["date"] for info in response.context["recent"]
+        ]
+        self.assertNotIn(old_date, all_dates)

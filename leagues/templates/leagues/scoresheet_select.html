@@ -1,0 +1,160 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Print Scoresheets — DC Street Hockey{% endblock %}
+
+{% block extra_head %}
+<style>
+    .scoresheet-select-page {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 32px 16px 48px;
+    }
+    .scoresheet-select-page h1 {
+        font-size: 1.6em;
+        margin-bottom: 6px;
+        color: #2c3e50;
+    }
+    .scoresheet-select-page .page-subtitle {
+        font-size: 0.95em;
+        color: #666;
+        margin-bottom: 32px;
+    }
+    .section-label {
+        font-size: 0.75em;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #888;
+        margin-bottom: 10px;
+    }
+    .date-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 32px;
+    }
+    .date-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #fff;
+        border: 1px solid #dde2e6;
+        border-radius: 8px;
+        padding: 16px 20px;
+        text-decoration: none;
+        color: #333;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .date-card:hover {
+        box-shadow: 0 3px 12px rgba(0,0,0,0.11);
+        border-color: #1a5276;
+        text-decoration: none;
+        color: #333;
+    }
+    .date-card-info {
+        flex: 1;
+        min-width: 0;
+    }
+    .date-card-day {
+        font-size: 1.15em;
+        font-weight: 700;
+        color: #1a5276;
+        line-height: 1.2;
+    }
+    .date-card-date {
+        font-size: 0.85em;
+        color: #555;
+        margin-top: 2px;
+    }
+    .date-card-meta {
+        font-size: 0.82em;
+        color: #777;
+        margin-top: 4px;
+    }
+    .date-card-arrow {
+        font-size: 1.3em;
+        color: #1a5276;
+        margin-left: 16px;
+        flex-shrink: 0;
+    }
+    .empty-state {
+        padding: 40px 0;
+        text-align: center;
+        color: #888;
+        font-size: 0.95em;
+    }
+    @media (max-width: 767px) {
+        .scoresheet-select-page {
+            padding: 20px 12px 40px;
+        }
+        .date-card {
+            padding: 14px 16px;
+        }
+        .date-card-day {
+            font-size: 1.05em;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-wrapper">
+    <div id="content">
+        <div class="container">
+            <div class="scoresheet-select-page">
+                <h1>Print Scoresheets</h1>
+                <p class="page-subtitle">Select a game date to view and print blank scoresheets.</p>
+
+                {% if upcoming %}
+                <div class="section-label">Upcoming</div>
+                <div class="date-card-list">
+                    {% for info in upcoming %}
+                    <a href="/roster/{{ info.date|date:'Y-m-d' }}" class="date-card">
+                        <div class="date-card-info">
+                            <div class="date-card-day">{{ info.date|date:"l" }}</div>
+                            <div class="date-card-date">{{ info.date|date:"N j, Y" }}</div>
+                            <div class="date-card-meta">
+                                {{ info.divisions|join:" &bull; " }}
+                                &nbsp;&bull;&nbsp;
+                                {{ info.game_count }} game{{ info.game_count|pluralize }}
+                            </div>
+                        </div>
+                        <div class="date-card-arrow">›</div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if recent %}
+                <div class="section-label">Recent</div>
+                <div class="date-card-list">
+                    {% for info in recent %}
+                    <a href="/roster/{{ info.date|date:'Y-m-d' }}" class="date-card">
+                        <div class="date-card-info">
+                            <div class="date-card-day">{{ info.date|date:"l" }}</div>
+                            <div class="date-card-date">{{ info.date|date:"N j, Y" }}</div>
+                            <div class="date-card-meta">
+                                {{ info.divisions|join:" &bull; " }}
+                                &nbsp;&bull;&nbsp;
+                                {{ info.printable_count }} of {{ info.game_count }} game{{ info.game_count|pluralize }} still need scoresheets
+                            </div>
+                        </div>
+                        <div class="date-card-arrow">›</div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if not upcoming and not recent %}
+                <div class="empty-state">
+                    All recent scoresheets are up to date.<br>Check back closer to game day.
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

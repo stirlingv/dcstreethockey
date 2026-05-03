@@ -1,7 +1,19 @@
-from django.test import TestCase, RequestFactory
+from django.core.cache import cache
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
+
 from core.views import PlayerStatDetailView
-from leagues.models import Season, Division, Player, Team, Stat, Roster
+from dcstreethockey.context_processors import draft_signup_url
+from leagues.models import (
+    Division,
+    DraftSession,
+    Player,
+    Roster,
+    Season,
+    Stat,
+    Team,
+    Week,
+)
 
 
 class PlayerStatDetailViewTest(TestCase):
@@ -57,3 +69,31 @@ class PlayerStatDetailViewTest(TestCase):
         self.assertEqual(len(player_stat_list[str(self.division)]), 1)
         self.assertEqual(player_stat_list[str(self.division)][0]["first_name"], "John")
         self.assertEqual(player_stat_list[str(self.division)][0]["last_name"], "Doe")
+
+
+class DraftSignupUrlContextProcessorTest(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+        self.season = Season.objects.create(
+            year=2024, season_type=3, is_current_season=True
+        )
+        self.division = Division.objects.create(division=3)
+
+    def _make_request(self):
+        return self.factory.get("/")
+
+    def test_returns_none_when_no_open_signup(self):
+        ctx = draft_signup_url(self._make_request())
+        self.assertIsNone(ctx["draft_signup_url"])
+
+    def test_returns_url_when_signup_is_open(self):
+        DraftSession.objects.create(season=self.season, signups_open=True)
+        ctx = draft_signup_url(self._make_request())
+        self.assertIsNotNone(ctx["draft_signup_url"])
+        self.assertIn(str(self.season.pk), ctx["draft_signup_url"])
+
+    def test_returns_none_when_signup_is_closed(self):
+        DraftSession.objects.create(season=self.season, signups_open=False)
+        ctx = draft_signup_url(self._make_request())
+        self.assertIsNone(ctx["draft_signup_url"])

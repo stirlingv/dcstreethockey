@@ -844,6 +844,38 @@ div div#content .matchupheader{
     opacity: 0.9;
 }
 
+/* Active nav link — current page indicator */
+#header nav a.nav-active {
+    color: #f6f8f8 !important;
+    border-bottom: 2px solid rgba(255,255,255,0.55);
+    padding-bottom: 2px;
+}
+
+/* Sign Up CTA button */
+#header nav a.nav-cta {
+    background: #1a5276;
+    color: #fff !important;
+    padding: 5px 14px;
+    border-radius: 4px;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.2);
+    margin-left: 6px;
+}
+#header nav a.nav-cta:hover {
+    background: #154360;
+    color: #fff !important;
+}
+/* Strip CTA styling in mobile nav panel */
+@media (max-width: 736px) {
+    #navPanel a.nav-cta {
+        background: none;
+        border: none;
+        padding: 0;
+        font-weight: bold;
+        margin-left: 0;
+    }
+}
+
 /* ===== Games Cancelled Banner ===== */
 .cancellation-banner-wrapper {
     width: 100%;

@@ -16,22 +16,42 @@
 					</a>
 				</h1>
 
+                {% with url_name=request.resolver_match.url_name %}
                 <nav id="nav">
                     <div class="nav-item nav-dropdown">
-                        <a href="{% url 'schedule' %}">Schedule</a>
+                        <a href="{% url 'schedule' %}"{% if url_name == 'schedule' or url_name == 'scores' or url_name == 'rosters' or url_name == 'goalie_status_board' %} class="nav-active"{% endif %}>Games</a>
                         <ul class="dropdown">
+                            <li><a href="{% url 'schedule' %}">Schedule</a></li>
+                            <li><a href="{% url 'scores' %}">Scores</a></li>
+                            <li><a href="{% url 'rosters' %}">Print Scoresheets</a></li>
                             <li><a href="{% url 'goalie_status_board' %}">Goalie Status</a></li>
                         </ul>
                     </div>
-                    <a href="{% url 'team_standings' %}">Standings</a>
-                    <a href="{% url 'player_stats' %}">Leaders</a>
-                    <a href="{% url 'player_trends' %}">Trends</a>
-                    <a href="{% url 'hof' %}">HOF</a>
-                    <a href="{% url 'scores' %}">Scores</a>
-                    <a href="{% url 'draft_sessions_list' %}">Draft</a>
-                    <a href="{% url 'cups' %}">Championships</a>
-                    <a href="https://forms.gle/w68fCbHrVq8iXBBA9" target="_blank">Sign Up!</a>
+                    <a href="{% url 'team_standings' %}"{% if url_name == 'team_standings' %} class="nav-active"{% endif %}>Standings</a>
+                    <div class="nav-item nav-dropdown">
+                        <a href="{% url 'player_stats' %}"{% if url_name == 'player_stats' or url_name == 'player_trends' %} class="nav-active"{% endif %}>Players</a>
+                        <ul class="dropdown">
+                            <li><a href="{% url 'player_stats' %}">League Leaders</a></li>
+                            <li><a href="{% url 'player_trends' %}">Player Trends</a></li>
+                        </ul>
+                    </div>
+                    <div class="nav-item nav-dropdown">
+                        <a href="{% url 'hof' %}"{% if url_name == 'hof' or url_name == 'cups' %} class="nav-active"{% endif %}>History</a>
+                        <ul class="dropdown">
+                            <li><a href="{% url 'hof' %}">Hall of Fame</a></li>
+                            <li><a href="{% url 'cups' %}">Championships</a></li>
+                        </ul>
+                    </div>
+                    <div class="nav-item nav-dropdown">
+                        <a href="{% url 'draft_sessions_list' %}"{% if url_name == 'draft_sessions_list' or url_name == 'draft_board_spectator' or url_name == 'draft_signup' %} class="nav-active"{% endif %}>Draft</a>
+                        <ul class="dropdown">
+                            <li><a href="{% url 'draft_sessions_list' %}">Draft Boards</a></li>
+                            {% if draft_signup_url %}<li><a href="{{ draft_signup_url }}">Sign Up</a></li>{% endif %}
+                        </ul>
+                    </div>
+                    <a href="https://forms.gle/w68fCbHrVq8iXBBA9" target="_blank" class="nav-cta">Sign Up!</a>
                 </nav>
+                {% endwith %}
             </div>
         </div>
     </header>

@@ -12,6 +12,7 @@ from core.views import (
     home,
     matchup_detail,
     schedule,
+    scoresheet_select,
     teams,
     scores,
     cups,
@@ -27,11 +28,11 @@ urlpatterns = (
         path("admin/", admin.site.urls),  # Admin panel
         path("__debug__/", include(debug_toolbar.urls)),  # Debug toolbar
         # Include core app URLs directly
-        path("roster/", MatchUpDetailView.as_view(), name="rosters"),
+        path("roster/", scoresheet_select, name="rosters"),
         re_path(
             r"^roster/(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})$",
             MatchUpDetailView.as_view(),
-            name="rosters",
+            name="scoresheet_print",
         ),
         path("team_standings/", TeamStatDetailView.as_view(), name="team_standings"),
         path("player_stats/", PlayerStatDetailView.as_view(), name="player_stats"),
