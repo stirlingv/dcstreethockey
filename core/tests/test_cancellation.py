@@ -241,13 +241,13 @@ class CancellationBannerTemplateTest(TestCase):
         formatted_date = self.today.strftime("%B %-d")
         self.assertContains(response, formatted_date)
 
-    def test_cancellation_banner_shows_game_time(self):
+    def test_full_cancellation_banner_hides_game_time(self):
         week = self._week(is_cancelled=True)
         _make_matchup(
             week, self.away, self.home, time=datetime.time(19, 0), is_cancelled=True
         )
         response = self._get_home()
-        self.assertContains(response, "7:00 PM")
+        self.assertNotContains(response, "7:00 PM")
 
     def test_partial_cancellation_shows_only_cancelled_game(self):
         week = self._week()
@@ -265,14 +265,14 @@ class CancellationBannerTemplateTest(TestCase):
         # 8:30 PM game is not cancelled — should not appear in banner
         self.assertNotContains(response, "8:30 PM")
 
-    def test_banner_shows_team_names_for_cancelled_game(self):
+    def test_full_cancellation_banner_hides_team_names(self):
         week = self._week(is_cancelled=True)
         _make_matchup(
             week, self.away, self.home, time=datetime.time(19, 0), is_cancelled=True
         )
         response = self._get_home()
-        self.assertContains(response, "Away")
-        self.assertContains(response, "Home")
+        self.assertNotContains(response, "Away")
+        self.assertNotContains(response, "Home")
 
     def test_banner_shows_some_games_cancelled_for_partial(self):
         week = self._week()

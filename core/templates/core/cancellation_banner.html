@@ -9,6 +9,7 @@
                     {% if date_data.partial %}Some Games Cancelled{% else %}All Games Cancelled{% endif %}
                     &mdash; {{ date|date:"l, F j" }}
                 </div>
+                {% if date_data.partial %}
                 {% for division_name, matchups in date_data.divisions.items %}
                 <div class="cancellation-division-row">
                     <span class="cancellation-division-name">{{ division_name }}</span>
@@ -17,6 +18,7 @@
                     </span>
                 </div>
                 {% endfor %}
+                {% endif %}
             </div>
         </div>
     </div>
