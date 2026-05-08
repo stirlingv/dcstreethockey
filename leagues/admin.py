@@ -198,6 +198,33 @@ class RosterInline(admin.TabularInline):
 class TeamStatInline(admin.TabularInline):
     model = Team_Stat
     extra = 1
+    readonly_fields = ["goals_from_stat_records"]
+    fields = [
+        "division",
+        "season",
+        "win",
+        "otw",
+        "loss",
+        "otl",
+        "tie",
+        "goals_for",
+        "goals_against",
+        "goals_from_stat_records",
+    ]
+
+    def goals_from_stat_records(self, obj):
+        total, delta = _stat_record_goals(obj)
+        if total is None:
+            return "—"
+        if delta == 0:
+            return format_html('<span style="color:#2e7d32;">✓ {}</span>', total)
+        return format_html(
+            '<span style="color:#92400e;">⚠ {} ({} vs GF)</span>',
+            total,
+            f"{-delta:+d}",
+        )
+
+    goals_from_stat_records.short_description = "Stat records GF"
 
 
 class GoalieListFilter(SimpleListFilter):
@@ -295,6 +322,26 @@ def _get_team_roster_goalie(team, prefetched_roster=None):
         .first()
     )
     return roster_entry.player if roster_entry else None
+
+
+def _stat_record_goals(obj):
+    """
+    Return (total, delta) for a Team_Stat record where:
+      total = sum of Stat.goals rows matching this team/season/division
+      delta = obj.goals_for - total  (positive means GF was set higher than Stat records)
+    Returns (None, None) for unsaved objects.
+    """
+    if not obj.pk:
+        return None, None
+    total = (
+        Stat.objects.filter(
+            team=obj.team,
+            matchup__week__season=obj.season,
+            matchup__week__division=obj.division,
+        ).aggregate(total=Sum("goals"))["total"]
+        or 0
+    )
+    return total, obj.goals_for - total
 
 
 def _apply_default_matchup_filters(request, default_timeframe="upcoming"):
@@ -1576,13 +1623,43 @@ class PendingPlayerPhotoAdmin(admin.ModelAdmin):
     row_actions.short_description = ""
 
 
+class TeamStatAdmin(admin.ModelAdmin):
+    readonly_fields = ["goals_from_stat_records"]
+    list_display = ["__str__", "win", "loss", "tie", "goals_for", "goals_against"]
+    list_filter = ["season", "division"]
+    fieldsets = [
+        (None, {"fields": ["team", "division", "season"]}),
+        ("Win/Loss Record", {"fields": ["win", "otw", "loss", "otl", "tie"]}),
+        (
+            "Goals",
+            {"fields": ["goals_for", "goals_against", "goals_from_stat_records"]},
+        ),
+    ]
+
+    def goals_from_stat_records(self, obj):
+        total, delta = _stat_record_goals(obj)
+        if total is None:
+            return "—"
+        if delta == 0:
+            return format_html(
+                '<span style="color:#2e7d32;">✓ {} (matches GF)</span>', total
+            )
+        return format_html(
+            '<span style="color:#92400e;">⚠ {} ({} vs GF — check for manual entries)</span>',
+            total,
+            f"{-delta:+d}",
+        )
+
+    goals_from_stat_records.short_description = "Goals from Stat records"
+
+
 admin.site.register(Player, PlayerAdmin)
 admin.site.register(Team, TeamAdmin)
 admin.site.register(Week, WeekAdmin)
 admin.site.register(Season, SeasonAdmin)
 admin.site.register(Division)
 admin.site.register(Roster)
-admin.site.register(Team_Stat)
+admin.site.register(Team_Stat, TeamStatAdmin)
 admin.site.register(MatchUp, MatchUpAdmin)
 admin.site.register(MatchUpGoalieStatus, MatchUpGoalieStatusAdmin)
 admin.site.register(Stat)

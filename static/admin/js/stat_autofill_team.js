@@ -64,11 +64,15 @@
         if (!span) return;
 
         if (seasonStat < currentVal) {
-            // Stats are incomplete for prior games; suggestion would mislead.
-            span.style.display = 'none';
+            // Goal records are lower than the stored value — manual entry likely occurred.
+            span.textContent = '⚠ Goal records total ' + seasonStat +
+                '; differs from stored value — manual entry may have occurred.';
+            span.style.color = '#92400e';
+            span.style.display = 'block';
             return;
         }
 
+        span.style.color = '#555';
         var adjustedBaseline = seasonStat - savedTonight;
         var suggested = adjustedBaseline + formTonight;
 

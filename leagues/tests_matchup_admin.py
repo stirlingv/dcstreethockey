@@ -1,10 +1,20 @@
 import datetime
 
+from django.contrib import admin
 from django.contrib.auth.models import User
 from django.test import TestCase, Client
 from django.urls import reverse
 
-from leagues.models import Division, MatchUp, Season, Team, Team_Stat, Week
+from leagues.models import (
+    Division,
+    MatchUp,
+    Player,
+    Season,
+    Stat,
+    Team,
+    Team_Stat,
+    Week,
+)
 
 
 def _make_fixture():
@@ -186,3 +196,108 @@ class MatchUpAdminGameOutcomeSaveTest(TestCase):
             ).win,
             3,
         )
+
+
+class TeamStatAdminComputedFieldTest(TestCase):
+    """
+    Tests for the goals_from_stat_records computed field on TeamStatAdmin
+    and TeamStatInline.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture()
+        self.player = Player.objects.create(
+            first_name="Test", last_name="Player", is_active=True
+        )
+
+    def _make_team_stat(self, team, goals_for=0):
+        return Team_Stat.objects.create(
+            team=team,
+            division=self.division,
+            season=self.season,
+            goals_for=goals_for,
+        )
+
+    def _make_stat(self, team, goals):
+        return Stat.objects.create(
+            matchup=self.matchup,
+            player=self.player,
+            team=team,
+            goals=goals,
+        )
+
+    def _admin_instance(self):
+        from leagues.admin import TeamStatAdmin
+
+        return TeamStatAdmin(Team_Stat, admin.site)
+
+    def test_unsaved_object_returns_placeholder(self):
+        ts = Team_Stat()
+        result = self._admin_instance().goals_from_stat_records(ts)
+        self.assertEqual(result, "—")
+
+    def test_matching_gf_shows_checkmark(self):
+        ts = self._make_team_stat(self.home_team, goals_for=3)
+        self._make_stat(self.home_team, goals=3)
+        result = str(self._admin_instance().goals_from_stat_records(ts))
+        self.assertIn("✓", result)
+        self.assertIn("3", result)
+        self.assertNotIn("⚠", result)
+
+    def test_gf_higher_than_stat_records_shows_warning(self):
+        # GF manually set to 10, but only 7 goals in Stat records
+        ts = self._make_team_stat(self.home_team, goals_for=10)
+        self._make_stat(self.home_team, goals=7)
+        result = str(self._admin_instance().goals_from_stat_records(ts))
+        self.assertIn("⚠", result)
+        self.assertIn("7", result)
+
+    def test_no_stat_records_shows_zero(self):
+        ts = self._make_team_stat(self.home_team, goals_for=5)
+        result = str(self._admin_instance().goals_from_stat_records(ts))
+        self.assertIn("⚠", result)
+        self.assertIn("0", result)
+
+    def test_stat_records_scoped_to_season_and_division(self):
+        # Stat goals from a different season should not be counted
+        other_season = Season.objects.create(year=2023, season_type=1)
+        other_week = Week.objects.create(
+            division=self.division,
+            season=other_season,
+            date=datetime.date(2023, 4, 1),
+        )
+        other_matchup = MatchUp.objects.create(
+            week=other_week,
+            awayteam=self.away_team,
+            hometeam=self.home_team,
+            time=datetime.time(10, 0),
+        )
+        Stat.objects.create(
+            matchup=other_matchup,
+            player=self.player,
+            team=self.home_team,
+            goals=5,
+        )
+        ts = self._make_team_stat(self.home_team, goals_for=0)
+        result = str(self._admin_instance().goals_from_stat_records(ts))
+        # The 5 goals from the other season should not appear
+        self.assertIn("✓", result)
+        self.assertIn("0", result)
+
+    def test_team_stat_change_view_returns_200(self):
+        ts = self._make_team_stat(self.home_team, goals_for=3)
+        url = reverse("admin:leagues_team_stat_change", args=[ts.pk])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
