@@ -2,6 +2,8 @@ import datetime
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.template import Context, Template
+from django.template.loader import render_to_string
 from django.test import TestCase, Client
 from django.urls import reverse
 
@@ -10,6 +12,7 @@ from core.views.home import (
     _compute_window_max_pop,
     _compute_window_playability,
     _find_best_forecast_slot,
+    _find_precip_start,
     _worse_playability,
 )
 
@@ -318,6 +321,81 @@ class ComputeWindowMaxPopTest(TestCase):
         self.assertEqual(_compute_window_max_pop(periods, game_date, None), 35)
 
 
+class FindPrecipStartTest(TestCase):
+    """Unit tests for _find_precip_start()."""
+
+    def test_returns_none_when_no_precip_in_window(self):
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 0)
+        periods = [
+            _make_period(
+                "2025-06-15T15:00:00-04:00", pop_pct=0, short_forecast="Sunny"
+            ),
+            _make_period(
+                "2025-06-15T19:00:00-04:00", pop_pct=5, short_forecast="Mostly Clear"
+            ),
+        ]
+        self.assertIsNone(_find_precip_start(periods, game_date, game_time))
+
+    def test_returns_none_when_no_periods_in_window(self):
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 0)
+        periods = [
+            _make_period("2025-06-15T13:00:00-04:00", pop_pct=80)
+        ]  # 6h before window
+        self.assertIsNone(_find_precip_start(periods, game_date, game_time))
+
+    def test_returns_time_of_first_precip_period(self):
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 0)
+        periods = [
+            _make_period(
+                "2025-06-15T15:00:00-04:00", pop_pct=0, short_forecast="Sunny"
+            ),
+            _make_period(
+                "2025-06-15T16:00:00-04:00",
+                pop_pct=30,
+                short_forecast="Chance Rain Showers",
+            ),
+            _make_period(
+                "2025-06-15T17:00:00-04:00", pop_pct=60, short_forecast="Rain Likely"
+            ),
+        ]
+        result = _find_precip_start(periods, game_date, game_time)
+        self.assertEqual(result, "4:00 PM")
+
+    def test_picks_earliest_not_worst(self):
+        # 5 PM has higher PoP but 4 PM is earlier — should return 4 PM
+        game_date = datetime.date(2025, 6, 15)
+        game_time = datetime.time(19, 0)
+        periods = [
+            _make_period(
+                "2025-06-15T16:00:00-04:00",
+                pop_pct=25,
+                short_forecast="Slight Chance Rain Showers",
+            ),
+            _make_period(
+                "2025-06-15T17:00:00-04:00", pop_pct=80, short_forecast="Rain Likely"
+            ),
+        ]
+        self.assertEqual(_find_precip_start(periods, game_date, game_time), "4:00 PM")
+
+    def test_defaults_to_7pm_game_time_when_none(self):
+        game_date = datetime.date(2025, 6, 15)
+        periods = [
+            _make_period(
+                "2025-06-15T16:00:00-04:00", pop_pct=0, short_forecast="Sunny"
+            ),
+            _make_period(
+                "2025-06-15T17:00:00-04:00",
+                pop_pct=40,
+                short_forecast="Chance Rain Showers",
+            ),
+        ]
+        # Default game time is 7 PM; 5 PM = 2h before, within the 4h window
+        self.assertEqual(_find_precip_start(periods, game_date, None), "5:00 PM")
+
+
 class WeatherIntegrationTest(TestCase):
     """
     Integration smoke test: home view produces playability data when the
@@ -351,3 +429,146 @@ class WeatherIntegrationTest(TestCase):
             response = self.client.get(reverse("home"))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["weather_unavailable"])
+
+
+def _render_homepage_weather(weather):
+    """Render homepage_detail_info.html with a single synthetic row."""
+    today = datetime.date.today()
+
+    class FakeWeek:
+        date = today
+
+    class FakeRow:
+        week = FakeWeek()
+
+    ctx = {
+        "one_row": [FakeRow()],
+        "matchup": [],
+        "weather_unavailable": False,
+        "weather_data": {today.strftime("%Y-%m-%d"): weather},
+    }
+    return render_to_string("core/homepage_detail_info.html", ctx)
+
+
+def _render_schedule_weather(weather):
+    """Render the schedule partial with a single synthetic date entry."""
+    today = datetime.date.today()
+    ctx = {
+        "schedule": {today: {"Sunday D1": []}},
+        "weather_data": {today.strftime("%Y-%m-%d"): weather},
+        "weather_unavailable": False,
+        "view": "schedule",
+        "betting_lines": {},
+        "player_props": {},
+    }
+    return render_to_string("partials/schedule.html", ctx)
+
+
+class WeatherTemplateRenderingTest(TestCase):
+    """
+    Tests for the weather display template changes:
+    - PoP% is always visible in the summary (including 0%)
+    - Description and temperature are in the collapsible expanded section
+    - All playability states render on the schedule page (including "good")
+    """
+
+    def _good_weather(self, pop_pct=0):
+        return {
+            "playability": "good",
+            "pop_pct": pop_pct,
+            "temp": 75,
+            "description": "Sunny",
+            "thunder": False,
+            "precip_start": None,
+        }
+
+    def _uncertain_weather(self, pop_pct=30, precip_start=None):
+        return {
+            "playability": "uncertain",
+            "pop_pct": pop_pct,
+            "temp": 68,
+            "description": "Chance Rain Showers",
+            "thunder": False,
+            "precip_start": precip_start,
+        }
+
+    def _bad_weather(self, pop_pct=70, thunder=False, precip_start=None):
+        return {
+            "playability": "likely_cancelled",
+            "pop_pct": pop_pct,
+            "temp": 62,
+            "description": "Rain Likely",
+            "thunder": thunder,
+            "precip_start": precip_start,
+        }
+
+    # --- Homepage ---
+
+    def test_homepage_zero_pop_is_always_visible(self):
+        html = _render_homepage_weather(self._good_weather(pop_pct=0))
+        self.assertIn("0% chance of rain", html)
+
+    def test_homepage_pop_pct_shown_in_summary(self):
+        html = _render_homepage_weather(self._uncertain_weather(pop_pct=35))
+        self.assertIn("35% chance of rain", html)
+
+    def test_homepage_temp_in_summary(self):
+        html = _render_homepage_weather(self._uncertain_weather())
+        self.assertIn("play-forecast-summary", html)
+        self.assertIn("68", html)
+
+    def test_homepage_description_in_expanded_section(self):
+        html = _render_homepage_weather(self._uncertain_weather())
+        self.assertIn("play-forecast-expanded", html)
+        self.assertIn("Chance Rain Showers", html)
+
+    def test_homepage_uses_details_element(self):
+        html = _render_homepage_weather(self._good_weather())
+        self.assertIn("<details", html)
+
+    def test_homepage_bad_weather_shows_pop(self):
+        html = _render_homepage_weather(self._bad_weather(pop_pct=70))
+        self.assertIn("70% chance of rain", html)
+
+    def test_homepage_thunder_label(self):
+        html = _render_homepage_weather(self._bad_weather(thunder=True))
+        self.assertIn("Thunderstorms possible", html)
+
+    # --- Schedule ---
+
+    def test_schedule_good_weather_now_renders(self):
+        html = _render_schedule_weather(self._good_weather(pop_pct=0))
+        self.assertIn("Clear skies", html)
+
+    def test_schedule_zero_pop_visible(self):
+        html = _render_schedule_weather(self._good_weather(pop_pct=0))
+        self.assertIn("0% chance of rain", html)
+
+    def test_schedule_pop_pct_shown_in_summary(self):
+        html = _render_schedule_weather(self._uncertain_weather(pop_pct=40))
+        self.assertIn("40% chance of rain", html)
+
+    def test_schedule_description_in_expanded_section(self):
+        html = _render_schedule_weather(self._uncertain_weather())
+        self.assertIn("sched-forecast-expanded", html)
+        self.assertIn("Chance Rain Showers", html)
+
+    def test_schedule_uses_details_element(self):
+        html = _render_schedule_weather(self._good_weather())
+        self.assertIn("<details", html)
+
+    def test_homepage_precip_start_shown_when_present(self):
+        html = _render_homepage_weather(self._uncertain_weather(precip_start="3:00 PM"))
+        self.assertIn("Starting around 3:00 PM", html)
+
+    def test_homepage_precip_start_hidden_when_none(self):
+        html = _render_homepage_weather(self._uncertain_weather(precip_start=None))
+        self.assertNotIn("Starting around", html)
+
+    def test_schedule_precip_start_shown_when_present(self):
+        html = _render_schedule_weather(self._bad_weather(precip_start="5:30 PM"))
+        self.assertIn("Starting around 5:30 PM", html)
+
+    def test_schedule_precip_start_hidden_when_none(self):
+        html = _render_schedule_weather(self._bad_weather(precip_start=None))
+        self.assertNotIn("Starting around", html)

@@ -116,6 +116,36 @@ def _compute_window_max_pop(periods, game_date, game_time):
     return max_pop
 
 
+def _find_precip_start(periods, game_date, game_time):
+    """
+    Return the formatted start time of the first period in the pre-game window
+    where precipitation is expected (playability is uncertain or worse), e.g.
+    "3:00 PM". Returns None if no precipitation is expected in the window.
+    """
+    if game_time is not None:
+        target_dt = datetime.datetime.combine(game_date, game_time).replace(
+            tzinfo=_EASTERN
+        )
+    else:
+        target_dt = datetime.datetime.combine(game_date, datetime.time(19, 0)).replace(
+            tzinfo=_EASTERN
+        )
+
+    window_periods = []
+    for period in periods:
+        start = datetime.datetime.fromisoformat(period["startTime"])
+        diff_seconds = (start - target_dt).total_seconds()
+        if -4 * 3600 <= diff_seconds <= 3600:
+            window_periods.append((start, period))
+
+    for start, period in sorted(window_periods):
+        pop_pct = (period.get("probabilityOfPrecipitation") or {}).get("value") or 0
+        if _compute_playability(pop_pct, period["shortForecast"]) != "good":
+            return start.astimezone(_EASTERN).strftime("%-I:%M %p")
+
+    return None
+
+
 def _compute_window_playability(periods, game_date, game_time):
     """
     Check every NWS hourly period from 4 hours before game time through
@@ -216,6 +246,7 @@ def _fetch_weather(api_key, game_times):
                     # Distinguish thunderstorm cancellations from plain rain so
                     # the template can show a more specific label.
                     "thunder": "thunder" in short.lower(),
+                    "precip_start": _find_precip_start(periods, game_date, game_time),
                 }
 
     except Exception as e:

@@ -1061,9 +1061,6 @@ div div#content .matchupheader{
 
 /* ===== Play Forecast Widget ===== */
 .play-forecast {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
     padding: 7px 10px;
     border-radius: 6px;
     border-left: 4px solid;
@@ -1105,9 +1102,46 @@ div div#content .matchupheader{
     font-size: 0.95em;
 }
 
-.play-forecast-detail {
+/* Always-visible summary row inside the <details> element */
+.play-forecast summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    user-select: none;
+}
+
+.play-forecast summary::-webkit-details-marker {
+    display: none;
+}
+
+.play-forecast summary::after {
+    content: '▸ Details';
+    font-size: 0.78em;
+    color: #999;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.play-forecast[open] summary::after {
+    content: '▾ Details';
+}
+
+.play-forecast-pop {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #444;
+}
+
+/* Expanded content (description + temp) */
+.play-forecast-expanded {
     font-size: 0.85em;
     color: #555;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 @media screen and (max-width: 736px) {
@@ -1192,13 +1226,33 @@ div div#content .matchupheader{
     display: block;
 }
 
-/* ===== Schedule Page Inline Weather Chip ===== */
+/* ===== Schedule Page Inline Weather ===== */
 .sched-weather-inline {
+    margin: -2px 0 10px 0;
+}
+
+.sched-weather-inline summary {
+    list-style: none;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-    margin: -2px 0 10px 0;
+    user-select: none;
+}
+
+.sched-weather-inline summary::-webkit-details-marker {
+    display: none;
+}
+
+.sched-weather-inline summary::after {
+    content: '▸';
+    font-size: 0.78em;
+    color: #999;
+}
+
+.sched-weather-inline[open] summary::after {
+    content: '▾';
 }
 
 .sched-forecast-badge {
@@ -1207,6 +1261,11 @@ div div#content .matchupheader{
     font-size: 0.85em;
     font-weight: 700;
     white-space: nowrap;
+}
+
+.sched-forecast-good {
+    background: rgba(39, 174, 96, 0.15);
+    color: #1a7341;
 }
 
 .sched-forecast-uncertain {
@@ -1219,13 +1278,22 @@ div div#content .matchupheader{
     color: #7b1d16;
 }
 
-.sched-forecast-detail {
+.sched-forecast-pop {
+    font-size: 0.82em;
+    font-weight: 600;
+    color: #444;
+}
+
+.sched-forecast-expanded {
     font-size: 0.82em;
     color: #666;
+    margin-top: 5px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
 }
 
 @media screen and (max-width: 736px) {
-    .sched-forecast-detail {
+    .sched-forecast-expanded {
         width: 100%;
     }
 }
