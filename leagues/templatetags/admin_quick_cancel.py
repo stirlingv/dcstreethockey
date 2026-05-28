@@ -2,9 +2,9 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from django import template
-from django.db.models import Count
+from django.db.models import Count, F
 
-from leagues.models import MatchUp, Week
+from leagues.models import MatchUp, Stat, Team_Stat, Week
 
 register = template.Library()
 
@@ -70,16 +70,80 @@ def stats_entry_widget():
     today = date.today()
     since = today - timedelta(days=7)
 
-    matchups = (
+    matchups = list(
         MatchUp.objects.filter(
             week__date__range=(since, today),
             is_cancelled=False,
             week__is_cancelled=False,
         )
-        .select_related("hometeam", "awayteam", "week__division")
+        .select_related("hometeam", "awayteam", "week__division", "week__season")
         .annotate(stat_count=Count("stat"))
         .order_by("week__date", "week__division__division", "time")
     )
+
+    # Bulk-compute outcome status for all matchups in two queries.
+    #
+    # outcome_missing = True when a matchup has Stat rows (the score is visible)
+    # but the team's Team_Stat games-played count (W+OTW+L+OTL+T) is lower than
+    # the number of matchups this season that have Stat rows — meaning at least
+    # one game's result wasn't recorded in the Game Outcome section.
+    if matchups:
+        team_ids = set()
+        div_ids = set()
+        season_ids = set()
+        for m in matchups:
+            team_ids.update([m.hometeam_id, m.awayteam_id])
+            div_ids.add(m.week.division_id)
+            season_ids.add(m.week.season_id)
+
+        # Count distinct matchups-with-stats per (team, division, season) — season-wide
+        stat_game_counts = {
+            (
+                row["team_id"],
+                row["matchup__week__division_id"],
+                row["matchup__week__season_id"],
+            ): row["game_count"]
+            for row in Stat.objects.filter(
+                matchup__week__date__lte=today,
+                matchup__week__season_id__in=season_ids,
+                matchup__week__division_id__in=div_ids,
+                matchup__is_cancelled=False,
+                team_id__in=team_ids,
+            )
+            .values(
+                "team_id",
+                "matchup__week__division_id",
+                "matchup__week__season_id",
+            )
+            .annotate(game_count=Count("matchup_id", distinct=True))
+        }
+
+        # Team_Stat games played (W+OTW+L+OTL+T) per (team, division, season)
+        ts_gp = {
+            (row["team_id"], row["division_id"], row["season_id"]): row["gp"]
+            for row in Team_Stat.objects.filter(
+                team_id__in=team_ids,
+                division_id__in=div_ids,
+                season_id__in=season_ids,
+            )
+            .annotate(gp=F("win") + F("otw") + F("loss") + F("otl") + F("tie"))
+            .values("team_id", "division_id", "season_id", "gp")
+        }
+
+        for m in matchups:
+            if m.stat_count == 0:
+                m.outcome_missing = False
+                continue
+            key_home = (m.hometeam_id, m.week.division_id, m.week.season_id)
+            key_away = (m.awayteam_id, m.week.division_id, m.week.season_id)
+            home_gp = ts_gp.get(key_home, 0)
+            away_gp = ts_gp.get(key_away, 0)
+            home_stat_games = stat_game_counts.get(key_home, 0)
+            away_stat_games = stat_game_counts.get(key_away, 0)
+            m.outcome_missing = home_gp < home_stat_games or away_gp < away_stat_games
+    else:
+        for m in matchups:
+            m.outcome_missing = False
 
     # Group by date, then by division
     date_buckets = defaultdict(lambda: defaultdict(list))
@@ -98,6 +162,7 @@ def stats_entry_widget():
                     "games": games,
                     "all_entered": all(g.stat_count > 0 for g in games),
                     "any_missing": any(g.stat_count == 0 for g in games),
+                    "outcome_needed": any(g.outcome_missing for g in games),
                 }
             )
         grouped[game_date] = {

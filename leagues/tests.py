@@ -1960,3 +1960,110 @@ class StatsEntryWidgetTest(TestCase):
         self.assertNotIn(game2.pk, yesterday_pks)
         self.assertIn(game2.pk, two_days_ago_pks)
         self.assertNotIn(game1.pk, two_days_ago_pks)
+
+    # ------------------------------------------------------------------
+    # Outcome-status tests
+    # ------------------------------------------------------------------
+
+    def _add_stat(self, matchup, team, goals=1):
+        from leagues.models import Stat
+
+        return Stat.objects.create(
+            player=self.player, team=team, matchup=matchup, goals=goals
+        )
+
+    def _add_team_stat(self, team, win=0, loss=0, otw=0, otl=0, tie=0):
+        from leagues.models import Team_Stat
+
+        return Team_Stat.objects.create(
+            team=team,
+            division=self.division,
+            season=self.season,
+            win=win,
+            loss=loss,
+            otw=otw,
+            otl=otl,
+            tie=tie,
+        )
+
+    def _game_from_ctx(self, ctx, matchup):
+        all_games = [
+            g
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        return next(g for g in all_games if g.pk == matchup.pk)
+
+    def test_no_stats_game_has_outcome_missing_false(self):
+        """Games with no Stat rows are not flagged as outcome_missing."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertFalse(match.outcome_missing)
+
+    def test_stats_with_matching_team_stat_not_outcome_missing(self):
+        """Stats entered AND Team_Stat GP matches → outcome_missing is False."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        self._add_stat(game, self.team1)
+        self._add_stat(game, self.team2)
+        # Both teams have GP=1, matching their 1 game with stats.
+        self._add_team_stat(self.team1, win=1)
+        self._add_team_stat(self.team2, loss=1)
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertFalse(match.outcome_missing)
+
+    def test_stats_without_team_stat_is_outcome_missing(self):
+        """Stats entered but no Team_Stat record at all → outcome_missing is True."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        self._add_stat(game, self.team1)
+        self._add_stat(game, self.team2)
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertTrue(match.outcome_missing)
+
+    def test_stats_with_insufficient_team_stat_gp_is_outcome_missing(self):
+        """Stats exist for 2 games but Team_Stat GP=1 → outcome_missing for game 2."""
+        week1 = self._week(delta=3)
+        week2 = self._week(delta=1)
+        game1 = self._matchup(week1)
+        game2 = self._matchup(week2)
+        self._add_stat(game1, self.team1)
+        self._add_stat(game1, self.team2)
+        self._add_stat(game2, self.team1)
+        self._add_stat(game2, self.team2)
+        # Only 1 game recorded in Team_Stat, but 2 games have stats.
+        self._add_team_stat(self.team1, win=1)
+        self._add_team_stat(self.team2, loss=1)
+        ctx = self._call_widget()
+        match2 = self._game_from_ctx(ctx, game2)
+        self.assertTrue(match2.outcome_missing)
+
+    def test_outcome_needed_flag_on_division(self):
+        """Division shows outcome_needed when any game has outcome_missing."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        self._add_stat(game, self.team1)
+        self._add_stat(game, self.team2)
+        # No Team_Stat → outcome missing
+        ctx = self._call_widget()
+        game_date = self.today - datetime.timedelta(days=1)
+        div_info = ctx["grouped_games"][game_date]["divisions"][0]
+        self.assertTrue(div_info["outcome_needed"])
+
+    def test_outcome_needed_false_when_all_outcomes_entered(self):
+        """Division shows outcome_needed=False when all Game Outcomes are recorded."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        self._add_stat(game, self.team1)
+        self._add_stat(game, self.team2)
+        self._add_team_stat(self.team1, win=1)
+        self._add_team_stat(self.team2, loss=1)
+        ctx = self._call_widget()
+        game_date = self.today - datetime.timedelta(days=1)
+        div_info = ctx["grouped_games"][game_date]["divisions"][0]
+        self.assertFalse(div_info["outcome_needed"])

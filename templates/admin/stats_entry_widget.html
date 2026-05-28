@@ -60,6 +60,19 @@
   }
   .se-status-done { background: #e8f5e9; color: #2e7d32; }
   .se-status-pending { background: #fff3e0; color: #e65100; }
+  .se-status-outcome { background: #fff8e1; color: #b45309; }
+
+  /* Per-game outcome badge */
+  .se-outcome-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .se-outcome-done { background: #e8f5e9; color: #2e7d32; }
+  .se-outcome-missing { background: #fff8e1; color: #b45309; }
 
   /* Game rows */
   .se-games { padding: 2px 12px 10px 28px; }
@@ -141,14 +154,16 @@
     </p>
 
     {% for div in info.divisions %}
-    <details class="se-division"{% if div.any_missing %} open{% endif %}>
+    <details class="se-division"{% if div.any_missing or div.outcome_needed %} open{% endif %}>
       <summary class="se-division-summary">
         <span class="se-division-chevron">&#9658;</span>
         <span class="se-division-name">{{ div.division }}</span>
-        {% if div.all_entered %}
-          <span class="se-status-badge se-status-done">All Entered</span>
-        {% else %}
+        {% if div.any_missing %}
           <span class="se-status-badge se-status-pending">Stats Needed</span>
+        {% elif div.outcome_needed %}
+          <span class="se-status-badge se-status-outcome">Outcome Needed</span>
+        {% else %}
+          <span class="se-status-badge se-status-done">Done</span>
         {% endif %}
       </summary>
 
@@ -162,6 +177,11 @@
             <a href="{% url 'admin:leagues_matchup_change' game.pk %}" class="se-btn se-btn-enter">Enter Stats</a>
           {% else %}
             <span class="se-stat-count se-stat-count-has">{{ game.stat_count }} stat{{ game.stat_count|pluralize }}</span>
+            {% if game.outcome_missing %}
+              <span class="se-outcome-badge se-outcome-missing">Outcome &#9888;</span>
+            {% else %}
+              <span class="se-outcome-badge se-outcome-done">Outcome &#10003;</span>
+            {% endif %}
             <a href="{% url 'admin:leagues_matchup_change' game.pk %}" class="se-btn se-btn-edit">Edit</a>
           {% endif %}
         </div>
