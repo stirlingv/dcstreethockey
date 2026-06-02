@@ -121,6 +121,34 @@ class MatchUpValidationTest(TestCase):
 
         self.assertIn("home_goalie", context.exception.error_dict)
 
+    def test_postseason_with_shootout_winner_raises_error(self):
+        matchup = MatchUp(
+            week=self.week,
+            time=datetime.time(12, 0),
+            awayteam=self.away_team,
+            hometeam=self.home_team,
+            away_goalie_status=3,
+            home_goalie_status=3,
+            is_postseason=True,
+            shootout_winner_is_home=True,
+        )
+        with self.assertRaises(ValidationError) as context:
+            matchup.full_clean()
+        self.assertIn("shootout_winner_is_home", context.exception.error_dict)
+
+    def test_regular_season_with_shootout_winner_is_valid(self):
+        matchup = MatchUp(
+            week=self.week,
+            time=datetime.time(12, 0),
+            awayteam=self.away_team,
+            hometeam=self.home_team,
+            away_goalie_status=3,
+            home_goalie_status=3,
+            is_postseason=False,
+            shootout_winner_is_home=True,
+        )
+        matchup.full_clean()
+
 
 class MatchUpFormTest(TestCase):
     def setUp(self):

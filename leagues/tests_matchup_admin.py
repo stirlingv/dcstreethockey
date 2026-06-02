@@ -13,6 +13,7 @@ from leagues.models import (
     Stat,
     Team,
     Team_Stat,
+    TeamPhoto,
     Week,
 )
 
@@ -301,3 +302,295 @@ class TeamStatAdminComputedFieldTest(TestCase):
         url = reverse("admin:leagues_team_stat_change", args=[ts.pk])
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
+
+
+class MatchUpAdminGFGAAutoComputeTest(TestCase):
+    """
+    When Stat rows exist for a team this season, saving the game outcome form
+    should override the manually-entered GF/GA with values derived from Stat
+    records. When no Stat rows exist, the form values are used as-is.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture()
+
+    def _url(self):
+        return reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+
+    def _player(self, name="P"):
+        return Player.objects.create(first_name=name, last_name="X", is_active=True)
+
+    def _post(self, **overrides):
+        base = {
+            "week": self.week.pk,
+            "time": "10:00 AM",
+            "awayteam": self.away_team.pk,
+            "hometeam": self.home_team.pk,
+            "away_goalie_status": 3,
+            "home_goalie_status": 3,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+            "home_stat-win": "1",
+            "home_stat-otw": "0",
+            "home_stat-loss": "0",
+            "home_stat-otl": "0",
+            "home_stat-tie": "0",
+            "home_stat-goals_for": "99",
+            "home_stat-goals_against": "99",
+            "away_stat-win": "0",
+            "away_stat-otw": "0",
+            "away_stat-loss": "1",
+            "away_stat-otl": "0",
+            "away_stat-tie": "0",
+            "away_stat-goals_for": "99",
+            "away_stat-goals_against": "99",
+        }
+        base.update(overrides)
+        return base
+
+    def test_gf_ga_from_form_when_no_stats(self):
+        self.client.post(self._url(), self._post())
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        self.assertEqual(home.goals_for, 99)
+        self.assertEqual(home.goals_against, 99)
+
+    def test_gf_ga_auto_computed_when_stats_exist(self):
+        p = self._player()
+        Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=p, goals=3, assists=0
+        )
+        Stat.objects.create(
+            matchup=self.matchup, team=self.away_team, player=p, goals=1, assists=0
+        )
+        self.client.post(self._url(), self._post())
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        away = Team_Stat.objects.get(
+            team=self.away_team, division=self.division, season=self.season
+        )
+        # Form said 99 for both; stats override to actual totals
+        self.assertEqual(home.goals_for, 3)
+        self.assertEqual(home.goals_against, 1)
+        self.assertEqual(away.goals_for, 1)
+        self.assertEqual(away.goals_against, 3)
+
+    def test_ga_accumulates_across_all_season_opponents(self):
+        """GA is the total of all goals conceded all season, not just tonight's opponent."""
+        third_team = Team.objects.create(
+            team_name="Third Team",
+            team_color="Green",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        week2 = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date(2024, 4, 8),
+        )
+        matchup2 = MatchUp.objects.create(
+            week=week2,
+            awayteam=third_team,
+            hometeam=self.home_team,
+            time=datetime.time(10, 0),
+        )
+        p = self._player()
+        # Earlier game: home scored 5, conceded 2 vs third_team
+        Stat.objects.create(
+            matchup=matchup2, team=self.home_team, player=p, goals=5, assists=0
+        )
+        Stat.objects.create(
+            matchup=matchup2, team=third_team, player=p, goals=2, assists=0
+        )
+        # Tonight: home scored 3, away scored 1
+        Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=p, goals=3, assists=0
+        )
+        Stat.objects.create(
+            matchup=self.matchup, team=self.away_team, player=p, goals=1, assists=0
+        )
+        self.client.post(self._url(), self._post())
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        self.assertEqual(home.goals_for, 8)  # 5 + 3
+        self.assertEqual(home.goals_against, 3)  # 2 + 1
+
+
+class TeamAdminAutoCreateTeamStatTest(TestCase):
+    """
+    When a new Team is saved via the admin, a blank Team_Stat record should be
+    created automatically so standings tracking can begin immediately.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        self.division = Division.objects.create(division=1)
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.team_photo = TeamPhoto.objects.create()
+
+    def _add_url(self):
+        return reverse("admin:leagues_team_add")
+
+    def _post(self, **overrides):
+        base = {
+            "team_name": "New Team",
+            "team_color": "Blue",
+            "division": self.division.pk,
+            "season": self.season.pk,
+            "team_photo": self.team_photo.pk,
+            "is_active": "on",
+            "team_stat_set-TOTAL_FORMS": "0",
+            "team_stat_set-INITIAL_FORMS": "0",
+            "team_stat_set-MIN_NUM_FORMS": "0",
+            "team_stat_set-MAX_NUM_FORMS": "1000",
+            "roster_set-TOTAL_FORMS": "0",
+            "roster_set-INITIAL_FORMS": "0",
+            "roster_set-MIN_NUM_FORMS": "0",
+            "roster_set-MAX_NUM_FORMS": "1000",
+        }
+        base.update(overrides)
+        return base
+
+    def test_team_stat_auto_created_for_new_team(self):
+        self.client.post(self._add_url(), self._post())
+        team = Team.objects.get(team_name="New Team")
+        self.assertEqual(
+            Team_Stat.objects.filter(
+                team=team, division=self.division, season=self.season
+            ).count(),
+            1,
+        )
+        ts = Team_Stat.objects.get(
+            team=team, division=self.division, season=self.season
+        )
+        self.assertEqual(ts.win, 0)
+        self.assertEqual(ts.goals_for, 0)
+
+    def test_no_duplicate_when_inline_also_saves_team_stat(self):
+        data = self._post(
+            **{
+                "team_stat_set-TOTAL_FORMS": "1",
+                "team_stat_set-0-division": self.division.pk,
+                "team_stat_set-0-season": self.season.pk,
+                "team_stat_set-0-win": "2",
+                "team_stat_set-0-otw": "0",
+                "team_stat_set-0-loss": "1",
+                "team_stat_set-0-otl": "0",
+                "team_stat_set-0-tie": "0",
+                "team_stat_set-0-goals_for": "6",
+                "team_stat_set-0-goals_against": "4",
+            }
+        )
+        self.client.post(self._add_url(), data)
+        team = Team.objects.get(team_name="New Team")
+        self.assertEqual(
+            Team_Stat.objects.filter(
+                team=team, division=self.division, season=self.season
+            ).count(),
+            1,
+        )
+        # Inline's values should be preserved (get_or_create found the inline-created record)
+        ts = Team_Stat.objects.get(
+            team=team, division=self.division, season=self.season
+        )
+        self.assertEqual(ts.win, 2)
+        self.assertEqual(ts.goals_for, 6)
+
+
+class MatchUpAdminShootoutSaveTest(TestCase):
+    """Admin save_model correctly persists shootout_winner_is_home."""
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture()
+
+    def _url(self):
+        return reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+
+    def _post_data(self, **overrides):
+        base = {
+            "week": self.week.pk,
+            "time": "10:00 AM",
+            "awayteam": self.away_team.pk,
+            "hometeam": self.home_team.pk,
+            "away_goalie_status": 3,
+            "home_goalie_status": 3,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+            "home_stat-win": "0",
+            "home_stat-otw": "1",
+            "home_stat-loss": "0",
+            "home_stat-otl": "0",
+            "home_stat-tie": "0",
+            "home_stat-goals_for": "4",
+            "home_stat-goals_against": "3",
+            "away_stat-win": "0",
+            "away_stat-otw": "0",
+            "away_stat-loss": "0",
+            "away_stat-otl": "1",
+            "away_stat-tie": "0",
+            "away_stat-goals_for": "3",
+            "away_stat-goals_against": "4",
+        }
+        base.update(overrides)
+        return base
+
+    def test_home_wins_shootout(self):
+        self.client.post(self._url(), self._post_data(shootout_winner_is_home="true"))
+        self.matchup.refresh_from_db()
+        self.assertIs(self.matchup.shootout_winner_is_home, True)
+
+    def test_away_wins_shootout(self):
+        self.client.post(self._url(), self._post_data(shootout_winner_is_home="false"))
+        self.matchup.refresh_from_db()
+        self.assertIs(self.matchup.shootout_winner_is_home, False)
+
+    def test_no_shootout_saved_as_none(self):
+        self.client.post(self._url(), self._post_data(shootout_winner_is_home=""))
+        self.matchup.refresh_from_db()
+        self.assertIsNone(self.matchup.shootout_winner_is_home)
+
+    def test_postseason_clears_shootout_winner(self):
+        self.client.post(
+            self._url(),
+            self._post_data(shootout_winner_is_home="true", is_postseason="on"),
+        )
+        self.matchup.refresh_from_db()
+        self.assertIsNone(self.matchup.shootout_winner_is_home)

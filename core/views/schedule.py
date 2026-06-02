@@ -160,20 +160,40 @@ def get_goalies_for_matchup(match, home):
 
 
 def add_goals_for_matchups(matchups):
+    # Player-attributed goals from Stat records. Shootout-deciding goals are
+    # not in Stat records (no player attribution), so we add +1 to the
+    # winner's displayed total via a separate Case expression. This keeps
+    # season GF/GA totals correct while the scoreboard shows the right result.
     return matchups.annotate(
-        home_goals=Sum(
-            Case(
-                When(hometeam=F("stat__team"), then=F("stat__goals")),
-                default=0,
-                output_field=IntegerField(),
-            )
+        home_goals=Coalesce(
+            Sum(
+                Case(
+                    When(hometeam=F("stat__team"), then=F("stat__goals")),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ),
+            0,
+        )
+        + Case(
+            When(shootout_winner_is_home=True, then=1),
+            default=0,
+            output_field=IntegerField(),
         ),
-        away_goals=Sum(
-            Case(
-                When(awayteam=F("stat__team"), then=F("stat__goals")),
-                default=0,
-                output_field=IntegerField(),
-            )
+        away_goals=Coalesce(
+            Sum(
+                Case(
+                    When(awayteam=F("stat__team"), then=F("stat__goals")),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ),
+            0,
+        )
+        + Case(
+            When(shootout_winner_is_home=False, then=1),
+            default=0,
+            output_field=IntegerField(),
         ),
     )
 

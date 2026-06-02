@@ -11,7 +11,10 @@ class MatchUpForm(forms.ModelForm):
 
     class Meta:
         model = MatchUp
-        fields = "__all__"
+        # shootout_winner_is_home is excluded here and handled manually in
+        # MatchUpAdmin.save_model so it can be rendered with team names in the
+        # custom Game Outcome template section.
+        exclude = ["shootout_winner_is_home"]
         widgets = {
             "away_goalie": autocomplete.ModelSelect2(url="goalie-autocomplete"),
             "home_goalie": autocomplete.ModelSelect2(url="goalie-autocomplete"),

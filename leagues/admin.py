@@ -590,6 +590,21 @@ class MatchUpAdmin(admin.ModelAdmin):
     # only choices are "Save" (done → home) and "Save and continue editing".
     show_save_and_add_another = False
 
+    def save_model(self, request, obj, form, change):
+        # shootout_winner_is_home is excluded from MatchUpForm and processed here
+        # directly from POST so the admin template can label radios with team names.
+        if obj.is_postseason:
+            obj.shootout_winner_is_home = None
+        else:
+            raw = request.POST.get("shootout_winner_is_home", "")
+            if raw == "true":
+                obj.shootout_winner_is_home = True
+            elif raw == "false":
+                obj.shootout_winner_is_home = False
+            else:
+                obj.shootout_winner_is_home = None
+        super().save_model(request, obj, form, change)
+
     def changelist_view(self, request, extra_context=None):
         redirect_url = _apply_default_matchup_filters(request, default_timeframe="past")
         if redirect_url:
@@ -648,6 +663,8 @@ class MatchUpAdmin(admin.ModelAdmin):
             extra_context["away_team_name"] = match.awayteam.team_name
             extra_context["home_team_id"] = match.hometeam.pk
             extra_context["away_team_id"] = match.awayteam.pk
+            extra_context["is_postseason"] = match.is_postseason
+            extra_context["shootout_winner_is_home"] = match.shootout_winner_is_home
 
             def _goal_map(qs):
                 return {
@@ -687,18 +704,45 @@ class MatchUpAdmin(admin.ModelAdmin):
         match = getattr(request, "_matchup_for_stat", None)
         if not match:
             return
+        season = match.week.season
+        division = match.week.division
         for attr, team in [
             ("_home_stat_form", match.hometeam),
             ("_away_stat_form", match.awayteam),
         ]:
             stat_form = getattr(request, attr, None)
-            if stat_form and stat_form.is_valid():
-                stat = stat_form.save(commit=False)
-                if not stat.pk:
-                    stat.team = team
-                    stat.division = match.week.division
-                    stat.season = match.week.season
-                stat.save()
+            if not (stat_form and stat_form.is_valid()):
+                continue
+            team_stat = stat_form.save(commit=False)
+            if not team_stat.pk:
+                team_stat.team = team
+                team_stat.division = division
+                team_stat.season = season
+            team_stat.save()
+            # When Stat rows exist for this team this season, compute GF/GA
+            # directly from those records rather than trusting manual entry.
+            # This keeps goals totals permanently in sync with the score log.
+            stat_qs = Stat.objects.filter(
+                team=team,
+                matchup__week__season=season,
+                matchup__week__division=division,
+            )
+            if stat_qs.exists():
+                gf = stat_qs.aggregate(total=Sum("goals"))["total"] or 0
+                team_matchup_ids = MatchUp.objects.filter(
+                    Q(hometeam=team) | Q(awayteam=team),
+                    week__season=season,
+                    week__division=division,
+                ).values_list("pk", flat=True)
+                ga = (
+                    Stat.objects.filter(matchup_id__in=team_matchup_ids)
+                    .exclude(team=team)
+                    .aggregate(total=Sum("goals"))["total"]
+                    or 0
+                )
+                team_stat.goals_for = gf
+                team_stat.goals_against = ga
+                team_stat.save(update_fields=["goals_for", "goals_against"])
 
     class Media:
         js = ("admin/js/stat_autofill_team.js",)
@@ -1431,6 +1475,16 @@ class TeamAdmin(admin.ModelAdmin):
     list_filter = ["is_active", "division", "season"]
     save_as = True
     raw_id_fields = ["division", "season"]
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        obj = form.instance
+        if obj.division_id and obj.season_id:
+            Team_Stat.objects.get_or_create(
+                team=obj,
+                division=obj.division,
+                season=obj.season,
+            )
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)

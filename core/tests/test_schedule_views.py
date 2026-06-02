@@ -181,6 +181,57 @@ class AddGoalsForMatchupsTest(ScheduleTestBase):
         m = add_goals_for_matchups(MatchUp.objects.filter(id=self.matchup.id)).first()
         self.assertEqual(m.home_goals, 1)
 
+    def test_home_shootout_win_adds_one_to_home_goals(self):
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=2,
+        )
+        Stat.objects.create(
+            player=self.away_player,
+            team=self.away_team,
+            matchup=self.matchup,
+            goals=2,
+        )
+        self.matchup.shootout_winner_is_home = True
+        self.matchup.save()
+        m = add_goals_for_matchups(MatchUp.objects.filter(id=self.matchup.id)).first()
+        self.assertEqual(m.home_goals, 3)
+        self.assertEqual(m.away_goals, 2)
+
+    def test_away_shootout_win_adds_one_to_away_goals(self):
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=1,
+        )
+        Stat.objects.create(
+            player=self.away_player,
+            team=self.away_team,
+            matchup=self.matchup,
+            goals=1,
+        )
+        self.matchup.shootout_winner_is_home = False
+        self.matchup.save()
+        m = add_goals_for_matchups(MatchUp.objects.filter(id=self.matchup.id)).first()
+        self.assertEqual(m.home_goals, 1)
+        self.assertEqual(m.away_goals, 2)
+
+    def test_no_shootout_does_not_affect_goals(self):
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=3,
+        )
+        self.matchup.shootout_winner_is_home = None
+        self.matchup.save()
+        m = add_goals_for_matchups(MatchUp.objects.filter(id=self.matchup.id)).first()
+        self.assertEqual(m.home_goals, 3)
+        self.assertEqual(m.away_goals, 0)
+
 
 # ---------------------------------------------------------------------------
 # get_stats_for_matchup

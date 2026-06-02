@@ -111,6 +111,44 @@
       border-bottom: 1px solid #e0e0e0;
     }
   }
+
+  /* Shootout section */
+  .shootout-row {
+    padding: 12px 20px;
+    border-top: 1px solid #e8e8e8;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .shootout-row-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .shootout-radio-group {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .shootout-radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    cursor: pointer;
+  }
+  .shootout-radio-group input[type="radio"] {
+    cursor: pointer;
+    width: 15px;
+    height: 15px;
+  }
 </style>
 <div class="module game-outcome-module">
   <h2>Game Outcome</h2>
@@ -219,6 +257,30 @@
     </div>
 
   </div>
+
+  {% if not is_postseason %}
+  <div id="shootout-section" class="shootout-row" style="display:none;">
+    <span class="shootout-row-label">Overtime type</span>
+    <div class="shootout-radio-group">
+      <label>
+        <input type="radio" name="shootout_winner_is_home" value=""
+          {% if shootout_winner_is_home is None %}checked{% endif %}>
+        OT goal (no shootout)
+      </label>
+      <label>
+        <input type="radio" name="shootout_winner_is_home" value="false"
+          {% if shootout_winner_is_home == False %}checked{% endif %}>
+        {{ away_team_name }} won shootout
+      </label>
+      <label>
+        <input type="radio" name="shootout_winner_is_home" value="true"
+          {% if shootout_winner_is_home == True %}checked{% endif %}>
+        {{ home_team_name }} won shootout
+      </label>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 {% endif %}
 {% endblock %}

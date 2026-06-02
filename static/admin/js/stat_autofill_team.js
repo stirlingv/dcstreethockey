@@ -135,6 +135,22 @@
 
     // ── Initialisation ────────────────────────────────────────────────────
 
+    // ── Shootout section show/hide ─────────────────────────────────────────
+    //
+    // The shootout section only appears for non-postseason games (rendered
+    // conditionally by the template). Show it whenever either team has an
+    // OTW value greater than zero, and hide it otherwise.
+
+    function updateShootoutVisibility() {
+        var section = document.getElementById('shootout-section');
+        if (!section) return;
+        var homeOtwEl = document.querySelector('[name="home_stat-otw"]');
+        var awayOtwEl = document.querySelector('[name="away_stat-otw"]');
+        var homeOtw = homeOtwEl ? (parseInt(homeOtwEl.value, 10) || 0) : 0;
+        var awayOtw = awayOtwEl ? (parseInt(awayOtwEl.value, 10) || 0) : 0;
+        section.style.display = (homeOtw > 0 || awayOtw > 0) ? 'flex' : 'none';
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         var read = function (name) {
             var el = document.querySelector('[name="' + name + '"]');
@@ -146,6 +162,7 @@
         baseline.awayGA = read('away_stat-goals_against');
 
         updateSuggestions();
+        updateShootoutVisibility();
     });
 
     window.addEventListener('load', function () {
@@ -174,12 +191,17 @@
             updateSuggestions();
         } else if (/^stat_set-\d+-team$/.test(name) || /^stat_set-\d+-goals$/.test(name)) {
             updateSuggestions();
+        } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
+            updateShootoutVisibility();
         }
     });
 
     document.addEventListener('input', function (e) {
-        if (/^stat_set-\d+-goals$/.test(e.target.name || '')) {
+        var name = e.target.name || '';
+        if (/^stat_set-\d+-goals$/.test(name)) {
             updateSuggestions();
+        } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
+            updateShootoutVisibility();
         }
     });
 })();

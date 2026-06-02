@@ -331,6 +331,13 @@ class MatchUp(models.Model):
         default=False,
         help_text="Mark this individual game as cancelled.",
     )
+    shootout_winner_is_home = models.BooleanField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Set when a regular-season OT game is decided by shootout. "
+        "True = home team won; False = away team won; null = no shootout.",
+    )
     # Goalie status fields
     away_goalie = models.ForeignKey(
         "Player",
@@ -370,6 +377,10 @@ class MatchUp(models.Model):
             errors["away_goalie"] = "Clear the away goalie when status is 'Sub Needed'."
         if self.home_goalie_status == 2 and self.home_goalie_id:
             errors["home_goalie"] = "Clear the home goalie when status is 'Sub Needed'."
+        if self.is_postseason and self.shootout_winner_is_home is not None:
+            errors[
+                "shootout_winner_is_home"
+            ] = "Postseason games cannot have a shootout winner."
 
         if errors:
             raise ValidationError(errors)
