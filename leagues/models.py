@@ -155,6 +155,30 @@ class TeamPhoto(models.Model):
         return self.__unicode__()
 
 
+class PendingTeamPhoto(models.Model):
+    """
+    Holds a team-submitted photo awaiting admin approval.
+    Once approved via the admin action, a live TeamPhoto is created
+    and this record is deleted.
+    """
+
+    team = models.ForeignKey(
+        "Team",
+        on_delete=models.CASCADE,
+        related_name="pending_photos",
+    )
+    photo = models.ImageField(upload_to="teams/pending")
+    submitter_email = models.EmailField(blank=True)
+    submitter_note = models.CharField(max_length=500, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("submitted_at",)
+
+    def __str__(self):
+        return f"Pending photo for {self.team} (submitted {self.submitted_at:%Y-%m-%d})"
+
+
 class Team(models.Model):
     CONFERENCE_TYPE = ((1, "East"), (2, "West"), (3, "A League"), (4, "B League"))
     team_name = models.CharField(db_index=True, max_length=55)

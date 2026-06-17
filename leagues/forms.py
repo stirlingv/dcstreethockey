@@ -61,3 +61,23 @@ class PlayerPhotoUploadForm(forms.Form):
             attrs={"rows": 2, "placeholder": "e.g. cropped from team photo, Fall 2024"}
         ),
     )
+
+
+class TeamPhotoUploadForm(forms.Form):
+    photo = forms.ImageField(
+        label="Photo",
+        help_text="JPG or PNG. The admin will review it before it goes live.",
+    )
+    submitter_email = forms.EmailField(
+        label="Your email (optional)",
+        required=False,
+        help_text="Only used if the admin needs to follow up.",
+    )
+    submitter_note = forms.CharField(
+        label="Note to admin (optional)",
+        required=False,
+        max_length=500,
+        widget=forms.Textarea(
+            attrs={"rows": 2, "placeholder": "e.g. team photo from Fall 2024 season"}
+        ),
+    )

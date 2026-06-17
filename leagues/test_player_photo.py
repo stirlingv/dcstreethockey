@@ -316,7 +316,7 @@ class AdminPendingPhotoBannerTest(TestCase):
         )
         response = self.client.get("/admin/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "1 photo to review")
+        self.assertContains(response, "1 player photo to review")
         self.assertContains(response, "/admin/leagues/pendingplayerphoto/")
 
     def test_banner_shows_correct_count(self):
@@ -327,7 +327,7 @@ class AdminPendingPhotoBannerTest(TestCase):
         PendingPlayerPhoto.objects.create(player=player2, photo=_fake_image("p2.jpg"))
         response = self.client.get("/admin/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "2 photos to review")
+        self.assertContains(response, "2 player photos to review")
 
 
 class PlayerProfileAvatarTest(TestCase):

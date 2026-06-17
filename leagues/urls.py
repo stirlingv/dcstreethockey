@@ -5,6 +5,7 @@ from .views import (
     update_goalie_status,
     captain_urls_list,
     upload_player_photo,
+    upload_team_photo,
 )
 from .draft_views import (
     draft_signup,
@@ -33,6 +34,14 @@ urlpatterns = [
         "player/<int:player_id>/upload-photo/",
         upload_player_photo,
         name="upload_player_photo",
+    ),
+    # -----------------------------------------------------------------------
+    # Team photo upload
+    # -----------------------------------------------------------------------
+    path(
+        "team/<int:team_id>/upload-photo/",
+        upload_team_photo,
+        name="upload_team_photo",
     ),
     # -----------------------------------------------------------------------
     # Goalie status

@@ -5,8 +5,16 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import MatchUp, Team, Player, Roster, Week, PendingPlayerPhoto
-from .forms import PlayerPhotoUploadForm
+from .models import (
+    MatchUp,
+    Team,
+    Player,
+    Roster,
+    Week,
+    PendingPlayerPhoto,
+    PendingTeamPhoto,
+)
+from .forms import PlayerPhotoUploadForm, TeamPhotoUploadForm
 
 
 def get_roster_goalie(team):
@@ -401,4 +409,37 @@ def upload_player_photo(request, player_id):
         request,
         "leagues/upload_player_photo.html",
         {"player": player, "form": form, "submitted": False},
+    )
+
+
+def upload_team_photo(request, team_id):
+    team = get_object_or_404(Team, id=team_id)
+
+    if request.method == "POST":
+        form = TeamPhotoUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            # Replace any existing pending submission for this team so old
+            # files don't accumulate in storage.
+            for old in team.pending_photos.all():
+                old.photo.delete(save=False)
+                old.delete()
+
+            PendingTeamPhoto.objects.create(
+                team=team,
+                photo=form.cleaned_data["photo"],
+                submitter_email=form.cleaned_data.get("submitter_email", ""),
+                submitter_note=form.cleaned_data.get("submitter_note", ""),
+            )
+            return render(
+                request,
+                "leagues/upload_team_photo.html",
+                {"team": team, "submitted": True},
+            )
+    else:
+        form = TeamPhotoUploadForm()
+
+    return render(
+        request,
+        "leagues/upload_team_photo.html",
+        {"team": team, "form": form, "submitted": False},
     )

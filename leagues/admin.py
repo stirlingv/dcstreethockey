@@ -33,6 +33,7 @@ from leagues.models import (
     TeamPhoto,
     PlayerPhoto,
     PendingPlayerPhoto,
+    PendingTeamPhoto,
     SeasonSignup,
     DraftSession,
     DraftTeam,
@@ -57,6 +58,7 @@ class _DCHockeyAdminSite(admin.AdminSite):
     def each_context(self, request):
         context = super().each_context(request)
         context["pending_photo_count"] = PendingPlayerPhoto.objects.count()
+        context["pending_team_photo_count"] = PendingTeamPhoto.objects.count()
         return context
 
     def get_app_list(self, request, app_label=None):
@@ -1661,6 +1663,160 @@ class PendingPlayerPhotoAdmin(admin.ModelAdmin):
         )
         reject_url = reverse(
             "admin:leagues_pendingplayerphoto_reject_single", args=[obj.pk]
+        )
+        return format_html(
+            '<a href="{}" style="display:inline-block;padding:5px 12px;background:#2e7d32;'
+            "color:#fff;border-radius:3px;font-size:12px;font-weight:600;"
+            'text-decoration:none;margin-right:6px;">Approve</a>'
+            '<a href="{}" style="display:inline-block;padding:5px 12px;background:#c62828;'
+            "color:#fff;border-radius:3px;font-size:12px;font-weight:600;"
+            'text-decoration:none;" '
+            "onclick=\"return confirm('Permanently delete this photo?')\">Reject</a>",
+            approve_url,
+            reject_url,
+        )
+
+    row_actions.short_description = ""
+
+
+# ---------------------------------------------------------------------------
+# Pending team photo approval
+# ---------------------------------------------------------------------------
+
+
+@admin.action(description="Approve selected photos and make them live")
+def approve_pending_team_photos(modeladmin, request, queryset):
+    approved = 0
+    for pending in queryset.select_related("team"):
+        old_live_photo = pending.team.team_photo
+        live_photo = TeamPhoto.objects.create(photo=pending.photo.name)
+        pending.team.team_photo = live_photo
+        pending.team.save()
+        pending.delete()
+        if old_live_photo:
+            old_live_photo.photo.delete(save=False)
+            old_live_photo.delete()
+        approved += 1
+    modeladmin.message_user(
+        request,
+        f"{approved} team photo(s) approved and now live.",
+        messages.SUCCESS,
+    )
+
+
+@admin.action(description="Reject selected photos and delete from storage")
+def reject_pending_team_photos(modeladmin, request, queryset):
+    rejected = 0
+    for pending in queryset:
+        pending.photo.delete(save=False)
+        pending.delete()
+        rejected += 1
+    modeladmin.message_user(
+        request,
+        f"{rejected} team photo(s) rejected and deleted.",
+        messages.SUCCESS,
+    )
+
+
+@admin.register(PendingTeamPhoto)
+class PendingTeamPhotoAdmin(admin.ModelAdmin):
+    list_display = [
+        "team",
+        "photo_preview",
+        "submitter_email",
+        "submitted_at",
+        "row_actions",
+    ]
+    list_filter = []
+    readonly_fields = [
+        "team",
+        "submitted_at",
+        "photo_preview_large",
+        "submitter_email",
+        "submitter_note",
+    ]
+    actions = [approve_pending_team_photos, reject_pending_team_photos]
+
+    class Media:
+        js = ("admin/js/pending_photo_modal.js",)
+
+    def get_urls(self):
+        custom = [
+            path(
+                "<int:pk>/approve/",
+                self.admin_site.admin_view(self.approve_single_view),
+                name="leagues_pendingteamphoto_approve_single",
+            ),
+            path(
+                "<int:pk>/reject/",
+                self.admin_site.admin_view(self.reject_single_view),
+                name="leagues_pendingteamphoto_reject_single",
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def approve_single_view(self, request, pk):
+        pending = get_object_or_404(PendingTeamPhoto, pk=pk)
+        team = pending.team
+        old_live_photo = team.team_photo
+        live_photo = TeamPhoto.objects.create(photo=pending.photo.name)
+        team.team_photo = live_photo
+        team.save()
+        pending.delete()
+        if old_live_photo:
+            old_live_photo.photo.delete(save=False)
+            old_live_photo.delete()
+        self.message_user(
+            request,
+            f"Photo for {team} approved and now live.",
+            messages.SUCCESS,
+        )
+        return redirect(reverse("admin:leagues_pendingteamphoto_changelist"))
+
+    def reject_single_view(self, request, pk):
+        pending = get_object_or_404(PendingTeamPhoto, pk=pk)
+        team_name = str(pending.team)
+        pending.photo.delete(save=False)
+        pending.delete()
+        self.message_user(
+            request,
+            f"Photo for {team_name} rejected and deleted.",
+            messages.SUCCESS,
+        )
+        return redirect(reverse("admin:leagues_pendingteamphoto_changelist"))
+
+    def photo_preview(self, obj):
+        if obj.photo:
+            return format_html(
+                '<img src="{}" data-photo-url="{}" '
+                'style="height:48px;width:48px;object-fit:cover;border-radius:4px;'
+                'cursor:zoom-in;" title="Click to enlarge">',
+                obj.photo.url,
+                obj.photo.url,
+            )
+        return "—"
+
+    photo_preview.short_description = "Preview"
+
+    def photo_preview_large(self, obj):
+        if obj.photo:
+            return format_html(
+                '<img src="{}" data-photo-url="{}" '
+                'style="max-height:240px;max-width:240px;border-radius:4px;'
+                'cursor:zoom-in;" title="Click to enlarge">',
+                obj.photo.url,
+                obj.photo.url,
+            )
+        return "—"
+
+    photo_preview_large.short_description = "Photo"
+
+    def row_actions(self, obj):
+        approve_url = reverse(
+            "admin:leagues_pendingteamphoto_approve_single", args=[obj.pk]
+        )
+        reject_url = reverse(
+            "admin:leagues_pendingteamphoto_reject_single", args=[obj.pk]
         )
         return format_html(
             '<a href="{}" style="display:inline-block;padding:5px 12px;background:#2e7d32;'
