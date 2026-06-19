@@ -201,8 +201,8 @@ def add_goals_for_matchups(matchups):
 def get_matches_for_division(division):
     return (
         MatchUp.objects.filter(hometeam__division=division)
-        .order_by("-week__date")
-        .filter(awayteam__is_active=True)
+        # Newest day first, but within a day order by game time (earliest first)
+        .order_by("-week__date", "time").filter(awayteam__is_active=True)
     )
 
 
@@ -438,9 +438,9 @@ def scores(request, division=0):
             q |= Q(hometeam__division_id=div_id, week__date=date)
         if q:
             matchups = (
-                MatchUp.objects.filter(q)
-                .filter(awayteam__is_active=True)
-                .order_by("hometeam__division", "-week__date")
+                MatchUp.objects.filter(q).filter(awayteam__is_active=True)
+                # Within each division/day, order by game time (earliest first)
+                .order_by("hometeam__division", "-week__date", "time")
             )
             matchups = add_goals_for_matchups(matchups)
             context["matchups"] = get_detailed_matchups(matchups)

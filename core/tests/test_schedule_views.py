@@ -403,6 +403,24 @@ class GetMatchesForDivisionTest(ScheduleTestBase):
         results = list(get_matches_for_division(self.division))
         self.assertEqual(results[0], future_matchup)
 
+    def test_same_day_games_ordered_by_time_earliest_first(self):
+        # self.matchup is at 19:00 on self.week. Add an earlier and a later
+        # game on the same day; they should come back earliest-time-first.
+        early = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(17, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        late = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(21, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        results = list(get_matches_for_division(self.division))
+        self.assertEqual(results, [early, self.matchup, late])
+
 
 class GetMatchesForTeamTest(ScheduleTestBase):
     def test_includes_home_matchup(self):
@@ -458,6 +476,25 @@ class ScoresViewTest(ScheduleTestBase):
         response = self.client.get(f"/scores/{self.division.division}/")
         self.assertIn("division_name", response.context)
         self.assertEqual(response.context["division_name"], "Sunday D1")
+
+    def test_same_day_scores_ordered_by_time_earliest_first(self):
+        # Add an earlier and later game on the same day as self.matchup (19:00).
+        early = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(17, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        late = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(21, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        response = self.client.get(f"/scores/{self.division.division}/")
+        day = response.context["matchups"][str(self.past_date)]
+        ordered_ids = [entry["match"].id for entry in day.values()]
+        self.assertEqual(ordered_ids, [early.id, self.matchup.id, late.id])
 
 
 # ---------------------------------------------------------------------------
