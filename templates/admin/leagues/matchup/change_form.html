@@ -32,9 +32,6 @@
   <div id="game-score-shootout" class="game-score-shootout" style="display:none;"></div>
 </div>
 <div id="goalie-stats-warning" class="goalie-stats-warning" style="display:none;"></div>
-<p style="font-size:12px;color:#555;margin:8px 0 16px;padding:8px 12px;background:#f0f6fb;border-left:3px solid #417690;">
-  Goals For and Goals Against in the Game Outcome section below will update automatically as you enter player stats above.
-</p>
 <style>
   .game-score-summary {
     margin: 12px 0;
@@ -82,6 +79,18 @@
     line-height: 1.5;
   }
   .goalie-stats-warning strong { font-weight: 700; }
+  .playoff-note {
+    margin: 12px 0 24px;
+    padding: 12px 16px;
+    background: #eef2fb;
+    border: 1px solid #c7d6f0;
+    border-left: 4px solid #417690;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #2c3e50;
+    line-height: 1.5;
+  }
+  .playoff-note strong { font-weight: 700; }
   .game-outcome-module { margin-bottom: 24px; }
   .game-outcome-module h2 {
     padding: 8px 12px;
@@ -217,6 +226,16 @@
     height: 15px;
   }
 </style>
+{% if is_postseason %}
+<div class="playoff-note">
+  &#8505; <strong>Playoff game</strong> — results don't affect regular-season standings.
+  The score above (from player stats) decides the winner. Enter player stats above;
+  there's no win/loss or goals-for/against to record here.
+</div>
+{% else %}
+<p style="font-size:12px;color:#555;margin:8px 0 16px;padding:8px 12px;background:#f0f6fb;border-left:3px solid #417690;">
+  Goals For and Goals Against in the Game Outcome section below will update automatically as you enter player stats above.
+</p>
 <div class="module game-outcome-module">
   <h2>Game Outcome</h2>
   <div class="game-outcome-grid">
@@ -349,6 +368,7 @@
   {% endif %}
 
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}
 

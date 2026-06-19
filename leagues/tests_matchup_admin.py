@@ -777,3 +777,121 @@ class MatchUpAdminPriorGFGAContextTest(TestCase):
         self.assertEqual(prior["home_ga"], 0)
         self.assertEqual(prior["away_gf"], 0)
         self.assertEqual(prior["away_ga"], 0)
+
+
+class MatchUpAdminPostseasonTest(TestCase):
+    """
+    Postseason games must not affect the regular-season standings record:
+    no win/loss is written to Team_Stat, and playoff goals are excluded from
+    the GF/GA recompute. The change form replaces the Game Outcome section with
+    a note for playoff games.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture()
+
+    def _url(self, matchup):
+        return reverse("admin:leagues_matchup_change", args=[matchup.pk])
+
+    def _player(self, name="P"):
+        return Player.objects.create(first_name=name, last_name="X", is_active=True)
+
+    def _post(self, **overrides):
+        base = {
+            "week": self.week.pk,
+            "time": "10:00 AM",
+            "awayteam": self.away_team.pk,
+            "hometeam": self.home_team.pk,
+            "away_goalie_status": 3,
+            "home_goalie_status": 3,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+            "home_stat-win": "1",
+            "home_stat-otw": "0",
+            "home_stat-loss": "0",
+            "home_stat-otl": "0",
+            "home_stat-tie": "0",
+            "home_stat-goals_for": "5",
+            "home_stat-goals_against": "2",
+            "away_stat-win": "0",
+            "away_stat-otw": "0",
+            "away_stat-loss": "1",
+            "away_stat-otl": "0",
+            "away_stat-tie": "0",
+            "away_stat-goals_for": "2",
+            "away_stat-goals_against": "5",
+        }
+        base.update(overrides)
+        return base
+
+    def test_postseason_change_view_shows_playoff_note_not_outcome(self):
+        self.matchup.is_postseason = True
+        self.matchup.save()
+        html = self.client.get(self._url(self.matchup)).content.decode()
+        self.assertIn("Playoff game", html)
+        self.assertNotIn('class="module game-outcome-module"', html)
+        # The W/L record inputs are not rendered for playoff games.
+        self.assertNotIn('name="home_stat-win"', html)
+
+    def test_regular_change_view_shows_game_outcome(self):
+        html = self.client.get(self._url(self.matchup)).content.decode()
+        self.assertNotIn("Playoff game", html)
+        self.assertIn('class="module game-outcome-module"', html)
+        self.assertIn('name="home_stat-win"', html)
+
+    def test_postseason_outcome_not_written_to_team_stat(self):
+        self.matchup.is_postseason = True
+        self.matchup.save()
+        self.client.post(self._url(self.matchup), self._post(is_postseason="on"))
+        self.assertFalse(
+            Team_Stat.objects.filter(
+                team=self.home_team, division=self.division, season=self.season
+            ).exists()
+        )
+        self.assertFalse(
+            Team_Stat.objects.filter(
+                team=self.away_team, division=self.division, season=self.season
+            ).exists()
+        )
+
+    def test_regular_save_excludes_postseason_goals_from_gf(self):
+        # Regular game: home scored 3. Playoff game: home scored 5.
+        post_week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date(2024, 5, 1),
+        )
+        post_game = MatchUp.objects.create(
+            week=post_week,
+            awayteam=self.away_team,
+            hometeam=self.home_team,
+            time=datetime.time(12, 0),
+            is_postseason=True,
+        )
+        p = self._player()
+        Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=p, goals=3, assists=0
+        )
+        Stat.objects.create(
+            matchup=post_game, team=self.home_team, player=p, goals=5, assists=0
+        )
+        # Saving the regular game recomputes GF from regular games only.
+        self.client.post(self._url(self.matchup), self._post())
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        self.assertEqual(home.goals_for, 3)

@@ -677,6 +677,8 @@ class MatchUpAdmin(admin.ModelAdmin):
             # team's games — not tonight's opponent's season total — so a
             # multi-team division computes the right number.
             def _prior_gf_ga(team):
+                # Regular-season games only — playoff goals never feed the
+                # GF/GA shown in standings (matches the save_related recompute).
                 prior_matchup_ids = (
                     MatchUp.objects.filter(
                         Q(hometeam=team) | Q(awayteam=team),
@@ -684,6 +686,7 @@ class MatchUpAdmin(admin.ModelAdmin):
                         week__division=match.week.division,
                     )
                     .exclude(pk=match.pk)
+                    .exclude(is_postseason=True)
                     .values_list("pk", flat=True)
                 )
                 gf = (
@@ -722,22 +725,37 @@ class MatchUpAdmin(admin.ModelAdmin):
         season = match.week.season if match else None
         division = match.week.division if match else None
 
+        # Postseason games never affect the regular-season standings record:
+        # no win/loss, and their goals are excluded from GF/GA. Standings exist
+        # to seed the playoffs, so playoff results must not feed back into them.
+        # Read from the just-saved instance so toggling postseason in this same
+        # save is respected (save_model runs before save_related).
+        is_postseason = bool(match and match.is_postseason)
+        saved_match = getattr(form, "instance", None)
+        if saved_match is not None and hasattr(saved_match, "is_postseason"):
+            is_postseason = bool(saved_match.is_postseason)
+
         # Capture which teams already have stats BEFORE the inline save runs.
         # super().save_related() processes deletions, so querying afterwards
         # would return an empty set for teams whose stats were just deleted,
         # causing GF/GA to silently keep their old values.
         had_stats = {}
-        if match:
+        if match and not is_postseason:
             for team in [match.hometeam, match.awayteam]:
-                had_stats[team.pk] = Stat.objects.filter(
-                    team=team,
-                    matchup__week__season=season,
-                    matchup__week__division=division,
-                ).exists()
+                had_stats[team.pk] = (
+                    Stat.objects.filter(
+                        team=team,
+                        matchup__week__season=season,
+                        matchup__week__division=division,
+                    )
+                    .exclude(matchup__is_postseason=True)
+                    .exists()
+                )
 
         super().save_related(request, form, formsets, change)
 
-        if not match:
+        # Skip the Team_Stat write entirely for postseason games.
+        if not match or is_postseason:
             return
         for attr, team in [
             ("_home_stat_form", match.hometeam),
@@ -752,21 +770,27 @@ class MatchUpAdmin(admin.ModelAdmin):
                 team_stat.division = division
                 team_stat.season = season
             team_stat.save()
+            # Regular-season goals only — playoff goals never count toward the
+            # GF/GA shown in standings.
             stat_qs = Stat.objects.filter(
                 team=team,
                 matchup__week__season=season,
                 matchup__week__division=division,
-            )
+            ).exclude(matchup__is_postseason=True)
             # Recompute GF/GA whenever stats exist now OR existed before this
             # save. The second condition handles full deletions: without it,
             # removing all stat rows would leave GF/GA at their previous values.
             if stat_qs.exists() or had_stats.get(team.pk, False):
                 gf = stat_qs.aggregate(total=Sum("goals"))["total"] or 0
-                team_matchup_ids = MatchUp.objects.filter(
-                    Q(hometeam=team) | Q(awayteam=team),
-                    week__season=season,
-                    week__division=division,
-                ).values_list("pk", flat=True)
+                team_matchup_ids = (
+                    MatchUp.objects.filter(
+                        Q(hometeam=team) | Q(awayteam=team),
+                        week__season=season,
+                        week__division=division,
+                    )
+                    .exclude(is_postseason=True)
+                    .values_list("pk", flat=True)
+                )
                 ga = (
                     Stat.objects.filter(matchup_id__in=team_matchup_ids)
                     .exclude(team=team)
