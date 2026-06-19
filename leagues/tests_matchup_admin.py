@@ -93,6 +93,19 @@ class MatchUpAdminGameOutcomeGetTest(TestCase):
         home_form = resp.context["home_stat_form"]
         self.assertEqual(int(home_form["win"].value()), 3)
 
+    def test_change_view_renders_live_game_score_summary(self):
+        # The per-game score box (live from player stats) and the team-name
+        # JS vars the script needs to render the shootout line must be present.
+        resp = self.client.get(self._url())
+        html = resp.content.decode()
+        self.assertIn('id="game-score-summary"', html)
+        self.assertIn('id="score-home"', html)
+        self.assertIn('id="score-away"', html)
+        self.assertIn('id="game-score-shootout"', html)
+        self.assertIn('id="goalie-stats-warning"', html)
+        self.assertIn('var statHomeTeamName = "Home Team";', html)
+        self.assertIn('var statAwayTeamName = "Away Team";', html)
+
 
 class MatchUpAdminGameOutcomeSaveTest(TestCase):
     def setUp(self):

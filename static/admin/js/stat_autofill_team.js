@@ -4,6 +4,8 @@
     var playerTeamMap   = (typeof statPlayerTeamMap  !== 'undefined') ? statPlayerTeamMap  : {};
     var homeTeamId      = (typeof statHomeTeamId     !== 'undefined') ? String(statHomeTeamId) : null;
     var awayTeamId      = (typeof statAwayTeamId     !== 'undefined') ? String(statAwayTeamId) : null;
+    var homeTeamName    = (typeof statHomeTeamName   !== 'undefined') ? statHomeTeamName   : 'Home';
+    var awayTeamName    = (typeof statAwayTeamName   !== 'undefined') ? statAwayTeamName   : 'Away';
     // Prior GF/GA per team: totals from every game this season/division
     // EXCEPT tonight's, computed server-side. GA already accounts for all
     // opponents across the team's games, so it is correct in a multi-team
@@ -43,6 +45,31 @@
             var goals = parseInt(input.value, 10) || 0;
             if (Object.prototype.hasOwnProperty.call(totals, tid)) {
                 totals[tid] += goals;
+            }
+        });
+
+        return totals;
+    }
+
+    // Sum the goals-against recorded on each team's stat rows (the goalie's
+    // performance), skipping rows marked for deletion. Used to detect a game
+    // where goals were scored but no goalie goals-against was entered.
+    function computeGoalsAgainstTotals() {
+        var totals = {};
+        if (homeTeamId) totals[homeTeamId] = 0;
+        if (awayTeamId) totals[awayTeamId] = 0;
+
+        document.querySelectorAll('[name^="stat_set-"][name$="-goals_against"]').forEach(function (input) {
+            var m = input.name.match(/^stat_set-(\d+)-goals_against$/);
+            if (!m) return;
+            var del = document.querySelector('[name="stat_set-' + m[1] + '-DELETE"]');
+            if (del && del.checked) return;
+            var teamSel = document.querySelector('[name="stat_set-' + m[1] + '-team"]');
+            if (!teamSel || !teamSel.value) return;
+            var tid = String(teamSel.value);
+            var ga = parseInt(input.value, 10) || 0;
+            if (Object.prototype.hasOwnProperty.call(totals, tid)) {
+                totals[tid] += ga;
             }
         });
 
@@ -115,6 +142,94 @@
             statPriorVals.home_ga, awayTonight);
         applyFieldUpdate('away-ga-suggestion', 'away_stat-goals_against',
             statPriorVals.away_ga, homeTonight);
+
+        updateGameScore(homeTonight, awayTonight);
+        updateGoalieWarning(homeTonight, awayTonight);
+    }
+
+    // ── This game's score (from player stats) ─────────────────────────────
+    //
+    // Shows the score for THIS game derived from the player-stat goals
+    // entered — distinct from the Goals For / Goals Against fields, which
+    // hold season-cumulative totals. When a shootout winner is selected, a
+    // second line shows the official final score (winner +1), making the
+    // shootout's effect explicit.
+
+    function updateGameScore(homeGoals, awayGoals) {
+        var box = document.getElementById('game-score-summary');
+        if (!box) return;
+        if (typeof homeGoals === 'undefined' || typeof awayGoals === 'undefined') {
+            var totals = computeGoalTotals();
+            homeGoals = totals[homeTeamId] || 0;
+            awayGoals = totals[awayTeamId] || 0;
+        }
+
+        var homeEl = document.getElementById('score-home');
+        var awayEl = document.getElementById('score-away');
+        if (homeEl) homeEl.textContent = homeGoals;
+        if (awayEl) awayEl.textContent = awayGoals;
+
+        var shootoutEl = document.getElementById('game-score-shootout');
+        if (!shootoutEl) return;
+        var checked = document.querySelector('[name="shootout_winner_is_home"]:checked');
+        var val = checked ? checked.value : '';
+        if (val === 'true' || val === 'false') {
+            var homeWon = (val === 'true');
+            var finalHome = homeGoals + (homeWon ? 1 : 0);
+            var finalAway = awayGoals + (homeWon ? 0 : 1);
+            var winnerName = homeWon ? homeTeamName : awayTeamName;
+            shootoutEl.innerHTML =
+                'Final score with shootout: <strong>' +
+                homeTeamName + ' ' + finalHome + ' – ' +
+                finalAway + ' ' + awayTeamName + '</strong> (' +
+                winnerName + ' wins the shootout)';
+            shootoutEl.style.display = 'block';
+        } else {
+            shootoutEl.style.display = 'none';
+        }
+    }
+
+    // ── Missing goalie-stats warning ──────────────────────────────────────
+    //
+    // A goalie's performance is a stat row with goals-against. If a team
+    // conceded goals (the opponent scored) but no goals-against is recorded
+    // for that team, the goalie's stats were forgotten and won't count toward
+    // GAA / save stats. Warn — softly, and clear the moment a goalie row is
+    // added. A shutout (opponent scored 0) is never flagged.
+
+    function updateGoalieWarning(homeScored, awayScored) {
+        var el = document.getElementById('goalie-stats-warning');
+        if (!el || !homeTeamId || !awayTeamId) return;
+        if (typeof homeScored === 'undefined' || typeof awayScored === 'undefined') {
+            var totals = computeGoalTotals();
+            homeScored = totals[homeTeamId] || 0;
+            awayScored = totals[awayTeamId] || 0;
+        }
+        var ga = computeGoalsAgainstTotals();
+        var homeGA = ga[homeTeamId] || 0;
+        var awayGA = ga[awayTeamId] || 0;
+
+        var msgs = [];
+        // Home conceded the away team's goals; away conceded the home team's.
+        if (awayScored > 0 && homeGA === 0) {
+            msgs.push(goalieMsg(homeTeamName, awayScored));
+        }
+        if (homeScored > 0 && awayGA === 0) {
+            msgs.push(goalieMsg(awayTeamName, homeScored));
+        }
+
+        if (msgs.length) {
+            el.innerHTML = msgs.join('<br>');
+            el.style.display = 'block';
+        } else {
+            el.style.display = 'none';
+        }
+    }
+
+    function goalieMsg(teamName, conceded) {
+        return '⚠ No goalie stats recorded for <strong>' + teamName + '</strong>. ' +
+            'Add a stat row for their goalie with <strong>' + conceded +
+            '</strong> goals-against so their GAA / save stats count.';
     }
 
     // ── Player select: Select2 for mobile-friendly search ─────────────────
@@ -190,16 +305,19 @@
         if (/^stat_set-\d+-player$/.test(name)) {
             autofillTeam(e.target);
             updateSuggestions();
-        } else if (/^stat_set-\d+-team$/.test(name) || /^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-DELETE$/.test(name)) {
+        } else if (/^stat_set-\d+-team$/.test(name) || /^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-goals_against$/.test(name) || /^stat_set-\d+-DELETE$/.test(name)) {
             updateSuggestions();
         } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
             updateShootoutVisibility();
+        } else if (name === 'shootout_winner_is_home') {
+            // Recompute the "final score with shootout" line.
+            updateGameScore();
         }
     });
 
     document.addEventListener('input', function (e) {
         var name = e.target.name || '';
-        if (/^stat_set-\d+-goals$/.test(name)) {
+        if (/^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-goals_against$/.test(name)) {
             updateSuggestions();
         } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
             updateShootoutVisibility();

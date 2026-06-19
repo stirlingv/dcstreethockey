@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from django import template
-from django.db.models import Count, F
+from django.db.models import Count, F, Sum
 
 from leagues.models import MatchUp, Stat, Team_Stat, Week
 
@@ -130,9 +130,24 @@ def stats_entry_widget():
             .values("team_id", "division_id", "season_id", "gp")
         }
 
+        # Per-game goals and goals-against per team, for the goalie-stats check.
+        # A goalie's performance is a Stat row with goals_against; if a team
+        # conceded goals (opponent scored) but no goals_against is recorded for
+        # that team in the game, the goalie's stats were forgotten.
+        gf_ga_by_matchup_team = {
+            (row["matchup_id"], row["team_id"]): (
+                row["g"] or 0,
+                row["ga"] or 0,
+            )
+            for row in Stat.objects.filter(matchup_id__in=[m.pk for m in matchups])
+            .values("matchup_id", "team_id")
+            .annotate(g=Sum("goals"), ga=Sum("goals_against"))
+        }
+
         for m in matchups:
             if m.stat_count == 0:
                 m.outcome_missing = False
+                m.goalie_missing = False
                 continue
             key_home = (m.hometeam_id, m.week.division_id, m.week.season_id)
             key_away = (m.awayteam_id, m.week.division_id, m.week.season_id)
@@ -141,9 +156,17 @@ def stats_entry_widget():
             home_stat_games = stat_game_counts.get(key_home, 0)
             away_stat_games = stat_game_counts.get(key_away, 0)
             m.outcome_missing = home_gp < home_stat_games or away_gp < away_stat_games
+
+            home_gf, home_ga = gf_ga_by_matchup_team.get((m.pk, m.hometeam_id), (0, 0))
+            away_gf, away_ga = gf_ga_by_matchup_team.get((m.pk, m.awayteam_id), (0, 0))
+            # Home conceded the away team's goals (and vice versa).
+            home_goalie_missing = away_gf > 0 and home_ga == 0
+            away_goalie_missing = home_gf > 0 and away_ga == 0
+            m.goalie_missing = home_goalie_missing or away_goalie_missing
     else:
         for m in matchups:
             m.outcome_missing = False
+            m.goalie_missing = False
 
     # Group by date, then by division
     date_buckets = defaultdict(lambda: defaultdict(list))
@@ -163,6 +186,9 @@ def stats_entry_widget():
                     "all_entered": all(g.stat_count > 0 for g in games),
                     "any_missing": any(g.stat_count == 0 for g in games),
                     "outcome_needed": any(g.outcome_missing for g in games),
+                    "goalie_needed": any(
+                        getattr(g, "goalie_missing", False) for g in games
+                    ),
                 }
             )
         grouped[game_date] = {

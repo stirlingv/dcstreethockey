@@ -2095,3 +2095,85 @@ class StatsEntryWidgetTest(TestCase):
         game_date = self.today - datetime.timedelta(days=1)
         div_info = ctx["grouped_games"][game_date]["divisions"][0]
         self.assertFalse(div_info["outcome_needed"])
+
+    # ------------------------------------------------------------------
+    # Goalie-stats tests
+    # ------------------------------------------------------------------
+
+    def _add_goalie_stat(self, matchup, team, goals_against):
+        from leagues.models import Stat
+
+        return Stat.objects.create(
+            player=self.player,
+            team=team,
+            matchup=matchup,
+            goals=0,
+            goals_against=goals_against,
+        )
+
+    def test_goalie_missing_when_opponent_scored_but_no_goals_against(self):
+        """A team conceded goals but recorded no goals-against → goalie_missing."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        # team1 (away) scored 2; team2 (home) recorded no goalie goals-against.
+        self._add_stat(game, self.team1, goals=2)
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertTrue(match.goalie_missing)
+
+    def test_goalie_not_missing_when_goals_against_recorded(self):
+        """Goalie goals-against recorded for every team that conceded → not flagged."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        self._add_stat(game, self.team1, goals=2)  # away scored 2
+        self._add_stat(game, self.team2, goals=3)  # home scored 3
+        self._add_goalie_stat(game, self.team2, goals_against=2)  # home goalie
+        self._add_goalie_stat(game, self.team1, goals_against=3)  # away goalie
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertFalse(match.goalie_missing)
+
+    def test_shutout_goalie_not_flagged_as_missing(self):
+        """A goalie whose team conceded 0 (shutout) is never flagged, even with no row."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        # home (team2) scored 2 and conceded 0 (shutout). away conceded 2 and
+        # has its goalie row, so only the shutout goalie lacks a row.
+        self._add_stat(game, self.team2, goals=2)
+        self._add_goalie_stat(game, self.team1, goals_against=2)
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertFalse(match.goalie_missing)
+
+    def test_no_stats_game_has_goalie_missing_false(self):
+        """Games with no Stat rows are not flagged as goalie_missing."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertFalse(match.goalie_missing)
+
+    def test_goalie_needed_flag_on_division(self):
+        """Division shows goalie_needed when any game is missing goalie stats."""
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        self._add_stat(game, self.team1, goals=2)  # away scored, home has no GA
+        ctx = self._call_widget()
+        game_date = self.today - datetime.timedelta(days=1)
+        div_info = ctx["grouped_games"][game_date]["divisions"][0]
+        self.assertTrue(div_info["goalie_needed"])
+
+    def test_widget_renders_mobile_friendly_badge_legend(self):
+        """The collapsible legend (works on touch) and hover tooltips both render."""
+        from django.template import Context, Template
+
+        week = self._week(delta=1)
+        self._matchup(week)
+        rendered = Template(
+            "{% load admin_quick_cancel %}{% stats_entry_widget %}"
+        ).render(Context({}))
+        # Collapsible legend — accessible on mobile where hover tooltips don't fire.
+        self.assertIn("se-legend", rendered)
+        self.assertIn("What do these labels mean?", rendered)
+        # Desktop hover tooltips are still present on the status badges.
+        self.assertIn("title=", rendered)

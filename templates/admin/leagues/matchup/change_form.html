@@ -6,6 +6,8 @@
   {% if home_team_id and away_team_id %}
   var statHomeTeamId = {{ home_team_id }};
   var statAwayTeamId = {{ away_team_id }};
+  var statHomeTeamName = "{{ home_team_name|escapejs }}";
+  var statAwayTeamName = "{{ away_team_name|escapejs }}";
   var statPrior = {{ stat_prior_json|safe }};
   {% endif %}
 </script>
@@ -18,10 +20,68 @@
 {% block inline_field_sets %}
 {{ block.super }}
 {% if home_stat_form and away_stat_form %}
+<div id="game-score-summary" class="game-score-summary">
+  <div class="game-score-main">
+    <span class="game-score-label">This game's score (from player stats):</span>
+    <span class="game-score-value">
+      {{ home_team_name }} <strong id="score-home">0</strong>
+      <span class="game-score-dash">&ndash;</span>
+      <strong id="score-away">0</strong> {{ away_team_name }}
+    </span>
+  </div>
+  <div id="game-score-shootout" class="game-score-shootout" style="display:none;"></div>
+</div>
+<div id="goalie-stats-warning" class="goalie-stats-warning" style="display:none;"></div>
 <p style="font-size:12px;color:#555;margin:8px 0 16px;padding:8px 12px;background:#f0f6fb;border-left:3px solid #417690;">
   Goals For and Goals Against in the Game Outcome section below will update automatically as you enter player stats above.
 </p>
 <style>
+  .game-score-summary {
+    margin: 12px 0;
+    padding: 12px 16px;
+    background: #eef7ee;
+    border: 1px solid #cfe6cf;
+    border-left: 4px solid #417690;
+    border-radius: 4px;
+  }
+  .game-score-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 8px;
+  }
+  .game-score-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f3d2b;
+    white-space: nowrap;
+  }
+  .game-score-value strong { font-size: 22px; }
+  .game-score-dash { margin: 0 6px; color: #888; }
+  .game-score-shootout {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #92400e;
+    font-weight: 500;
+  }
+  .game-score-shootout strong { font-weight: 700; }
+  @media (max-width: 767px) {
+    .game-score-label { display: block; margin-bottom: 4px; }
+  }
+  .goalie-stats-warning {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    background: #fef3c7;
+    border: 1px solid #fcd9a3;
+    border-left: 4px solid #d97706;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #92400e;
+    line-height: 1.5;
+  }
+  .goalie-stats-warning strong { font-weight: 700; }
   .game-outcome-module { margin-bottom: 24px; }
   .game-outcome-module h2 {
     padding: 8px 12px;

@@ -61,9 +61,11 @@
   .se-status-done { background: #e8f5e9; color: #2e7d32; }
   .se-status-pending { background: #fff3e0; color: #e65100; }
   .se-status-outcome { background: #fff8e1; color: #b45309; }
+  .se-status-goalie { background: #fef3c7; color: #92400e; }
 
-  /* Per-game outcome badge */
-  .se-outcome-badge {
+  /* Per-game outcome / goalie badges */
+  .se-outcome-badge,
+  .se-goalie-badge {
     font-size: 11px;
     font-weight: 600;
     padding: 2px 7px;
@@ -73,6 +75,13 @@
   }
   .se-outcome-done { background: #e8f5e9; color: #2e7d32; }
   .se-outcome-missing { background: #fff8e1; color: #b45309; }
+  .se-goalie-missing { background: #fef3c7; color: #92400e; }
+
+  /* Badges with an explanatory tooltip get a help cursor. */
+  .se-status-outcome[title],
+  .se-status-goalie[title],
+  .se-outcome-badge[title],
+  .se-goalie-badge[title] { cursor: help; }
 
   /* Game rows */
   .se-games { padding: 2px 12px 10px 28px; }
@@ -136,15 +145,63 @@
     font-size: 13px;
   }
 
+  /* Badge legend — collapsible so the explanations work on touch devices,
+     where hover tooltips (title=) never appear. */
+  details.se-legend {
+    margin: 0 12px 10px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    background: #fafafa;
+  }
+  summary.se-legend-summary {
+    padding: 7px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: #417690;
+    list-style: none;
+    user-select: none;
+  }
+  summary.se-legend-summary::-webkit-details-marker { display: none; }
+  .se-legend-body {
+    padding: 4px 12px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #444;
+  }
+  .se-legend-body dt {
+    margin-top: 6px;
+    font-weight: 700;
+  }
+  .se-legend-body dd { margin: 0 0 2px; }
+
   @media (max-width: 600px) {
     summary.se-division-summary { padding: 10px 12px; }
     .se-btn { font-size: 12px; padding: 7px 10px; }
     .se-games { padding-bottom: 12px; }
+    summary.se-legend-summary { padding: 10px 12px; }
   }
 </style>
 
 <div class="module se-module">
   <h2>📋 Enter Stats</h2>
+  <details class="se-legend">
+    <summary class="se-legend-summary">&#8505;&#65039; What do these labels mean?</summary>
+    <dl class="se-legend-body">
+      <dt>Stats Needed</dt>
+      <dd>No player stats have been entered for one or more games yet.</dd>
+      <dt>Outcome Needed / Outcome &#9888;</dt>
+      <dd>Player stats are entered, but a game's result wasn't saved in the Game
+        Outcome section — so the standings don't include that game yet. Open the
+        game and save the Game Outcome.</dd>
+      <dt>Goalie Needed / Goalie &#9888;</dt>
+      <dd>Goals were scored but no goalie goals-against is recorded for one team,
+        so that goalie's GAA / save stats won't count. Open the game and add a
+        stat row for that team's goalie.</dd>
+      <dt>Outcome &#10003; / Done</dt>
+      <dd>Everything for the game is recorded.</dd>
+    </dl>
+  </details>
   {% if grouped_games %}
   {% for game_date, info in grouped_games.items %}
   <div class="se-date-group">
@@ -154,14 +211,19 @@
     </p>
 
     {% for div in info.divisions %}
-    <details class="se-division"{% if div.any_missing or div.outcome_needed %} open{% endif %}>
+    <details class="se-division"{% if div.any_missing or div.outcome_needed or div.goalie_needed %} open{% endif %}>
       <summary class="se-division-summary">
         <span class="se-division-chevron">&#9658;</span>
         <span class="se-division-name">{{ div.division }}</span>
         {% if div.any_missing %}
-          <span class="se-status-badge se-status-pending">Stats Needed</span>
+          <span class="se-status-badge se-status-pending"
+                title="One or more games in this division have no player stats entered yet.">Stats Needed</span>
         {% elif div.outcome_needed %}
-          <span class="se-status-badge se-status-outcome">Outcome Needed</span>
+          <span class="se-status-badge se-status-outcome"
+                title="Player stats are entered, but a game's result wasn't saved in the Game Outcome section — so standings don't include that game yet. Open the game and save the Game Outcome.">Outcome Needed</span>
+        {% elif div.goalie_needed %}
+          <span class="se-status-badge se-status-goalie"
+                title="A game has goals scored but no goalie goals-against recorded, so the goalie's GAA/save stats won't count. Open the game and add a stat row for the goalie.">Goalie Needed</span>
         {% else %}
           <span class="se-status-badge se-status-done">Done</span>
         {% endif %}
@@ -178,9 +240,15 @@
           {% else %}
             <span class="se-stat-count se-stat-count-has">{{ game.stat_count }} stat{{ game.stat_count|pluralize }}</span>
             {% if game.outcome_missing %}
-              <span class="se-outcome-badge se-outcome-missing">Outcome &#9888;</span>
+              <span class="se-outcome-badge se-outcome-missing"
+                    title="Player stats are entered, but this game's result wasn't saved in the Game Outcome section — so standings don't include it yet. Open the game and save the Game Outcome.">Outcome &#9888;</span>
             {% else %}
-              <span class="se-outcome-badge se-outcome-done">Outcome &#10003;</span>
+              <span class="se-outcome-badge se-outcome-done"
+                    title="This game's result is recorded in the standings.">Outcome &#10003;</span>
+            {% endif %}
+            {% if game.goalie_missing %}
+              <span class="se-goalie-badge se-goalie-missing"
+                    title="Goals were scored but no goalie goals-against is recorded for one team, so the goalie's GAA/save stats won't count. Add a stat row for that team's goalie with their goals-against.">Goalie &#9888;</span>
             {% endif %}
             <a href="{% url 'admin:leagues_matchup_change' game.pk %}" class="se-btn se-btn-edit">Edit</a>
           {% endif %}
