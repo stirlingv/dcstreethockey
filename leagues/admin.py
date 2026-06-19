@@ -668,30 +668,46 @@ class MatchUpAdmin(admin.ModelAdmin):
             extra_context["is_postseason"] = match.is_postseason
             extra_context["shootout_winner_is_home"] = match.shootout_winner_is_home
 
-            def _goal_map(qs):
-                return {
-                    row["team_id"]: row["total"]
-                    for row in qs.values("team_id").annotate(total=Sum("goals"))
-                }
-
-            tonight = _goal_map(Stat.objects.filter(matchup=match))
-            season = _goal_map(
-                Stat.objects.filter(
-                    team__in=[match.hometeam, match.awayteam],
-                    matchup__week__season=match.week.season,
-                    matchup__week__division=match.week.division,
+            # Prior GF/GA for each team: totals from all of the team's games
+            # this season/division EXCEPT tonight's matchup. The live GF/GA
+            # suggestion in the admin adds tonight's player-stat goals (read
+            # from the form) on top of these.
+            #
+            # GA must sum the goals scored by *every* opponent across the
+            # team's games — not tonight's opponent's season total — so a
+            # multi-team division computes the right number.
+            def _prior_gf_ga(team):
+                prior_matchup_ids = (
+                    MatchUp.objects.filter(
+                        Q(hometeam=team) | Q(awayteam=team),
+                        week__season=match.week.season,
+                        week__division=match.week.division,
+                    )
+                    .exclude(pk=match.pk)
+                    .values_list("pk", flat=True)
                 )
-            )
-            extra_context["stat_tonight_json"] = json.dumps(
+                gf = (
+                    Stat.objects.filter(
+                        matchup_id__in=prior_matchup_ids, team=team
+                    ).aggregate(total=Sum("goals"))["total"]
+                    or 0
+                )
+                ga = (
+                    Stat.objects.filter(matchup_id__in=prior_matchup_ids)
+                    .exclude(team=team)
+                    .aggregate(total=Sum("goals"))["total"]
+                    or 0
+                )
+                return gf, ga
+
+            home_prior_gf, home_prior_ga = _prior_gf_ga(match.hometeam)
+            away_prior_gf, away_prior_ga = _prior_gf_ga(match.awayteam)
+            extra_context["stat_prior_json"] = json.dumps(
                 {
-                    "home": tonight.get(match.hometeam.pk, 0),
-                    "away": tonight.get(match.awayteam.pk, 0),
-                }
-            )
-            extra_context["stat_season_json"] = json.dumps(
-                {
-                    "home": season.get(match.hometeam.pk, 0),
-                    "away": season.get(match.awayteam.pk, 0),
+                    "home_gf": home_prior_gf,
+                    "home_ga": home_prior_ga,
+                    "away_gf": away_prior_gf,
+                    "away_ga": away_prior_ga,
                 }
             )
 
@@ -702,12 +718,27 @@ class MatchUpAdmin(admin.ModelAdmin):
         )
 
     def save_related(self, request, form, formsets, change):
-        super().save_related(request, form, formsets, change)
         match = getattr(request, "_matchup_for_stat", None)
+        season = match.week.season if match else None
+        division = match.week.division if match else None
+
+        # Capture which teams already have stats BEFORE the inline save runs.
+        # super().save_related() processes deletions, so querying afterwards
+        # would return an empty set for teams whose stats were just deleted,
+        # causing GF/GA to silently keep their old values.
+        had_stats = {}
+        if match:
+            for team in [match.hometeam, match.awayteam]:
+                had_stats[team.pk] = Stat.objects.filter(
+                    team=team,
+                    matchup__week__season=season,
+                    matchup__week__division=division,
+                ).exists()
+
+        super().save_related(request, form, formsets, change)
+
         if not match:
             return
-        season = match.week.season
-        division = match.week.division
         for attr, team in [
             ("_home_stat_form", match.hometeam),
             ("_away_stat_form", match.awayteam),
@@ -721,15 +752,15 @@ class MatchUpAdmin(admin.ModelAdmin):
                 team_stat.division = division
                 team_stat.season = season
             team_stat.save()
-            # When Stat rows exist for this team this season, compute GF/GA
-            # directly from those records rather than trusting manual entry.
-            # This keeps goals totals permanently in sync with the score log.
             stat_qs = Stat.objects.filter(
                 team=team,
                 matchup__week__season=season,
                 matchup__week__division=division,
             )
-            if stat_qs.exists():
+            # Recompute GF/GA whenever stats exist now OR existed before this
+            # save. The second condition handles full deletions: without it,
+            # removing all stat rows would leave GF/GA at their previous values.
+            if stat_qs.exists() or had_stats.get(team.pk, False):
                 gf = stat_qs.aggregate(total=Sum("goals"))["total"] or 0
                 team_matchup_ids = MatchUp.objects.filter(
                     Q(hometeam=team) | Q(awayteam=team),

@@ -1,4 +1,5 @@
 import datetime
+import json
 
 from django.contrib import admin
 from django.contrib.auth.models import User
@@ -391,6 +392,77 @@ class MatchUpAdminGFGAAutoComputeTest(TestCase):
         self.assertEqual(away.goals_for, 1)
         self.assertEqual(away.goals_against, 3)
 
+    def test_deleting_all_stats_via_inline_zeroes_gf_ga(self):
+        """
+        Marking all stat rows for deletion and saving should reset GF and GA to 0.
+        Without the had_stats fix, stat_qs.exists() is False after the inline delete
+        so the recompute branch was skipped, leaving GF at its previous value.
+        """
+        p = self._player()
+        stat = Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=p, goals=3, assists=0
+        )
+        away_stat = Stat.objects.create(
+            matchup=self.matchup, team=self.away_team, player=p, goals=1, assists=0
+        )
+        self.client.post(self._url(), self._post())
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        self.assertEqual(home.goals_for, 3)
+
+        # Second save: mark every stat row for deletion via the inline.
+        self.client.post(
+            self._url(),
+            self._post(
+                **{
+                    "stat_set-TOTAL_FORMS": "2",
+                    "stat_set-INITIAL_FORMS": "2",
+                    "stat_set-0-id": stat.pk,
+                    "stat_set-0-matchup": self.matchup.pk,
+                    "stat_set-0-player": p.pk,
+                    "stat_set-0-team": self.home_team.pk,
+                    "stat_set-0-goals": "3",
+                    "stat_set-0-assists": "0",
+                    "stat_set-0-DELETE": "on",
+                    "stat_set-1-id": away_stat.pk,
+                    "stat_set-1-matchup": self.matchup.pk,
+                    "stat_set-1-player": p.pk,
+                    "stat_set-1-team": self.away_team.pk,
+                    "stat_set-1-goals": "1",
+                    "stat_set-1-assists": "0",
+                    "stat_set-1-DELETE": "on",
+                }
+            ),
+        )
+        home.refresh_from_db()
+        self.assertEqual(home.goals_for, 0)
+        self.assertEqual(home.goals_against, 0)
+
+    def test_deleting_some_stats_reduces_gf(self):
+        """Deleting one stat row reduces GF by that player's goals on the next save."""
+        p1 = self._player("A")
+        p2 = self._player("B")
+        Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=p1, goals=2, assists=0
+        )
+        stat2 = Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=p2, goals=1, assists=0
+        )
+        self.client.post(self._url(), self._post())
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        self.assertEqual(home.goals_for, 3)
+
+        # Delete one stat directly (e.g. via the Stat admin), then re-save the
+        # matchup. stat_qs.exists() is still True (stat1 remains) so the normal
+        # recompute path runs and drops GF from 3 to 2.
+        stat2.delete()
+        self.client.post(self._url(), self._post())
+        home.refresh_from_db()
+        self.assertEqual(home.goals_for, 2)
+
     def test_ga_accumulates_across_all_season_opponents(self):
         """GA is the total of all goals conceded all season, not just tonight's opponent."""
         third_team = Team.objects.create(
@@ -594,3 +666,101 @@ class MatchUpAdminShootoutSaveTest(TestCase):
         )
         self.matchup.refresh_from_db()
         self.assertIsNone(self.matchup.shootout_winner_is_home)
+
+
+class MatchUpAdminPriorGFGAContextTest(TestCase):
+    """
+    The change form passes per-team "prior" GF/GA (every game this
+    season/division except tonight's) to the GF/GA auto-fill JS.
+
+    Regression: GA must sum the goals scored by *every* opponent across the
+    team's games, not tonight's opponent's season-total goals. With multiple
+    opponents the old code reported the wrong GA (e.g. a team that conceded
+    2 + 8 + 2 = 12 was told its GA "should" be tonight's opponent's 4 goals).
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.tonight_opponent,  # "away" team in tonight's game
+            self.team,  # team of interest ("home" tonight) — the Vita Dipas
+            self.tonight_matchup,
+        ) = _make_fixture()
+
+    def _player(self, name):
+        return Player.objects.create(first_name=name, last_name="X", is_active=True)
+
+    def _team(self, name):
+        return Team.objects.create(
+            team_name=name,
+            team_color="Green",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+
+    def _matchup(self, home, away):
+        return MatchUp.objects.create(
+            week=self.week, hometeam=home, awayteam=away, time=datetime.time(11, 0)
+        )
+
+    def _goals(self, matchup, team, goals):
+        Stat.objects.create(
+            matchup=matchup,
+            team=team,
+            player=self._player(f"{team.team_name}-{matchup.pk}"),
+            goals=goals,
+            assists=0,
+        )
+
+    def test_prior_ga_sums_all_opponents_not_tonight_opponent(self):
+        opp_a = self._team("Opp A")
+        opp_b = self._team("Opp B")
+
+        # Prior game 1: team won 4-2 (team at home).
+        g1 = self._matchup(home=self.team, away=opp_a)
+        self._goals(g1, self.team, 4)
+        self._goals(g1, opp_a, 2)
+
+        # Prior game 2: team lost 3-8 (team on the road — exercises the
+        # Q(awayteam=team) branch of the prior-games query).
+        g2 = self._matchup(home=opp_b, away=self.team)
+        self._goals(g2, self.team, 3)
+        self._goals(g2, opp_b, 8)
+
+        # Tonight's opponent has only scored 2 goals all season; the old GA
+        # logic would wrongly suggest the team's GA is 2.
+        self._goals(self.tonight_matchup, self.tonight_opponent, 2)
+
+        resp = self.client.get(
+            reverse("admin:leagues_matchup_change", args=[self.tonight_matchup.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        prior = json.loads(resp.context["stat_prior_json"])
+
+        # Team is the "home" side tonight. Prior GF = 4 + 3 = 7.
+        self.assertEqual(prior["home_gf"], 7)
+        # Prior GA = goals from BOTH opponents = 2 + 8 = 10 (not tonight's 2).
+        self.assertEqual(prior["home_ga"], 10)
+
+    def test_prior_excludes_tonights_matchup(self):
+        # Stats already saved for tonight must NOT be counted in the prior
+        # totals (the JS adds tonight's goals separately from the live form).
+        self._goals(self.tonight_matchup, self.team, 5)
+        self._goals(self.tonight_matchup, self.tonight_opponent, 1)
+
+        resp = self.client.get(
+            reverse("admin:leagues_matchup_change", args=[self.tonight_matchup.pk])
+        )
+        prior = json.loads(resp.context["stat_prior_json"])
+        self.assertEqual(prior["home_gf"], 0)
+        self.assertEqual(prior["home_ga"], 0)
+        self.assertEqual(prior["away_gf"], 0)
+        self.assertEqual(prior["away_ga"], 0)

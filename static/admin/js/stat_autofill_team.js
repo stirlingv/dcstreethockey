@@ -4,13 +4,12 @@
     var playerTeamMap   = (typeof statPlayerTeamMap  !== 'undefined') ? statPlayerTeamMap  : {};
     var homeTeamId      = (typeof statHomeTeamId     !== 'undefined') ? String(statHomeTeamId) : null;
     var awayTeamId      = (typeof statAwayTeamId     !== 'undefined') ? String(statAwayTeamId) : null;
-    // Goals already committed to the DB for this specific game (per team).
-    var tonightSaved    = (typeof statTonightSaved   !== 'undefined') ? statTonightSaved   : { home: 0, away: 0 };
-    // Sum of all Stat.goals this season/division for each team (all games, from DB).
-    var seasonGoals     = (typeof statSeasonGoals    !== 'undefined') ? statSeasonGoals    : { home: 0, away: 0 };
-
-    // Baselines are the GF/GA values present in the form at page load.
-    var baseline = {};
+    // Prior GF/GA per team: totals from every game this season/division
+    // EXCEPT tonight's, computed server-side. GA already accounts for all
+    // opponents across the team's games, so it is correct in a multi-team
+    // division. Tonight's goals are added live from the form below.
+    var statPriorVals   = (typeof statPrior !== 'undefined') ? statPrior
+        : { home_gf: 0, home_ga: 0, away_gf: 0, away_ga: 0 };
 
     // ── Team autofill ─────────────────────────────────────────────────────
 
@@ -35,6 +34,9 @@
         document.querySelectorAll('[name^="stat_set-"][name$="-goals"]').forEach(function (input) {
             var m = input.name.match(/^stat_set-(\d+)-goals$/);
             if (!m) return;
+            // Exclude rows the user has marked for deletion.
+            var del = document.querySelector('[name="stat_set-' + m[1] + '-DELETE"]');
+            if (del && del.checked) return;
             var teamSel = document.querySelector('[name="stat_set-' + m[1] + '-team"]');
             if (!teamSel || !teamSel.value) return;
             var tid = String(teamSel.value);
@@ -47,43 +49,54 @@
         return totals;
     }
 
-    // ── Suggestion logic ──────────────────────────────────────────────────
-    //
-    // Suggested GF = (season goals from all Stat records)
-    //              - (tonight's goals already saved in DB)
-    //              + (tonight's goals currently in the form)
-    //
-    // This stays correct on re-visits: the saved goals cancel out so they
-    // aren't counted twice, and edits in the form are reflected live.
-    //
-    // Guard: if season stats < current GF, previous games are missing stats
-    // and any suggestion would be wrong — hide it silently.
+    function readField(name) {
+        var el = document.querySelector('[name="' + name + '"]');
+        return el ? (parseInt(el.value, 10) || 0) : 0;
+    }
 
-    function setSuggestion(spanId, seasonStat, savedTonight, formTonight, currentVal) {
+    // ── GF/GA auto-fill ───────────────────────────────────────────────────
+    //
+    // Suggested value = (this stat from all prior games this season)
+    //                 + (tonight's goals currently in the form)
+    //
+    // For GF, "prior games" is the team's own goals; for GA it is the goals
+    // scored by every opponent in the team's games. Both come pre-computed
+    // from the server (statPrior), so tonight's matchup is never double-counted.
+    //
+    // When the suggestion matches or exceeds the stored value, auto-fill the
+    // input so GF/GA stay in sync as player stats are entered.
+    //
+    // Guard: if the suggestion is LOWER than the stored value, some past games
+    // have no player stats entered yet — the higher stored value is more
+    // accurate, so we warn instead of overwriting.
+
+    function applyFieldUpdate(spanId, inputName, priorGames, formTonight) {
         var span = document.getElementById(spanId);
+        var input = document.querySelector('[name="' + inputName + '"]');
         if (!span) return;
 
-        if (seasonStat < currentVal) {
-            // Goal records are lower than the stored value — manual entry likely occurred.
-            span.textContent = '⚠ Goal records total ' + seasonStat +
-                '; differs from stored value — manual entry may have occurred.';
+        var currentVal = input ? (parseInt(input.value, 10) || 0) : 0;
+        var suggested  = priorGames + formTonight;
+
+        if (suggested < currentVal) {
+            // Stats on record add up to less than the stored value — this means
+            // some past games were entered without player stats. Don't overwrite;
+            // warn the user so they know why the numbers don't match.
+            span.innerHTML =
+                '⚠ Player stats total <strong>' + suggested + '</strong> goals this season' +
+                ' (' + priorGames + ' from prior games + ' + formTonight + ' tonight),' +
+                ' but this field is set to <strong>' + currentVal + '</strong>.' +
+                ' Some past games may be missing player stats—the higher value is likely correct.';
             span.style.color = '#92400e';
             span.style.display = 'block';
             return;
         }
 
-        span.style.color = '#555';
-        var adjustedBaseline = seasonStat - savedTonight;
-        var suggested = adjustedBaseline + formTonight;
-
-        if (suggested === currentVal) {
-            span.style.display = 'none';
-            return;
+        // Stats account for the stored value: auto-fill and clear any warning.
+        if (input && suggested !== currentVal) {
+            input.value = suggested;
         }
-
-        span.textContent = 'Suggested: ' + suggested +
-            ' (' + adjustedBaseline + ' + ' + formTonight + ' tonight)';
-        span.style.display = 'block';
+        span.style.display = 'none';
     }
 
     function updateSuggestions() {
@@ -92,17 +105,16 @@
         var homeTonight = totals[homeTeamId] || 0;
         var awayTonight = totals[awayTeamId] || 0;
 
-        // GF = own goals
-        setSuggestion('home-gf-suggestion',
-            seasonGoals.home, tonightSaved.home, homeTonight, baseline.homeGF);
-        setSuggestion('away-gf-suggestion',
-            seasonGoals.away, tonightSaved.away, awayTonight, baseline.awayGF);
-
-        // GA = opponent's goals
-        setSuggestion('home-ga-suggestion',
-            seasonGoals.away, tonightSaved.away, awayTonight, baseline.homeGA);
-        setSuggestion('away-ga-suggestion',
-            seasonGoals.home, tonightSaved.home, homeTonight, baseline.awayGA);
+        // GF = own goals tonight; GA = tonight's opponent's goals.
+        // (Home's opponent tonight is the away team, and vice versa.)
+        applyFieldUpdate('home-gf-suggestion', 'home_stat-goals_for',
+            statPriorVals.home_gf, homeTonight);
+        applyFieldUpdate('away-gf-suggestion', 'away_stat-goals_for',
+            statPriorVals.away_gf, awayTonight);
+        applyFieldUpdate('home-ga-suggestion', 'home_stat-goals_against',
+            statPriorVals.home_ga, awayTonight);
+        applyFieldUpdate('away-ga-suggestion', 'away_stat-goals_against',
+            statPriorVals.away_ga, homeTonight);
     }
 
     // ── Player select: Select2 for mobile-friendly search ─────────────────
@@ -122,7 +134,7 @@
         if (jq(selectEl).data('select2')) return;
         jq(selectEl).select2({
             width: '100%',
-            placeholder: 'Search players\u2026',
+            placeholder: 'Search players…',
             allowClear: true,
         });
     }
@@ -132,8 +144,6 @@
             'select[name^="stat_set-"][name$="-player"]'
         ).forEach(applySelect2ToPlayerSelect);
     }
-
-    // ── Initialisation ────────────────────────────────────────────────────
 
     // ── Shootout section show/hide ─────────────────────────────────────────
     //
@@ -152,15 +162,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        var read = function (name) {
-            var el = document.querySelector('[name="' + name + '"]');
-            return el ? (parseInt(el.value, 10) || 0) : 0;
-        };
-        baseline.homeGF = read('home_stat-goals_for');
-        baseline.homeGA = read('home_stat-goals_against');
-        baseline.awayGF = read('away_stat-goals_for');
-        baseline.awayGA = read('away_stat-goals_against');
-
         updateSuggestions();
         updateShootoutVisibility();
     });
@@ -189,7 +190,7 @@
         if (/^stat_set-\d+-player$/.test(name)) {
             autofillTeam(e.target);
             updateSuggestions();
-        } else if (/^stat_set-\d+-team$/.test(name) || /^stat_set-\d+-goals$/.test(name)) {
+        } else if (/^stat_set-\d+-team$/.test(name) || /^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-DELETE$/.test(name)) {
             updateSuggestions();
         } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
             updateShootoutVisibility();

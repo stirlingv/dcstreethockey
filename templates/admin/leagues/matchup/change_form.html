@@ -6,16 +6,21 @@
   {% if home_team_id and away_team_id %}
   var statHomeTeamId = {{ home_team_id }};
   var statAwayTeamId = {{ away_team_id }};
-  var statTonightSaved = {{ stat_tonight_json|safe }};
-  var statSeasonGoals  = {{ stat_season_json|safe }};
+  var statPrior = {{ stat_prior_json|safe }};
   {% endif %}
 </script>
 {% endif %}
 {{ block.super }}
 {% endblock %}
 
-{% block after_field_sets %}
+{% block after_field_sets %}{% endblock %}
+
+{% block inline_field_sets %}
+{{ block.super }}
 {% if home_stat_form and away_stat_form %}
+<p style="font-size:12px;color:#555;margin:8px 0 16px;padding:8px 12px;background:#f0f6fb;border-left:3px solid #417690;">
+  Goals For and Goals Against in the Game Outcome section below will update automatically as you enter player stats above.
+</p>
 <style>
   .game-outcome-module { margin-bottom: 24px; }
   .game-outcome-module h2 {
@@ -90,7 +95,9 @@
   .stat-suggestion {
     font-size: 11px;
     color: #555;
-    white-space: nowrap;
+    white-space: normal;
+    max-width: 280px;
+    line-height: 1.4;
     display: none;
   }
   .outcome-errors {
