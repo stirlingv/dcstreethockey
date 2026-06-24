@@ -2177,3 +2177,86 @@ class StatsEntryWidgetTest(TestCase):
         self.assertIn("What do these labels mean?", rendered)
         # Desktop hover tooltips are still present on the status badges.
         self.assertIn("title=", rendered)
+
+    # ------------------------------------------------------------------
+    # Postseason tests
+    # ------------------------------------------------------------------
+
+    def _postseason_matchup(self, week):
+        return MatchUp.objects.create(
+            week=week,
+            time=datetime.time(20, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+            is_postseason=True,
+        )
+
+    def test_playoff_game_never_flagged_outcome_missing(self):
+        """A playoff game has no standings outcome, so it's never outcome_missing."""
+        week = self._week(delta=1)
+        game = self._postseason_matchup(week)
+        self._add_stat(game, self.team1, goals=2)
+        self._add_stat(game, self.team2, goals=1)
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertFalse(match.outcome_missing)
+        self.assertTrue(match.is_playoff)
+
+    def test_regular_game_not_flagged_when_team_also_has_playoff_game(self):
+        """
+        Regression: a playoff game with stats must not make the team's regular
+        games show 'Outcome Needed'. Playoff games no longer write Team_Stat, so
+        counting them among games-with-stats made GP < stat_games season-wide.
+        """
+        reg_week = self._week(delta=3)
+        reg_game = self._matchup(reg_week)
+        self._add_stat(reg_game, self.team1, goals=1)
+        self._add_stat(reg_game, self.team2, goals=2)
+        # Regular outcome fully recorded: GP=1 for both teams.
+        self._add_team_stat(self.team1, loss=1)
+        self._add_team_stat(self.team2, win=1)
+
+        # Playoff game this season with stats — must not pollute the count.
+        post_week = self._week(delta=1)
+        post_game = self._postseason_matchup(post_week)
+        self._add_stat(post_game, self.team1, goals=3)
+        self._add_stat(post_game, self.team2, goals=2)
+
+        ctx = self._call_widget()
+        reg_match = self._game_from_ctx(ctx, reg_game)
+        self.assertFalse(reg_match.outcome_missing)
+
+    def test_playoff_game_does_not_trigger_division_outcome_needed(self):
+        """A division with only a (complete) playoff game shows no Outcome Needed."""
+        week = self._week(delta=1)
+        game = self._postseason_matchup(week)
+        self._add_stat(game, self.team1, goals=2)
+        self._add_stat(game, self.team2, goals=1)
+        ctx = self._call_widget()
+        game_date = self.today - datetime.timedelta(days=1)
+        div_info = ctx["grouped_games"][game_date]["divisions"][0]
+        self.assertFalse(div_info["outcome_needed"])
+
+    def test_playoff_game_still_flags_missing_goalie_stats(self):
+        """The goalie-stats check still applies to playoff games."""
+        week = self._week(delta=1)
+        game = self._postseason_matchup(week)
+        self._add_stat(game, self.team1, goals=2)  # away scored, home has no GA
+        ctx = self._call_widget()
+        match = self._game_from_ctx(ctx, game)
+        self.assertTrue(match.goalie_missing)
+
+    def test_playoff_game_renders_playoff_badge_not_outcome(self):
+        """A playoff game shows a Playoff badge, not the misleading 'Outcome' one."""
+        from django.template import Context, Template
+
+        week = self._week(delta=1)
+        game = self._postseason_matchup(week)
+        self._add_stat(game, self.team1, goals=2)
+        self._add_stat(game, self.team2, goals=1)
+        rendered = Template(
+            "{% load admin_quick_cancel %}{% stats_entry_widget %}"
+        ).render(Context({}))
+        self.assertIn("se-playoff-badge", rendered)
+        # The "recorded in the standings" outcome badge must not appear for it.
+        self.assertNotIn("This game's result is recorded in the standings.", rendered)

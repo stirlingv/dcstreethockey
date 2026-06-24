@@ -96,7 +96,10 @@ def stats_entry_widget():
             div_ids.add(m.week.division_id)
             season_ids.add(m.week.season_id)
 
-        # Count distinct matchups-with-stats per (team, division, season) — season-wide
+        # Count distinct matchups-with-stats per (team, division, season) — season-wide.
+        # Exclude postseason: playoff games don't write Team_Stat, so counting
+        # them here would make games-with-stats exceed Team_Stat games-played and
+        # wrongly flag the team's games as "Outcome Needed".
         stat_game_counts = {
             (
                 row["team_id"],
@@ -110,6 +113,7 @@ def stats_entry_widget():
                 matchup__is_cancelled=False,
                 team_id__in=team_ids,
             )
+            .exclude(matchup__is_postseason=True)
             .values(
                 "team_id",
                 "matchup__week__division_id",
@@ -145,9 +149,24 @@ def stats_entry_widget():
         }
 
         for m in matchups:
+            m.is_playoff = m.is_postseason
             if m.stat_count == 0:
                 m.outcome_missing = False
                 m.goalie_missing = False
+                continue
+
+            # Goalie-stats check applies to every game with stats, playoffs
+            # included (playoff goalie stats feed the postseason GAA scope).
+            home_gf, home_ga = gf_ga_by_matchup_team.get((m.pk, m.hometeam_id), (0, 0))
+            away_gf, away_ga = gf_ga_by_matchup_team.get((m.pk, m.awayteam_id), (0, 0))
+            # Home conceded the away team's goals (and vice versa).
+            home_goalie_missing = away_gf > 0 and home_ga == 0
+            away_goalie_missing = home_gf > 0 and away_ga == 0
+            m.goalie_missing = home_goalie_missing or away_goalie_missing
+
+            # Playoff games have no standings outcome to record.
+            if m.is_postseason:
+                m.outcome_missing = False
                 continue
             key_home = (m.hometeam_id, m.week.division_id, m.week.season_id)
             key_away = (m.awayteam_id, m.week.division_id, m.week.season_id)
@@ -156,15 +175,9 @@ def stats_entry_widget():
             home_stat_games = stat_game_counts.get(key_home, 0)
             away_stat_games = stat_game_counts.get(key_away, 0)
             m.outcome_missing = home_gp < home_stat_games or away_gp < away_stat_games
-
-            home_gf, home_ga = gf_ga_by_matchup_team.get((m.pk, m.hometeam_id), (0, 0))
-            away_gf, away_ga = gf_ga_by_matchup_team.get((m.pk, m.awayteam_id), (0, 0))
-            # Home conceded the away team's goals (and vice versa).
-            home_goalie_missing = away_gf > 0 and home_ga == 0
-            away_goalie_missing = home_gf > 0 and away_ga == 0
-            m.goalie_missing = home_goalie_missing or away_goalie_missing
     else:
         for m in matchups:
+            m.is_playoff = m.is_postseason
             m.outcome_missing = False
             m.goalie_missing = False
 
