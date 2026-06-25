@@ -1,4 +1,5 @@
 from collections import OrderedDict, namedtuple
+from decimal import ROUND_HALF_UP, Decimal
 
 import numpy as np
 from dal import autocomplete
@@ -81,9 +82,9 @@ def get_player_stats(players, season, scope="regular"):
                 Case(
                     When(
                         stat__team=F("roster__team"),
-                        stat__team__season__id=season
-                        if season != 0
-                        else F("roster__team__season__id"),
+                        stat__team__season__id=(
+                            season if season != 0 else F("roster__team__season__id")
+                        ),
                         then=F("stat__goals"),
                     ),
                     default=0,
@@ -94,9 +95,9 @@ def get_player_stats(players, season, scope="regular"):
                 Case(
                     When(
                         stat__team=F("roster__team"),
-                        stat__team__season__id=season
-                        if season != 0
-                        else F("roster__team__season__id"),
+                        stat__team__season__id=(
+                            season if season != 0 else F("roster__team__season__id")
+                        ),
                         then=F("stat__assists"),
                     ),
                     default=0,
@@ -107,9 +108,9 @@ def get_player_stats(players, season, scope="regular"):
                 Case(
                     When(
                         stat__team=F("roster__team"),
-                        stat__team__season__id=season
-                        if season != 0
-                        else F("roster__team__season__id"),
+                        stat__team__season__id=(
+                            season if season != 0 else F("roster__team__season__id")
+                        ),
                         then=F("stat__assists") + F("stat__goals"),
                     ),
                     default=0,
@@ -120,9 +121,9 @@ def get_player_stats(players, season, scope="regular"):
                 Case(
                     When(
                         stat__team=F("roster__team"),
-                        stat__team__season__id=season
-                        if season != 0
-                        else F("roster__team__season__id"),
+                        stat__team__season__id=(
+                            season if season != 0 else F("roster__team__season__id")
+                        ),
                         then=F("stat__goals_against") - F("stat__empty_net"),
                     ),
                     default=0,
@@ -133,9 +134,9 @@ def get_player_stats(players, season, scope="regular"):
                 Case(
                     When(
                         stat__team=F("roster__team"),
-                        stat__team__season__id=season
-                        if season != 0
-                        else F("roster__team__season__id"),
+                        stat__team__season__id=(
+                            season if season != 0 else F("roster__team__season__id")
+                        ),
                         then=1,
                     ),
                     default=0,
@@ -160,6 +161,111 @@ def get_player_stats(players, season, scope="regular"):
             )
         )
     )
+
+
+def get_division_leader_stats(division, season, scope="regular"):
+    """Return league-leader rows for a single division at the natural grain.
+
+    This powers the League Leaders page. The older ``get_player_stats`` joins
+    *every* Stat row for each player and selects the relevant ones with a
+    ``CASE`` expression, which on production data expands into a cartesian
+    product of each player's roster history and their entire stat history
+    (~175x more rows than the ~4k meaningful (player, team) groups, per
+    division). That made the per-season page take ~1s+ of pure DB time.
+
+    Instead we aggregate stats once at the (player, team) grain -- the grain
+    they are actually stored at -- and merge those totals onto the roster rows
+    that decide which players are shown. This is equivalent to the old
+    ``get_player_stats(...).filter(sum_games_played__gte=1)`` because:
+
+    * Roster rows define the visible (player, team) pairs (same as before).
+    * Stat pairs without a roster row were never shown, and still aren't.
+    * Roster rows without any matching stat have ``sum_games_played == 0`` and
+      were dropped by the old ``__gte=1`` filter -- here they simply have no
+      aggregate to attach and are skipped.
+
+    The output dicts use the same keys the old view produced (``roster__*``
+    prefixes included) so ``partials/stats.html`` renders unchanged.
+    """
+    scope_value = normalize_stat_scope(scope, default="regular")
+
+    roster_qs = Roster.objects.filter(team__division=division)
+    stat_qs = Stat.objects.filter(team__division=division)
+    if season == 0:
+        # season 0 == "current": old code only counted stats on active teams.
+        roster_qs = roster_qs.filter(team__is_active=True)
+        stat_qs = stat_qs.filter(team__is_active=True)
+    else:
+        roster_qs = roster_qs.filter(team__season__id=season)
+        stat_qs = stat_qs.filter(team__season__id=season)
+
+    stat_qs = filter_stats_by_scope(stat_qs, scope_value)
+
+    # One grouped aggregate per (player, team) -- no cartesian product.
+    stat_totals = {
+        (row["player"], row["team"]): row
+        for row in stat_qs.values("player", "team").annotate(
+            sum_goals=Sum("goals"),
+            sum_assists=Sum("assists"),
+            total_points=Sum(F("goals") + F("assists")),
+            sum_goals_against=Sum(F("goals_against") - F("empty_net")),
+            sum_games_played=Count("id"),
+        )
+    }
+
+    roster_rows = roster_qs.values(
+        "player",
+        "player__first_name",
+        "player__last_name",
+        "team",
+        "team__team_name",
+        "position1",
+        "position2",
+        "is_captain",
+    )
+
+    results = []
+    for roster_row in roster_rows:
+        totals = stat_totals.get((roster_row["player"], roster_row["team"]))
+        if totals is None:
+            continue  # no games played -> excluded, matching sum_games_played>=1
+        games = totals["sum_games_played"] or 0
+        goals_against = totals["sum_goals_against"] or 0
+        if games:
+            average_goals_against = (Decimal(goals_against) / Decimal(games)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        else:
+            average_goals_against = Decimal("0.00")
+        results.append(
+            {
+                "id": roster_row["player"],
+                "first_name": roster_row["player__first_name"],
+                "last_name": roster_row["player__last_name"],
+                "roster__team__team_name": roster_row["team__team_name"],
+                "roster__team__id": roster_row["team"],
+                "roster__position1": roster_row["position1"],
+                "roster__position2": roster_row["position2"],
+                "roster__is_captain": roster_row["is_captain"],
+                "sum_goals": totals["sum_goals"],
+                "sum_assists": totals["sum_assists"],
+                "total_points": totals["total_points"],
+                "sum_goals_against": goals_against,
+                "sum_games_played": games,
+                "rounded_average_goals_against": average_goals_against,
+            }
+        )
+
+    # Mirror the old ordering: best (lowest) GAA first, then most points/goals/assists.
+    results.sort(
+        key=lambda row: (
+            row["rounded_average_goals_against"],
+            -row["total_points"],
+            -row["sum_goals"],
+            -row["sum_assists"],
+        )
+    )
+    return results
 
 
 def namedtuplefetchall(cursor):
@@ -697,20 +803,9 @@ class PlayerStatDetailView(ListView):
 
         divisions = Division.objects.all()
         for div in divisions:
-            players = Player.objects.filter(roster__team__division=div).select_related(
-                "roster__team"
+            context["player_stat_list"][str(div)] = get_division_leader_stats(
+                div, context["active_season"], scope=stat_scope
             )
-            player_stats = (
-                get_player_stats(players, context["active_season"], scope=stat_scope)
-                .filter(sum_games_played__gte=1)
-                .order_by(
-                    "rounded_average_goals_against",
-                    "-total_points",
-                    "-sum_goals",
-                    "-sum_assists",
-                )
-            )
-            context["player_stat_list"][str(div)] = player_stats
 
         return context
 

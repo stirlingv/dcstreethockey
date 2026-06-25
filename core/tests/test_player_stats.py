@@ -79,12 +79,12 @@ class PlayerStatsLogicTestCase(TestCase):
             "total_points": goals + assists,
             "sum_goals_against": goals_against,
             "sum_games_played": games_played,
-            "average_goals_against": goals_against / games_played
-            if games_played > 0
-            else 0.0,
-            "rounded_average_goals_against": round(goals_against / games_played, 2)
-            if games_played > 0
-            else 0.0,
+            "average_goals_against": (
+                goals_against / games_played if games_played > 0 else 0.0
+            ),
+            "rounded_average_goals_against": (
+                round(goals_against / games_played, 2) if games_played > 0 else 0.0
+            ),
         }
         return player_stat
 
@@ -529,6 +529,293 @@ class StatScopeAveragesTestCase(TestCase):
         self.assertEqual(regular["average_assists_per_season"], 2)
         self.assertEqual(postseason["average_goals_per_season"], 1)
         self.assertEqual(postseason["average_assists_per_season"], 0.5)
+
+
+class DivisionLeaderStatsTestCase(TestCase):
+    """Tests for get_division_leader_stats, which powers the League Leaders page.
+
+    It replaced a query that joined every Stat row per player and selected the
+    relevant ones with a CASE expression (a cartesian blow-up). These tests pin
+    the output to the natural (player, team) grain and guard parity with the old
+    get_player_stats path so the optimization can never silently drift.
+    """
+
+    def setUp(self):
+        from core.views.players import get_division_leader_stats
+
+        self.get_division_leader_stats = get_division_leader_stats
+
+        self.season = Season.objects.create(
+            year=2024, season_type=1, is_current_season=True
+        )
+        self.old_season = Season.objects.create(
+            year=2019, season_type=1, is_current_season=False
+        )
+        self.div1 = Division.objects.create(division=1)
+        self.div2 = Division.objects.create(division=2)
+
+        self.team_a = Team.objects.create(
+            team_name="Alphas",
+            division=self.div1,
+            season=self.season,
+            team_color="red",
+            is_active=True,
+        )
+        self.team_b = Team.objects.create(
+            team_name="Bravos",
+            division=self.div1,
+            season=self.season,
+            team_color="blue",
+            is_active=True,
+        )
+        self.team_d2 = Team.objects.create(
+            team_name="Charlies",
+            division=self.div2,
+            season=self.season,
+            team_color="green",
+            is_active=True,
+        )
+
+        self.forward = Player.objects.create(first_name="Fia", last_name="Forward")
+        self.goalie = Player.objects.create(first_name="Gus", last_name="Goalie")
+        self.captain = Player.objects.create(first_name="Cap", last_name="Tain")
+        self.benched = Player.objects.create(first_name="Ben", last_name="Ched")
+        self.d2_player = Player.objects.create(first_name="Dee", last_name="Two")
+
+        Roster.objects.create(
+            player=self.forward, team=self.team_a, position1=1, is_captain=False
+        )
+        Roster.objects.create(
+            player=self.goalie, team=self.team_a, position1=4, is_captain=False
+        )
+        Roster.objects.create(
+            player=self.captain, team=self.team_b, position1=1, is_captain=True
+        )
+        # Rostered but never plays -> must be excluded from leaders.
+        Roster.objects.create(
+            player=self.benched, team=self.team_a, position1=2, is_captain=False
+        )
+        Roster.objects.create(
+            player=self.d2_player, team=self.team_d2, position1=1, is_captain=False
+        )
+
+        week = Week.objects.create(date="2024-01-07", season=self.season)
+        self.reg_match = MatchUp.objects.create(
+            week=week,
+            time="18:00",
+            awayteam=self.team_a,
+            hometeam=self.team_b,
+            is_postseason=False,
+        )
+        self.reg_match2 = MatchUp.objects.create(
+            week=week,
+            time="19:00",
+            awayteam=self.team_a,
+            hometeam=self.team_b,
+            is_postseason=False,
+        )
+        self.post_match = MatchUp.objects.create(
+            week=week,
+            time="20:00",
+            awayteam=self.team_a,
+            hometeam=self.team_b,
+            is_postseason=True,
+        )
+
+        # Forward: two regular games + one postseason game.
+        Stat.objects.create(
+            player=self.forward,
+            team=self.team_a,
+            matchup=self.reg_match,
+            goals=2,
+            assists=1,
+        )
+        Stat.objects.create(
+            player=self.forward,
+            team=self.team_a,
+            matchup=self.reg_match2,
+            goals=1,
+            assists=3,
+        )
+        Stat.objects.create(
+            player=self.forward,
+            team=self.team_a,
+            matchup=self.post_match,
+            goals=5,
+            assists=5,
+        )
+        # Goalie: two regular games, GA with an empty-net goal that should not count.
+        Stat.objects.create(
+            player=self.goalie,
+            team=self.team_a,
+            matchup=self.reg_match,
+            goals=0,
+            assists=0,
+            goals_against=3,
+            empty_net=1,
+        )
+        Stat.objects.create(
+            player=self.goalie,
+            team=self.team_a,
+            matchup=self.reg_match2,
+            goals=0,
+            assists=0,
+            goals_against=2,
+            empty_net=0,
+        )
+        # Captain on team B.
+        Stat.objects.create(
+            player=self.captain,
+            team=self.team_b,
+            matchup=self.reg_match,
+            goals=4,
+            assists=0,
+        )
+        # D2 player in a different division.
+        Stat.objects.create(
+            player=self.d2_player,
+            team=self.team_d2,
+            matchup=self.reg_match,
+            goals=7,
+            assists=2,
+        )
+
+    def _by_player(self, rows):
+        return {row["id"]: row for row in rows}
+
+    def test_aggregates_goals_assists_points_at_player_team_grain(self):
+        rows = self._by_player(
+            self.get_division_leader_stats(self.div1, self.season.id, scope="regular")
+        )
+        fwd = rows[self.forward.id]
+        # Regular games only: (2+1) goals, (1+3) assists.
+        self.assertEqual(fwd["sum_goals"], 3)
+        self.assertEqual(fwd["sum_assists"], 4)
+        self.assertEqual(fwd["total_points"], 7)
+        self.assertEqual(fwd["sum_games_played"], 2)
+        self.assertEqual(fwd["roster__team__team_name"], "Alphas")
+        self.assertEqual(fwd["roster__team__id"], self.team_a.id)
+
+    def test_goalie_gaa_excludes_empty_net_and_rounds(self):
+        rows = self._by_player(
+            self.get_division_leader_stats(self.div1, self.season.id, scope="regular")
+        )
+        goalie = rows[self.goalie.id]
+        # (3 - 1) + (2 - 0) = 4 goals against over 2 games -> 2.00 GAA.
+        self.assertEqual(goalie["sum_goals_against"], 4)
+        self.assertEqual(goalie["sum_games_played"], 2)
+        self.assertEqual(float(goalie["rounded_average_goals_against"]), 2.0)
+
+    def test_excludes_rostered_player_with_no_stats(self):
+        rows = self._by_player(
+            self.get_division_leader_stats(self.div1, self.season.id, scope="regular")
+        )
+        self.assertNotIn(self.benched.id, rows)
+
+    def test_excludes_stat_without_matching_roster_row(self):
+        orphan = Player.objects.create(first_name="Or", last_name="Phan")
+        Stat.objects.create(
+            player=orphan, team=self.team_a, matchup=self.reg_match, goals=9, assists=9
+        )
+        rows = self._by_player(
+            self.get_division_leader_stats(self.div1, self.season.id, scope="regular")
+        )
+        self.assertNotIn(orphan.id, rows)
+
+    def test_scope_filtering(self):
+        regular = self._by_player(
+            self.get_division_leader_stats(self.div1, self.season.id, scope="regular")
+        )[self.forward.id]
+        postseason = self._by_player(
+            self.get_division_leader_stats(
+                self.div1, self.season.id, scope="postseason"
+            )
+        )[self.forward.id]
+        combined = self._by_player(
+            self.get_division_leader_stats(self.div1, self.season.id, scope="combined")
+        )[self.forward.id]
+
+        self.assertEqual(regular["total_points"], 7)
+        self.assertEqual(postseason["total_points"], 10)
+        self.assertEqual(combined["total_points"], 17)
+        self.assertEqual(combined["sum_games_played"], 3)
+
+    def test_division_isolation(self):
+        d1_ids = {
+            r["id"] for r in self.get_division_leader_stats(self.div1, self.season.id)
+        }
+        d2_ids = {
+            r["id"] for r in self.get_division_leader_stats(self.div2, self.season.id)
+        }
+        self.assertIn(self.forward.id, d1_ids)
+        self.assertNotIn(self.d2_player.id, d1_ids)
+        self.assertEqual(d2_ids, {self.d2_player.id})
+
+    def test_sorted_by_gaa_then_points(self):
+        rows = self.get_division_leader_stats(
+            self.div1, self.season.id, scope="regular"
+        )
+        gaa_then_points = [
+            (r["rounded_average_goals_against"], -r["total_points"]) for r in rows
+        ]
+        self.assertEqual(gaa_then_points, sorted(gaa_then_points))
+
+    def test_current_season_uses_active_teams(self):
+        # season == 0 means "current"; only active-team stats should count.
+        self.team_a.is_active = False
+        self.team_a.save()
+        rows = self._by_player(
+            self.get_division_leader_stats(self.div1, 0, scope="regular")
+        )
+        self.assertNotIn(self.forward.id, rows)  # team A now inactive
+        self.assertIn(self.captain.id, rows)  # team B still active
+
+    def test_query_count_is_bounded(self):
+        # Two queries per division (roster rows + grouped stat aggregate),
+        # independent of how many players or historical stats exist.
+        with self.assertNumQueries(2):
+            self.get_division_leader_stats(self.div1, self.season.id, scope="regular")
+
+    def test_matches_legacy_get_player_stats_output(self):
+        """Regression: new function must equal the old get_player_stats path."""
+        compare_keys = [
+            "id",
+            "first_name",
+            "last_name",
+            "roster__team__team_name",
+            "roster__team__id",
+            "roster__position1",
+            "roster__position2",
+            "roster__is_captain",
+            "sum_goals",
+            "sum_assists",
+            "total_points",
+            "sum_goals_against",
+            "sum_games_played",
+        ]
+
+        def project(rows):
+            return sorted(tuple((k, row[k]) for k in compare_keys) for row in rows)
+
+        for season_arg in (self.season.id, 0):
+            for scope in ("regular", "postseason", "combined"):
+                players = Player.objects.filter(roster__team__division=self.div1)
+                legacy = list(
+                    get_player_stats(players, season_arg, scope=scope)
+                    .filter(sum_games_played__gte=1)
+                    .order_by(
+                        "rounded_average_goals_against",
+                        "-total_points",
+                        "-sum_goals",
+                        "-sum_assists",
+                    )
+                )
+                new = self.get_division_leader_stats(self.div1, season_arg, scope=scope)
+                self.assertEqual(
+                    project(legacy),
+                    project(new),
+                    msg=f"mismatch for season={season_arg} scope={scope}",
+                )
 
 
 if __name__ == "__main__":
