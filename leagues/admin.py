@@ -1995,6 +1995,39 @@ class SeasonSignupAdmin(admin.ModelAdmin):
 
     captain_interest_short.short_description = "Captain?"
 
+    def changelist_view(self, request, extra_context=None):
+        from django.contrib import messages as _messages
+        from django.db.models import Count
+
+        signups = SeasonSignup.objects.all()
+        season_filter = request.GET.get("season__id__exact")
+        if season_filter and season_filter.isdigit():
+            # Season filter applied → only flag duplicates in that season
+            signups = signups.filter(season_id=season_filter)
+        else:
+            # Unfiltered → skip seasons whose draft is already finalized,
+            # so stale duplicates from past seasons don't nag forever
+            signups = signups.exclude(season__draft_session__finalized_at__isnull=False)
+
+        duplicates = (
+            signups.values("season_id", "first_name", "last_name")
+            .annotate(count=Count("id"))
+            .filter(count__gt=1)
+            .order_by("last_name", "first_name")
+        )
+        if duplicates.exists():
+            names = ", ".join(
+                f"{d['first_name']} {d['last_name']}" for d in duplicates[:10]
+            )
+            if duplicates.count() > 10:
+                names += f" + {duplicates.count() - 10} more"
+            _messages.warning(
+                request,
+                f"Potential duplicate signups (same name, different email): {names}. "
+                "Review and merge before running the draw.",
+            )
+        return super().changelist_view(request, extra_context=extra_context)
+
 
 class DraftRoundInline(admin.TabularInline):
     model = DraftRound

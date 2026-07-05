@@ -24,6 +24,7 @@ from .draft_views import (
     email_team_data,
     draft_results_download,
     draft_sessions_list,
+    add_late_signup,
 )
 
 urlpatterns = [
@@ -136,6 +137,11 @@ urlpatterns = [
         "draft/<int:session_pk>/my-team/<uuid:token>/",
         email_team_data,
         name="draft_email_team",
+    ),
+    path(
+        "draft/<int:session_pk>/add-signup/<uuid:token>/",
+        add_late_signup,
+        name="draft_add_late_signup",
     ),
     path(
         "draft/<int:session_pk>/download/",

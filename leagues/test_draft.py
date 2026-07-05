@@ -36,13 +36,14 @@ from leagues.models import (
 )
 from leagues.draft_views import (
     _batch_wednesday_stats,
+    _draft_advisory,
+    _draft_completion_warnings,
     _get_champion_data_for_sessions,
     _get_session_champion,
     _get_wednesday_stats,
     _process_auto_captain_picks,
     _session_state_payload,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared base
@@ -2760,3 +2761,615 @@ class WednesdayStatsGAATests(TestCase):
         )
         batch = _batch_wednesday_stats([non_goalie.id])
         self.assertIsNone(batch[non_goalie.id]["gaa"])
+
+
+# ---------------------------------------------------------------------------
+# _draft_advisory helper
+# ---------------------------------------------------------------------------
+
+
+class DraftAdvisoryTests(DraftTestBase):
+    """Tests for _draft_advisory() signup/slot balance calculation.
+
+    Base fixture: 3 caps + 6 players + 2 goalies = 11 signups.
+    Session: 3 teams, 3 rounds → 9 slots.
+    """
+
+    def test_advisory_reflects_base_fixture(self):
+        # 11 signups, 9 slots → surplus = -2 (2 players won't be drafted)
+        adv = _draft_advisory(self.session)
+        self.assertEqual(adv["total_signups"], 11)
+        self.assertEqual(adv["current_slots"], 9)
+        self.assertEqual(adv["surplus"], -2)
+        self.assertFalse(adv["is_even"])
+        self.assertEqual(adv["recommended_rounds"], 4)  # ceil(11/3)
+
+    def test_even_distribution_when_slots_match(self):
+        # Set num_rounds=4 → 12 slots, still 11 signups → surplus=1 (empty slot)
+        # Test an actually-even case: add 1 more signup for 12 total
+        SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Even",
+            last_name="Out",
+            email="even@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        self.session.num_rounds = 4
+        self.session.save(update_fields=["num_rounds"])
+        adv = _draft_advisory(self.session)
+        self.assertEqual(adv["total_signups"], 12)
+        self.assertEqual(adv["current_slots"], 12)
+        self.assertEqual(adv["surplus"], 0)
+        self.assertTrue(adv["is_even"])
+
+    def test_empty_slots_detected(self):
+        # 11 signups, 3 teams, 5 rounds → 15 slots → surplus = 4
+        self.session.num_rounds = 5
+        self.session.save(update_fields=["num_rounds"])
+        adv = _draft_advisory(self.session)
+        self.assertEqual(adv["surplus"], 4)
+
+    def test_leftover_teams_reported(self):
+        # 11 signups, 3 teams → 11 % 3 = 2 → 2 teams get ceil, 1 team gets floor
+        adv = _draft_advisory(self.session)
+        self.assertEqual(adv["leftover_teams"], 2)
+
+
+# ---------------------------------------------------------------------------
+# _draft_completion_warnings helper
+# ---------------------------------------------------------------------------
+
+
+class DraftCompletionWarningsTests(DraftTestBase):
+    def _fill_draft(self):
+        """Fill all 9 pick slots (3 teams × 3 rounds) with the 9 available signups."""
+        self._complete()
+        all_signups = [self.cap1, self.cap2, self.cap3] + self.players[:6]
+        pick_num = 0
+        for r in range(1, 4):
+            for idx in range(3):
+                signup = all_signups[pick_num]
+                team = [self.team1, self.team2, self.team3][idx]
+                DraftPick.objects.create(
+                    session=self.session,
+                    team=team,
+                    signup=signup,
+                    round_number=r,
+                    pick_number=idx,
+                )
+                pick_num += 1
+
+    def test_no_undrafted_warning_when_all_drafted(self):
+        # Draft all 11 signups across 4 rounds (need 12 slots; add 1 dummy player)
+        # Simpler: just check that with all signups drafted, no undrafted warning fires
+        self._complete()
+        # Add a 12th signup so 3 teams × 4 rounds = 12 slots exactly
+        extra = SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Bonus",
+            last_name="Player",
+            email="bonus@test.com",
+            primary_position=SeasonSignup.POSITION_WING,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        self.session.num_rounds = 4
+        self.session.save(update_fields=["num_rounds"])
+        all_signups = (
+            [
+                self.cap1,
+                self.cap2,
+                self.cap3,
+                self.goalie1,
+                self.goalie2,
+            ]
+            + self.players[:6]
+            + [extra]
+        )
+        # 12 signups — draft them all
+        teams = [self.team1, self.team2, self.team3]
+        idx = 0
+        for r in range(1, 5):
+            for t_idx in range(3):
+                DraftPick.objects.create(
+                    session=self.session,
+                    team=teams[t_idx],
+                    signup=all_signups[idx],
+                    round_number=r,
+                    pick_number=t_idx,
+                )
+                idx += 1
+        warnings = _draft_completion_warnings(self.session)
+        undrafted_warnings = [w for w in warnings if w["type"] == "undrafted_players"]
+        self.assertEqual(len(undrafted_warnings), 0)
+
+    def test_undrafted_players_warning(self):
+        # Draft only cap1; 10 players remain undrafted (base has 11 total)
+        self._complete()
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.cap1,
+            round_number=1,
+            pick_number=0,
+        )
+        warnings = _draft_completion_warnings(self.session)
+        types = [w["type"] for w in warnings]
+        self.assertIn("undrafted_players", types)
+        w = next(x for x in warnings if x["type"] == "undrafted_players")
+        self.assertEqual(w["count"], 10)  # 11 total − 1 drafted = 10
+
+    def test_no_goalie_warning(self):
+        # Completely fill draft but leave no goalies on any team
+        self._complete()
+        # Draft 9 non-goalie signups
+        non_goalies = [self.cap1, self.cap2, self.cap3] + self.players[:6]
+        slots = [
+            (self.team1, 1, 0),
+            (self.team2, 1, 1),
+            (self.team3, 1, 2),
+            (self.team1, 2, 0),
+            (self.team2, 2, 1),
+            (self.team3, 2, 2),
+            (self.team1, 3, 0),
+            (self.team2, 3, 1),
+            (self.team3, 3, 2),
+        ]
+        for i, (team, r, idx) in enumerate(slots):
+            DraftPick.objects.create(
+                session=self.session,
+                team=team,
+                signup=non_goalies[i],
+                round_number=r,
+                pick_number=idx,
+            )
+        warnings = _draft_completion_warnings(self.session)
+        types = [w["type"] for w in warnings]
+        self.assertIn("no_goalie_teams", types)
+        w = next(x for x in warnings if x["type"] == "no_goalie_teams")
+        self.assertEqual(len(w["teams"]), 3)
+
+    def test_no_goalie_warning_suppressed_when_captain_is_goalie(self):
+        self._complete()
+        self.cap1.primary_position = SeasonSignup.POSITION_GOALIE
+        self.cap1.save(update_fields=["primary_position"])
+        # Only draft cap1 so team1 has a goalie-captain; teams 2 & 3 don't
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.cap1,
+            round_number=1,
+            pick_number=0,
+        )
+        warnings = _draft_completion_warnings(self.session)
+        w = next((x for x in warnings if x["type"] == "no_goalie_teams"), None)
+        self.assertIsNotNone(w)
+        # team1 should NOT be in the no-goalie list
+        self.assertNotIn(self.team1.team_name, w["teams"])
+
+    def test_small_roster_warning(self):
+        self._complete()
+        # Draft only 2 picks for team1 (below MIN_ROSTER=8)
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.cap1,
+            round_number=1,
+            pick_number=0,
+        )
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.players[0],
+            round_number=2,
+            pick_number=0,
+        )
+        warnings = _draft_completion_warnings(self.session)
+        types = [w["type"] for w in warnings]
+        self.assertIn("small_rosters", types)
+
+    def test_team_meeting_min_roster_not_flagged_small(self):
+        self._complete()
+        # 8 picks on team1 meets MIN_ROSTER=8; teams 2 & 3 (0 picks) stay flagged
+        signups = [self.cap1, self.goalie1, self.goalie2] + self.players[:5]
+        for r, signup in enumerate(signups, start=1):
+            DraftPick.objects.create(
+                session=self.session,
+                team=self.team1,
+                signup=signup,
+                round_number=r,
+                pick_number=0,
+            )
+        warnings = _draft_completion_warnings(self.session)
+        w = next(x for x in warnings if x["type"] == "small_rosters")
+        self.assertNotIn(self.team1.team_name, w["teams"])
+        self.assertIn(self.team2.team_name, w["teams"])
+        self.assertIn(self.team3.team_name, w["teams"])
+
+    def test_roster_imbalance_warning(self):
+        self._complete()
+        # team1 gets 2 picks, teams 2 & 3 get none → spread of 2 fires
+        for r, signup in enumerate([self.cap1, self.players[0]], start=1):
+            DraftPick.objects.create(
+                session=self.session,
+                team=self.team1,
+                signup=signup,
+                round_number=r,
+                pick_number=0,
+            )
+        warnings = _draft_completion_warnings(self.session)
+        types = [w["type"] for w in warnings]
+        self.assertIn("roster_imbalance", types)
+        w = next(x for x in warnings if x["type"] == "roster_imbalance")
+        self.assertIn(self.team1.team_name, w["message"])
+
+    def test_no_imbalance_warning_for_spread_of_one(self):
+        self._complete()
+        # team1: 2 picks, teams 2 & 3: 1 each → spread of 1 is a normal
+        # outcome when signups don't divide evenly, so no warning
+        picks = [
+            (self.team1, self.cap1, 1, 0),
+            (self.team1, self.players[0], 2, 0),
+            (self.team2, self.cap2, 1, 1),
+            (self.team3, self.cap3, 1, 2),
+        ]
+        for team, signup, r, idx in picks:
+            DraftPick.objects.create(
+                session=self.session,
+                team=team,
+                signup=signup,
+                round_number=r,
+                pick_number=idx,
+            )
+        warnings = _draft_completion_warnings(self.session)
+        types = [w["type"] for w in warnings]
+        self.assertNotIn("roster_imbalance", types)
+
+    def test_completion_warnings_in_state_payload(self):
+        self._complete()
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.cap1,
+            round_number=1,
+            pick_number=0,
+        )
+        payload = _session_state_payload(self.session)
+        self.assertIn("completion_warnings", payload)
+        self.assertIsInstance(payload["completion_warnings"], list)
+
+    def test_no_completion_warnings_when_not_complete(self):
+        self._activate()
+        payload = _session_state_payload(self.session)
+        self.assertEqual(payload["completion_warnings"], [])
+
+
+# ---------------------------------------------------------------------------
+# add_late_signup endpoint
+# ---------------------------------------------------------------------------
+
+
+class AddLateSignupTests(DraftTestBase):
+    def _late_signup_url(self):
+        return reverse(
+            "draft_add_late_signup",
+            args=[self.session.pk, self.session.commissioner_token],
+        )
+
+    def _post(self, **kwargs):
+        data = {
+            "first_name": "New",
+            "last_name": "Player",
+            "email": "new@test.com",
+            "primary_position": SeasonSignup.POSITION_CENTER,
+            "secondary_position": SeasonSignup.POSITION_ONE_THING,
+        }
+        data.update(kwargs)
+        return self.client.post(self._late_signup_url(), data)
+
+    def test_adds_signup_in_draw_state(self):
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+        resp = self._post()
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(SeasonSignup.objects.filter(email="new@test.com").exists())
+
+    def test_adds_signup_in_active_state(self):
+        self._activate()
+        resp = self._post()
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertTrue(data["success"])
+
+    def test_adds_signup_in_paused_state(self):
+        self.session.state = DraftSession.STATE_PAUSED
+        self.session.save(update_fields=["state"])
+        resp = self._post()
+        self.assertEqual(resp.status_code, 200)
+
+    def test_rejected_in_setup_state(self):
+        resp = self._post()
+        self.assertEqual(resp.status_code, 400)
+
+    def test_rejected_in_complete_state(self):
+        self._complete()
+        resp = self._post()
+        self.assertEqual(resp.status_code, 400)
+
+    def test_duplicate_email_rejected(self):
+        self._activate()
+        # cap1 already has email alice@test.com
+        resp = self._post(email="alice@test.com")
+        self.assertEqual(resp.status_code, 400)
+        data = json.loads(resp.content)
+        self.assertIn("already exists", data["error"])
+
+    def test_missing_name_rejected(self):
+        self._activate()
+        resp = self._post(first_name="")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_missing_email_rejected(self):
+        self._activate()
+        resp = self._post(email="")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_invalid_primary_position_rejected(self):
+        self._activate()
+        resp = self._post(primary_position=99)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_system_chat_message_created(self):
+        from leagues.models import DraftChatMessage
+
+        self._activate()
+        self._post()
+        msg = DraftChatMessage.objects.filter(
+            session=self.session, sender_type=DraftChatMessage.SENDER_SYSTEM
+        ).last()
+        self.assertIsNotNone(msg)
+        self.assertIn("New Player", msg.body)
+        self.assertIn("late signup", msg.body)
+
+    def test_signup_appears_in_available_pool(self):
+        self._activate()
+        self._post()
+        count = SeasonSignup.objects.filter(
+            season=self.season, email="new@test.com"
+        ).count()
+        self.assertEqual(count, 1)
+
+    def test_auto_links_existing_player_by_name(self):
+        player = Player.objects.create(first_name="New", last_name="Player")
+        self._activate()
+        self._post()
+        signup = SeasonSignup.objects.get(email="new@test.com")
+        self.assertEqual(signup.linked_player, player)
+
+    def test_wrong_token_returns_404(self):
+        self._activate()
+        import uuid
+
+        bad_url = reverse("draft_add_late_signup", args=[self.session.pk, uuid.uuid4()])
+        resp = self.client.post(
+            bad_url,
+            {
+                "first_name": "X",
+                "last_name": "Y",
+                "email": "xy@test.com",
+                "primary_position": 1,
+                "secondary_position": 0,
+            },
+        )
+        self.assertEqual(resp.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# swap_pick audit trail
+# ---------------------------------------------------------------------------
+
+
+class SwapPickAuditTrailTests(DraftTestBase):
+    def _swap_url(self):
+        return reverse(
+            "draft_swap_pick",
+            args=[self.session.pk, self.session.commissioner_token],
+        )
+
+    def setUp(self):
+        super().setUp()
+        self._complete()
+        # Use non-captain players so cross-team swap is allowed
+        self.pick_a = DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.players[0],
+            round_number=1,
+            pick_number=0,
+        )
+        self.pick_b = DraftPick.objects.create(
+            session=self.session,
+            team=self.team2,
+            signup=self.players[1],
+            round_number=1,
+            pick_number=1,
+        )
+
+    def test_swap_creates_chat_message(self):
+        from leagues.models import DraftChatMessage
+
+        resp = self.client.post(
+            self._swap_url(),
+            {"pick_id": self.pick_a.pk, "new_signup_pk": self.players[1].pk},
+        )
+        self.assertEqual(resp.status_code, 200)
+        msg = DraftChatMessage.objects.filter(
+            session=self.session, sender_type=DraftChatMessage.SENDER_SYSTEM
+        ).last()
+        self.assertIsNotNone(msg)
+        self.assertIn("Swap", msg.body)
+
+    def test_replace_creates_chat_message(self):
+        from leagues.models import DraftChatMessage
+
+        # Replace pick_a with an undrafted player
+        resp = self.client.post(
+            self._swap_url(),
+            {"pick_id": self.pick_a.pk, "new_signup_pk": self.players[2].pk},
+        )
+        self.assertEqual(resp.status_code, 200)
+        msg = DraftChatMessage.objects.filter(
+            session=self.session, sender_type=DraftChatMessage.SENDER_SYSTEM
+        ).last()
+        self.assertIsNotNone(msg)
+        self.assertIn("replaced", msg.body)
+
+    def test_audit_body_includes_both_player_names(self):
+        from leagues.models import DraftChatMessage
+
+        self.client.post(
+            self._swap_url(),
+            {"pick_id": self.pick_a.pk, "new_signup_pk": self.players[1].pk},
+        )
+        msg = DraftChatMessage.objects.filter(
+            session=self.session, sender_type=DraftChatMessage.SENDER_SYSTEM
+        ).last()
+        self.assertIsNotNone(msg)
+        self.assertIn(self.players[0].full_name, msg.body)
+        self.assertIn(self.players[1].full_name, msg.body)
+
+
+# ---------------------------------------------------------------------------
+# Finalize draft warnings in response
+# ---------------------------------------------------------------------------
+
+
+class FinalizeDraftWarningsTests(DraftTestBase):
+    def _finalize_url(self):
+        return reverse(
+            "draft_finalize",
+            args=[self.session.pk, self.session.commissioner_token],
+        )
+
+    def test_finalize_includes_warnings_key(self):
+        self._complete()
+        # Draft only cap1 so undrafted players exist
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.cap1,
+            round_number=1,
+            pick_number=0,
+        )
+        resp = self.client.post(self._finalize_url())
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertIn("warnings", data)
+        self.assertIsInstance(data["warnings"], list)
+
+    def test_finalize_warns_about_undrafted_players(self):
+        self._complete()
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.cap1,
+            round_number=1,
+            pick_number=0,
+        )
+        resp = self.client.post(self._finalize_url())
+        data = json.loads(resp.content)
+        types = [w["type"] for w in data["warnings"]]
+        self.assertIn("undrafted_players", types)
+
+    def test_finalize_response_always_includes_warnings_key(self):
+        # Verify the key is always present regardless of content
+        self._complete()
+        DraftPick.objects.create(
+            session=self.session,
+            team=self.team1,
+            signup=self.cap1,
+            round_number=1,
+            pick_number=0,
+        )
+        resp = self.client.post(self._finalize_url())
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertIn("warnings", data)
+        self.assertIsInstance(data["warnings"], list)
+
+
+# ---------------------------------------------------------------------------
+# SeasonSignup admin duplicate banner
+# ---------------------------------------------------------------------------
+
+
+class SeasonSignupAdminDuplicateBannerTests(DraftTestBase):
+    BANNER_TEXT = "Potential duplicate signups"
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.changelist_url = reverse("admin:leagues_seasonsignup_changelist")
+
+    def _add_duplicate(self, season, first="Dup", last="Player"):
+        for i in range(2):
+            SeasonSignup.objects.create(
+                season=season,
+                first_name=first,
+                last_name=last,
+                email=f"{first.lower()}{i}@test.com",
+                primary_position=SeasonSignup.POSITION_CENTER,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_NO,
+            )
+
+    def _finalized_season(self):
+        from django.utils import timezone
+
+        season = Season.objects.create(
+            year=datetime.date.today().year - 1,
+            season_type=4,
+            is_current_season=False,
+        )
+        DraftSession.objects.create(
+            season=season,
+            num_teams=3,
+            num_rounds=3,
+            state=DraftSession.STATE_COMPLETE,
+            finalized_at=timezone.now(),
+        )
+        return season
+
+    def test_banner_shown_for_unfinalized_season_duplicates(self):
+        self._add_duplicate(self.season)
+        resp = self.client.get(self.changelist_url)
+        self.assertContains(resp, self.BANNER_TEXT)
+
+    def test_no_banner_when_no_duplicates(self):
+        resp = self.client.get(self.changelist_url)
+        self.assertNotContains(resp, self.BANNER_TEXT)
+
+    def test_finalized_season_duplicates_ignored_when_unfiltered(self):
+        season = self._finalized_season()
+        self._add_duplicate(season)
+        resp = self.client.get(self.changelist_url)
+        self.assertNotContains(resp, self.BANNER_TEXT)
+
+    def test_finalized_season_duplicates_shown_when_filtered_to_it(self):
+        season = self._finalized_season()
+        self._add_duplicate(season)
+        resp = self.client.get(self.changelist_url, {"season__id__exact": season.pk})
+        self.assertContains(resp, self.BANNER_TEXT)
+
+    def test_filter_scopes_to_selected_season(self):
+        # Duplicate lives in the base (unfinalized) season; filtering to a
+        # different season should not surface it
+        other = self._finalized_season()
+        self._add_duplicate(self.season)
+        resp = self.client.get(self.changelist_url, {"season__id__exact": other.pk})
+        self.assertNotContains(resp, self.BANNER_TEXT)

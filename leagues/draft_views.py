@@ -29,7 +29,6 @@ from .models import (
     Team_Stat,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -234,6 +233,134 @@ def _batch_wednesday_stats(player_ids):
     return result
 
 
+def _draft_advisory(session):
+    """
+    Compute roster-balance advisory for the commissioner.
+
+    Returns a dict with:
+      total_signups  – all SeasonSignup rows for this season
+      current_slots  – num_teams × num_rounds (how many players will be drafted)
+      surplus        – current_slots − total_signups
+                       positive → empty draft slots at end
+                       negative → players left undrafted
+      recommended_rounds – ceil(total_signups / num_teams)
+      is_even        – True when total_signups divides evenly across teams
+      leftover_teams – how many teams get one extra player when not even
+    """
+    num_teams = session.num_teams or 1
+    total_signups = session.season.signups.count()
+    current_slots = session.num_teams * session.num_rounds
+    surplus = current_slots - total_signups
+    recommended_rounds = (
+        (total_signups + num_teams - 1) // num_teams if num_teams else 0
+    )
+    leftover_teams = total_signups % num_teams if num_teams else 0
+    return {
+        "total_signups": total_signups,
+        "num_teams": session.num_teams,
+        "num_rounds": session.num_rounds,
+        "current_slots": current_slots,
+        "surplus": surplus,
+        "recommended_rounds": recommended_rounds,
+        "is_even": leftover_teams == 0,
+        "leftover_teams": leftover_teams,
+        "players_per_team_min": total_signups // num_teams if num_teams else 0,
+        "players_per_team_max": recommended_rounds,
+    }
+
+
+def _draft_completion_warnings(session):
+    """
+    Return a list of warning dicts for a completed (or near-complete) draft.
+    Covers: undrafted players, teams with no goalie, teams with small
+    rosters, and uneven roster sizes (spread of 2+ players between teams).
+    """
+    warnings = []
+
+    drafted_ids = set(session.picks.values_list("signup_id", flat=True))
+
+    # Undrafted players
+    undrafted = list(
+        session.season.signups.exclude(pk__in=drafted_ids).values(
+            "pk", "first_name", "last_name"
+        )
+    )
+    if undrafted:
+        count = len(undrafted)
+        names = [f"{s['first_name']} {s['last_name']}" for s in undrafted[:5]]
+        name_list = ", ".join(names)
+        if count > 5:
+            name_list += f" +{count - 5} more"
+        warnings.append(
+            {
+                "type": "undrafted_players",
+                "message": f"{count} player{'s' if count != 1 else ''} not drafted: {name_list}",
+                "count": count,
+            }
+        )
+
+    # Teams without a goalie, teams with small rosters, and uneven rosters
+    MIN_ROSTER = 8
+    teams = list(
+        session.teams.select_related("captain").prefetch_related("draft_picks__signup")
+    )
+    no_goalie_teams = []
+    small_teams = []
+    roster_sizes = {}
+    for team in teams:
+        has_goalie = team.captain.is_goalie
+        pick_list = list(team.draft_picks.all())
+        for pick in pick_list:
+            if pick.signup.is_goalie:
+                has_goalie = True
+        if not has_goalie:
+            no_goalie_teams.append(team.team_name)
+        if len(pick_list) < MIN_ROSTER:
+            small_teams.append((team.team_name, len(pick_list)))
+        roster_sizes[team.team_name] = len(pick_list)
+
+    if no_goalie_teams:
+        warnings.append(
+            {
+                "type": "no_goalie_teams",
+                "message": f"No goalie on: {', '.join(no_goalie_teams)}",
+                "teams": no_goalie_teams,
+            }
+        )
+    if small_teams:
+        details = ", ".join(f"{name} ({n})" for name, n in small_teams)
+        warnings.append(
+            {
+                "type": "small_rosters",
+                "message": f"Fewer than {MIN_ROSTER} players: {details}",
+                "teams": [name for name, _ in small_teams],
+            }
+        )
+
+    # A normal draft can only leave a spread of 0 or 1 between rosters
+    # (when signups don't divide evenly), so 2+ means picks were edited
+    # or deleted unevenly.
+    if len(roster_sizes) >= 2:
+        max_size = max(roster_sizes.values())
+        min_size = min(roster_sizes.values())
+        if max_size - min_size >= 2:
+            details = ", ".join(
+                f"{name} ({n})"
+                for name, n in sorted(roster_sizes.items(), key=lambda kv: kv[1])
+            )
+            warnings.append(
+                {
+                    "type": "roster_imbalance",
+                    "message": (
+                        f"Uneven rosters — largest has {max_size}, "
+                        f"smallest has {min_size}: {details}"
+                    ),
+                }
+            )
+
+    return warnings
+
+
 def _signup_payload(signup, stats_cache=None):
     """
     Serialise a SeasonSignup to a dict safe for JSON / template context.
@@ -330,9 +457,11 @@ def _session_state_payload(session, stats_cache=None):
             {
                 "id": team.pk,
                 "team_name": team.team_name,
-                "display_name": team.league_team.team_name
-                if team.league_team_id
-                else team.team_name,
+                "display_name": (
+                    team.league_team.team_name
+                    if team.league_team_id
+                    else team.team_name
+                ),
                 "league_team_id": team.league_team_id,
                 "record": record,
                 "captain_name": team.captain.full_name,
@@ -352,6 +481,12 @@ def _session_state_payload(session, stats_cache=None):
     else:
         cur_round, cur_pick_idx, active_team_pk = None, None, None
 
+    completion_warnings = (
+        _draft_completion_warnings(session)
+        if session.state == DraftSession.STATE_COMPLETE
+        else []
+    )
+
     return {
         "state": session.state,
         "num_teams": session.num_teams,
@@ -362,6 +497,7 @@ def _session_state_payload(session, stats_cache=None):
         "current_pick_index": cur_pick_idx,
         "active_team_pk": active_team_pk,
         "finalized": session.finalized_at is not None,
+        "completion_warnings": completion_warnings,
     }
 
 
@@ -528,6 +664,7 @@ def draft_board_commissioner(request, session_pk, token):
     all_players_json = json.dumps(
         [_signup_payload(s, stats_cache) for s in all_signups]
     )
+    advisory_json = json.dumps(_draft_advisory(session))
 
     champion = _get_session_champion(session)
     context = {
@@ -538,6 +675,7 @@ def draft_board_commissioner(request, session_pk, token):
         "is_commissioner": True,
         "commissioner_token": str(token),
         "all_players_json": all_players_json,
+        "advisory_json": advisory_json,
         "champion": champion,
         "champion_league_team_id": champion["team"].id if champion else None,
     }
@@ -1173,11 +1311,13 @@ def finalize_draft(request, session_pk, token):
         session.finalized_at = timezone.now()
         session.save(update_fields=["finalized_at"])
 
+    warnings = _draft_completion_warnings(session)
     return JsonResponse(
         {
             "success": True,
             "created_teams": created_teams,
             "created_rosters": created_rosters,
+            "warnings": warnings,
             "state": _session_state_payload(session),
         }
     )
@@ -1228,15 +1368,21 @@ def swap_pick(request, session_pk, token):
             status=400,
         )
 
+    # Capture data for audit trail before the transaction modifies it
+    old_signup = SeasonSignup.objects.get(pk=pick_a.signup_id)
+    pick_a_team_name = pick_a.team.team_name
+
     with transaction.atomic():
         # If the target player is already in a different pick, swap their slots.
         pick_b = (
-            DraftPick.objects.filter(session=session, signup=new_signup)
+            DraftPick.objects.select_related("team")
+            .filter(session=session, signup=new_signup)
             .exclude(pk=pick_a.pk)
             .first()
         )
 
         old_signup_id = pick_a.signup_id
+        pick_b_team_name = pick_b.team.team_name if pick_b else None
 
         if pick_b:
             # Delete pick_b first so there is no momentary duplicate signup
@@ -1263,6 +1409,26 @@ def swap_pick(request, session_pk, token):
             pick_a.signup = new_signup
             pick_a.is_auto_captain = False
             pick_a.save(update_fields=["signup", "is_auto_captain"])
+
+    # Audit trail: log swap as a system chat message
+    from leagues.models import DraftChatMessage
+
+    if pick_b_team_name:
+        audit_body = (
+            f"Swap: {old_signup.full_name} ({pick_a_team_name}) "
+            f"↔ {new_signup.full_name} ({pick_b_team_name})"
+        )
+    else:
+        audit_body = (
+            f"{new_signup.full_name} replaced {old_signup.full_name} "
+            f"on {pick_a_team_name}"
+        )
+    DraftChatMessage.objects.create(
+        session=session,
+        sender_name="Draft",
+        sender_type=DraftChatMessage.SENDER_SYSTEM,
+        body=audit_body,
+    )
 
     _broadcast_state_change(session)
     return JsonResponse({"success": True, "state": _session_state_payload(session)})
@@ -1375,6 +1541,103 @@ def email_team_data(request, session_pk, token):
 
 
 # ---------------------------------------------------------------------------
+# Commissioner: add a late signup after the draw
+# ---------------------------------------------------------------------------
+
+
+@require_POST
+def add_late_signup(request, session_pk, token):
+    """
+    Add a player to the available pool after signups have closed.
+
+    Allowed states: draw, active, paused.
+    The new signup is immediately visible to all connected clients via WebSocket.
+    """
+    from leagues.models import DraftChatMessage
+
+    session = get_object_or_404(DraftSession, pk=session_pk, commissioner_token=token)
+
+    if session.state not in (
+        DraftSession.STATE_DRAW,
+        DraftSession.STATE_ACTIVE,
+        DraftSession.STATE_PAUSED,
+    ):
+        return JsonResponse(
+            {
+                "error": "Late signups can only be added during the draw, active, or paused phase."
+            },
+            status=400,
+        )
+
+    first_name = request.POST.get("first_name", "").strip()
+    last_name = request.POST.get("last_name", "").strip()
+    email = request.POST.get("email", "").strip()
+
+    VALID_PRIMARY = {c[0] for c in SeasonSignup.PRIMARY_POSITION_CHOICES}
+    VALID_SECONDARY = {c[0] for c in SeasonSignup.SECONDARY_POSITION_CHOICES}
+
+    try:
+        primary_position = int(request.POST.get("primary_position", ""))
+        if primary_position not in VALID_PRIMARY:
+            raise ValueError
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Invalid primary position."}, status=400)
+
+    try:
+        secondary_position = int(request.POST.get("secondary_position", ""))
+        if secondary_position not in VALID_SECONDARY:
+            raise ValueError
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Invalid secondary position."}, status=400)
+
+    if not first_name or not last_name:
+        return JsonResponse({"error": "First and last name are required."}, status=400)
+    if not email:
+        return JsonResponse({"error": "Email is required."}, status=400)
+
+    if SeasonSignup.objects.filter(season=session.season, email__iexact=email).exists():
+        return JsonResponse(
+            {"error": "A signup with this email already exists for this season."},
+            status=400,
+        )
+
+    # Auto-link to existing Player record (same logic as public signup form)
+    linked_player = Player.objects.filter(
+        first_name__iexact=first_name,
+        last_name__iexact=last_name,
+    ).first()
+    if linked_player is None:
+        linked_player = Player.objects.filter(email__iexact=email).first()
+
+    signup = SeasonSignup.objects.create(
+        season=session.season,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        primary_position=primary_position,
+        secondary_position=secondary_position,
+        captain_interest=SeasonSignup.CAPTAIN_NO,
+        linked_player=linked_player,
+    )
+
+    DraftChatMessage.objects.create(
+        session=session,
+        sender_name="Draft",
+        sender_type=DraftChatMessage.SENDER_SYSTEM,
+        body=f"Commissioner added {signup.full_name} as a late signup.",
+    )
+
+    _broadcast_state_change(session)
+    return JsonResponse(
+        {
+            "success": True,
+            "signup": _signup_payload(signup),
+            "state": _session_state_payload(session),
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Commissioner: reset draft back to pre-draw setup
 # ---------------------------------------------------------------------------
 
@@ -1454,15 +1717,21 @@ def _draft_results_rows(session):
                 pick.team.captain.full_name,
                 pick.signup.full_name,
                 pick.signup.get_primary_position_display(),
-                stats["goals_per_season"]
-                if stats and not pick.signup.is_goalie
-                else "",
-                stats["assists_per_season"]
-                if stats and not pick.signup.is_goalie
-                else "",
-                stats["points_per_season"]
-                if stats and not pick.signup.is_goalie
-                else "",
+                (
+                    stats["goals_per_season"]
+                    if stats and not pick.signup.is_goalie
+                    else ""
+                ),
+                (
+                    stats["assists_per_season"]
+                    if stats and not pick.signup.is_goalie
+                    else ""
+                ),
+                (
+                    stats["points_per_season"]
+                    if stats and not pick.signup.is_goalie
+                    else ""
+                ),
                 stats["gaa"] if stats and pick.signup.is_goalie else "",
                 stats["adp"] if stats else "",
             ]

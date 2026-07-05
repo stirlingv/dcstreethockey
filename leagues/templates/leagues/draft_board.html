@@ -1139,6 +1139,83 @@
     }
   }
 
+  /* ---- Advisory panel (commissioner SETUP/DRAW) ---- */
+  .advisory-panel {
+    background: #1a1a2e;
+    border: 1px solid #3a3a5a;
+    border-radius: 5px;
+    padding: 7px 12px;
+    font-size: 0.78rem;
+    color: #aab;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    width: 100%;
+  }
+  .advisory-panel .adv-ok   { color: #4ade80; }
+  .advisory-panel .adv-warn { color: #fbbf24; }
+  .advisory-panel .adv-stat { white-space: nowrap; }
+  .advisory-panel .adv-stat strong { color: #e0e0e0; }
+
+  /* ---- Completion warnings modal ---- */
+  .warn-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 950;
+  }
+  .warn-modal.visible { display: flex; }
+  .warn-modal-box {
+    background: #fff;
+    border-radius: 8px;
+    padding: 28px 30px;
+    max-width: 460px;
+    width: 92%;
+  }
+  .warn-modal-box h3 { margin: 0 0 10px; font-size: 1.05rem; color: #856404; }
+  .warn-modal-box ul { margin: 0 0 18px; padding-left: 18px; }
+  .warn-modal-box ul li { margin-bottom: 6px; font-size: 0.88rem; color: #444; line-height: 1.4; }
+  .warn-modal-actions { display: flex; justify-content: flex-end; }
+
+  /* ---- Late signup modal ---- */
+  .late-signup-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 950;
+  }
+  .late-signup-modal.visible { display: flex; }
+  .late-signup-box {
+    background: #fff;
+    border-radius: 8px;
+    padding: 24px 28px;
+    max-width: 400px;
+    width: 92%;
+  }
+  .late-signup-box h3 { margin: 0 0 14px; font-size: 1rem; }
+  .late-signup-box label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 3px; margin-top: 10px; color: #444; }
+  .late-signup-box input,
+  .late-signup-box select {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    box-sizing: border-box;
+  }
+  .late-signup-row { display: flex; gap: 8px; }
+  .late-signup-row > div { flex: 1; }
+  .late-signup-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .late-signup-error { color: #c82333; font-size: 0.82rem; margin-top: 8px; display: none; }
+
   /* ---- Champion column ---- */
   .board-table th.champion-col-header {
     border-bottom: 3px solid #b7860b;
@@ -1377,6 +1454,60 @@
   </div>
 </div>
 
+<!-- Completion warnings modal (commissioner only) -->
+{% if is_commissioner %}
+<div class="warn-modal" id="warn-modal">
+  <div class="warn-modal-box">
+    <h3>&#9888; Draft Complete — Review Warnings</h3>
+    <ul id="warn-modal-list"></ul>
+    <div class="warn-modal-actions">
+      <button class="btn btn-primary" onclick="closeWarnModal()">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Late signup modal (commissioner only) -->
+<div class="late-signup-modal" id="late-signup-modal">
+  <div class="late-signup-box">
+    <h3>Add Late Signup</h3>
+    <div class="late-signup-row">
+      <div>
+        <label>First name *</label>
+        <input type="text" id="ls-first" placeholder="First">
+      </div>
+      <div>
+        <label>Last name *</label>
+        <input type="text" id="ls-last" placeholder="Last">
+      </div>
+    </div>
+    <label>Email *</label>
+    <input type="email" id="ls-email" placeholder="player@email.com">
+    <label>Primary position *</label>
+    <select id="ls-primary">
+      <option value="">— Select —</option>
+      <option value="1">Center</option>
+      <option value="2">Wing</option>
+      <option value="3">Defense</option>
+      <option value="4">Goalie</option>
+    </select>
+    <label>Secondary position *</label>
+    <select id="ls-secondary">
+      <option value="">— Select —</option>
+      <option value="1">Center</option>
+      <option value="2">Wing</option>
+      <option value="3">Defense</option>
+      <option value="4">Goalie</option>
+      <option value="0">One thing only</option>
+    </select>
+    <div class="late-signup-error" id="ls-error"></div>
+    <div class="late-signup-actions">
+      <button class="btn" style="background:#eee;color:#333;" onclick="closeLateSignupModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitLateSignup()">Add Player</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 // ============================================================
 // State
@@ -1390,6 +1521,7 @@ const COMMISSIONER_TOKEN = "{% if commissioner_token %}{{ commissioner_token }}{
 const CHAMPION_LEAGUE_TEAM_ID = {% if champion_league_team_id %}{{ champion_league_team_id }}{% else %}null{% endif %};
 {% if is_commissioner %}
 const ALL_PLAYERS = {{ all_players_json|safe }};
+const ADVISORY = {{ advisory_json|safe }};
 {% endif %}
 
 // Rounds and their order types, keyed by round_number
@@ -1686,6 +1818,8 @@ function updateChatUnreadBadge() {
 // ============================================================
 let _autoCaptainPending = false;
 
+let _warnModalShown = false;
+
 function render() {
   renderBoard();
   renderPool();
@@ -1695,6 +1829,13 @@ function render() {
   if (IS_COMMISSIONER) updateCommissionerButtons();
   if (IS_COMMISSIONER) triggerPendingAutoPick();
   if (IS_CAPTAIN) updateCaptainCompleteBar();
+  if (IS_COMMISSIONER && state.state === 'complete' && !_warnModalShown) {
+    const warnings = state.completion_warnings || [];
+    if (warnings.length) {
+      _warnModalShown = true;
+      showWarnModal(warnings);
+    }
+  }
 }
 
 function updateCaptainCompleteBar() {
@@ -2124,6 +2265,39 @@ function undoPick() {
   });
 }
 
+function _advisoryHtml() {
+  if (typeof ADVISORY === 'undefined') return '';
+  const a = ADVISORY;
+  if (!a.num_teams || !a.num_rounds) return '';
+  const surplus = a.surplus;
+  let statusHtml = '';
+  if (surplus === 0) {
+    statusHtml = `<span class="adv-ok">&#10003; Rosters even (${a.players_per_team_min}/team)</span>`;
+  } else if (surplus > 0) {
+    statusHtml = `<span class="adv-warn">&#9888; ${surplus} empty slot${surplus !== 1 ? 's' : ''} — ${a.total_signups} players, ${a.current_slots} slots</span>`;
+  } else {
+    const undr = -surplus;
+    statusHtml = `<span class="adv-warn">&#9888; ${undr} player${undr !== 1 ? 's' : ''} won't be drafted — need ${a.recommended_rounds} rounds (currently ${a.num_rounds})</span>`;
+  }
+  if (!a.is_even && surplus >= 0) {
+    const extra = a.leftover_teams;
+    statusHtml += ` <span style="color:#aab;font-size:0.75rem;">(${extra} team${extra !== 1 ? 's' : ''} get ${a.players_per_team_max}, rest get ${a.players_per_team_min})</span>`;
+  }
+  return `<div class="advisory-panel">
+    <span class="adv-stat"><strong>${a.total_signups}</strong> signed up &middot; <strong>${a.num_teams}</strong> teams &middot; <strong>${a.num_rounds}</strong> rounds</span>
+    ${statusHtml}
+  </div>`;
+}
+
+function _lateSignupBtn(states) {
+  const s = state.state;
+  if (!states.includes(s)) return '';
+  return `<button class="btn" onclick="openLateSignupModal()"
+    style="background:#2558a3;color:#fff;padding:4px 12px;font-size:0.78rem;">
+    + Late Signup
+  </button>`;
+}
+
 function updateCommissionerButtons() {
   const ctrl = document.getElementById('commissioner-controls');
   if (!ctrl) return;
@@ -2132,6 +2306,7 @@ function updateCommissionerButtons() {
   let html = '';
   if (s === 'setup') {
     html = `<button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>`;
+    html += _advisoryHtml();
   } else if (s === 'draw') {
     const sorted = [...state.teams].sort((a, b) => (a.draft_position || 99) - (b.draft_position || 99));
     const rows = sorted.map(t => {
@@ -2156,7 +2331,9 @@ function updateCommissionerButtons() {
           <span style="font-size:0.78rem;color:#aaa;">Enter the round each captain is auto-drafted onto their team (leave blank to skip).</span>
           <button class="btn btn-primary" onclick="saveCaptainRounds()" style="padding:4px 14px;">Save Rounds</button>
           <button class="btn btn-success" onclick="advanceState()" style="padding:4px 14px;">Start Draft</button>
+          ${_lateSignupBtn(['draw'])}
         </div>
+        ${_advisoryHtml()}
         <table style="border-collapse:collapse;font-size:0.82rem;color:#ccc;">
           <thead><tr>
             <th style="padding:2px 8px;color:#aaa;font-weight:400;">Pick #</th>
@@ -2169,15 +2346,18 @@ function updateCommissionerButtons() {
       </div>`;
   } else if (s === 'active') {
     html = `<button class="btn btn-warning" onclick="advanceState()">Pause Draft</button>
-            <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>`;
+            <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+            ${_lateSignupBtn(['active'])}`;
   } else if (s === 'paused') {
     if (editMode) {
       html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
-              <button class="btn btn-warning" onclick="toggleEditMode()" style="margin-left:8px;">Done Editing</button>`;
+              <button class="btn btn-warning" onclick="toggleEditMode()" style="margin-left:8px;">Done Editing</button>
+              ${_lateSignupBtn(['paused'])}`;
     } else {
       html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
               <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
-              <button class="btn" onclick="toggleEditMode()" style="margin-left:8px;background:#555;color:#fff;">Edit Picks</button>`;
+              <button class="btn" onclick="toggleEditMode()" style="margin-left:8px;background:#555;color:#fff;">Edit Picks</button>
+              ${_lateSignupBtn(['paused'])}`;
     }
   } else if (s === 'complete') {
     if (editMode) {
@@ -2196,6 +2376,72 @@ function updateCommissionerButtons() {
   ctrl.innerHTML = html;
 }
 
+function showWarnModal(warnings) {
+  const modal = document.getElementById('warn-modal');
+  const list = document.getElementById('warn-modal-list');
+  if (!modal || !list) return;
+  list.innerHTML = warnings.map(w => `<li>${escHtml(w.message)}</li>`).join('');
+  modal.classList.add('visible');
+}
+
+function closeWarnModal() {
+  const modal = document.getElementById('warn-modal');
+  if (modal) modal.classList.remove('visible');
+}
+
+function openLateSignupModal() {
+  const modal = document.getElementById('late-signup-modal');
+  if (!modal) return;
+  document.getElementById('ls-first').value = '';
+  document.getElementById('ls-last').value = '';
+  document.getElementById('ls-email').value = '';
+  document.getElementById('ls-primary').value = '';
+  document.getElementById('ls-secondary').value = '';
+  const err = document.getElementById('ls-error');
+  err.style.display = 'none';
+  modal.classList.add('visible');
+  document.getElementById('ls-first').focus();
+}
+
+function closeLateSignupModal() {
+  const modal = document.getElementById('late-signup-modal');
+  if (modal) modal.classList.remove('visible');
+}
+
+function submitLateSignup() {
+  const first = document.getElementById('ls-first').value.trim();
+  const last  = document.getElementById('ls-last').value.trim();
+  const email = document.getElementById('ls-email').value.trim();
+  const primary   = document.getElementById('ls-primary').value;
+  const secondary = document.getElementById('ls-secondary').value;
+  const errEl = document.getElementById('ls-error');
+
+  if (!first || !last || !email || !primary || !secondary) {
+    errEl.textContent = 'All fields are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const body = new URLSearchParams({ first_name: first, last_name: last, email, primary_position: primary, secondary_position: secondary });
+  fetch(`/draft/${SESSION_PK}/add-signup/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  }).then(r => r.json()).then(d => {
+    if (d.error) {
+      errEl.textContent = d.error;
+      errEl.style.display = 'block';
+      return;
+    }
+    closeLateSignupModal();
+    showToast(`${first} ${last} added to the player pool.`);
+    applyResponseState(d);
+  }).catch(() => {
+    errEl.textContent = 'Network error — please try again.';
+    errEl.style.display = 'block';
+  });
+}
+
 function finalizeDraft() {
   const msg = editMode
     ? 'Update Team and Roster records from the current draft results?'
@@ -2212,6 +2458,7 @@ function finalizeDraft() {
     if (d.error) { showToast(d.error, true); return; }
     const label = editMode ? 'Rosters updated' : 'Done';
     showToast(`${label}: ${d.created_teams} team(s), ${d.created_rosters} roster entries.`);
+    if (d.warnings && d.warnings.length) showWarnModal(d.warnings);
     editMode = false;
     applyResponseState(d);
   }).catch(e => showToast('Network error — could not finalize.', true));
