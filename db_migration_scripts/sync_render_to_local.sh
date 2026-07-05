@@ -94,6 +94,21 @@ can_connect_as_role() {
     psql -U "$role_name" -d "$db_name" -Atqc 'SELECT 1' >/dev/null 2>&1
 }
 
+# Terminate any open connections to the target DB (e.g. a running `manage.py
+# runserver`) so `dropdb` doesn't fail with "database is being accessed by
+# other users". Django reconnects automatically on its next query.
+terminate_connections() {
+    local db_name="$1"
+    local admin_db="$2"
+    local escaped_db
+    escaped_db="${db_name//\'/\'\'}"
+    psql -d "$admin_db" -Atqc \
+        "SELECT pg_terminate_backend(pid)
+           FROM pg_stat_activity
+          WHERE datname='${escaped_db}'
+            AND pid <> pg_backend_pid()" >/dev/null 2>&1 || true
+}
+
 fix_public_schema_ownership() {
     local db_name="$1"
     local role_name="$2"
@@ -235,6 +250,8 @@ pg_dump \
     "$RENDER_URL"
 
 log "Recreating local database: $LOCAL_DB_NAME"
+log "Terminating any open connections to $LOCAL_DB_NAME"
+terminate_connections "$LOCAL_DB_NAME" "$LOCAL_ADMIN_DB"
 dropdb --if-exists "$LOCAL_DB_NAME"
 
 if role_exists "$LOCAL_APP_ROLE" "$LOCAL_ADMIN_DB"; then
