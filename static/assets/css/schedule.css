@@ -404,16 +404,18 @@ a.props-name:hover,
     height: auto;
 }
 
-.matchup-team-link {
+/* #content prefix beats the global `#content a` red rule so the team name
+   reads as a dark heading, not a bright link. */
+#content a.matchup-team-link {
     font-size: 18px;
     font-weight: 700;
     color: #1a1a2e;
     text-decoration: none;
 }
 
-.matchup-team-link:hover {
+#content a.matchup-team-link:hover {
     text-decoration: underline;
-    color: #1a1a2e;
+    color: #1a5276;
 }
 
 .matchup-team-record {

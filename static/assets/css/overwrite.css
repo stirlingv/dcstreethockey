@@ -1313,15 +1313,17 @@ div div#content .matchupheader{
     letter-spacing: 0.05em;
 }
 
-@media screen and (min-width: 737px) {
-    #content a.matchup-time-link {
-        color: inherit;
-        text-decoration: none;
-    }
+/* Clickable game time (opens the matchup page). Dark like content on every
+   viewport — previously only de-reddened on desktop, so it showed red on
+   mobile via the global `#content a` rule. */
+#content a.matchup-time-link {
+    color: #1a1f36;
+    text-decoration: none;
+}
 
-    #content a.matchup-time-link:hover {
-        text-decoration: underline;
-    }
+#content a.matchup-time-link:hover {
+    color: #1a5276;
+    text-decoration: underline;
 }
 
 .game-cancelled {
@@ -1368,14 +1370,37 @@ div div#content .matchupheader{
 }
 .record-legend-note { color: #999; }
 
-/* Block-style link that fills its table cell / card region */
+/* Interactive team / player names.
+   These read as content — dark, near-black text — rather than bright
+   links, matching how ESPN and Yahoo Sports style names in scores and
+   tables (and the site's own .matchup-team-link). The `#content` prefix
+   is required to beat the global `#content a { color: #ED391B }` red rule.
+   Clickability is signalled by:
+     - a large block-level tap target that fills the cell/card
+     - desktop hover: navy tint + underline
+     - mobile: a tap highlight and a pressed background (no hover exists)
+     - keyboard: a visible focus ring */
 .cell-link {
     display: block;
-    color: inherit;
     text-decoration: none;
+    -webkit-tap-highlight-color: rgba(26, 82, 118, 0.18);
 }
-.cell-link:hover { text-decoration: underline; color: inherit; }
-.cell-link:focus-visible { outline: 2px solid #1a5276; outline-offset: 2px; }
+#content a.cell-link,
+#content a.cell-link:visited {
+    color: #1a1f36;
+}
+#content a.cell-link:hover {
+    color: #1a5276;
+    text-decoration: underline;
+}
+#content a.cell-link:active {
+    background: rgba(26, 82, 118, 0.08);
+}
+.cell-link:focus-visible {
+    outline: 2px solid #1a5276;
+    outline-offset: 2px;
+    border-radius: 2px;
+}
 
 /* Pills rendered as real <a>/<button> elements */
 a.pill-item { text-decoration: none; display: inline-block; color: #4a4a4a; }

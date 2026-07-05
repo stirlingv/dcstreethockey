@@ -373,3 +373,40 @@ class HomeDivisionGroupingTest(TestCase):
         )
         html = self._render([m1, m2], [m1])
         self.assertEqual(html.count("home-division-label"), 1)
+
+
+class CellLinkStylingTest(TestCase):
+    """
+    Team/player names were converted from onclick cells to real <a> links.
+    The global `#content a { color: #ED391B }` rule (specificity 1,0,1) turned
+    them bright red because the .cell-link override (0,1,0) lost the cascade.
+    The fix raises specificity with a `#content a.cell-link` selector; guard it
+    so the links can never silently regress to red.
+    """
+
+    def _overwrite_css(self):
+        from django.contrib.staticfiles import finders
+
+        path = finders.find("assets/css/overwrite.css")
+        self.assertIsNotNone(path, "overwrite.css not found by staticfiles finder")
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_cell_link_color_override_beats_content_red(self):
+        css = self._overwrite_css()
+        # The override must be at #content-level specificity to win over
+        # `#content a`; a bare `.cell-link { color }` would lose and go red.
+        self.assertIn("#content a.cell-link", css)
+        # And it must not paint the names with the alarming red link color.
+        self.assertNotIn(".cell-link {\n    color: #ED391B", css)
+
+    def test_matchup_time_link_not_scoped_to_desktop_only(self):
+        css = self._overwrite_css()
+        # The rule must exist and must NOT be nested directly inside the
+        # desktop min-width media query (its previous home), which left the
+        # game-time link red on mobile.
+        self.assertIn("#content a.matchup-time-link {", css)
+        self.assertNotIn(
+            "@media screen and (min-width: 737px) {\n    #content a.matchup-time-link",
+            css,
+        )
