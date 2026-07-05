@@ -1769,6 +1769,15 @@ class MatchUpDetailViewTest(ScheduleTestBase):
         self.assertIsInstance(response.context["date_of_week"], datetime.date)
         self.assertEqual(response.context["date_of_week"], self.past_date)
 
+    def test_score_grid_shows_periods_not_halves(self):
+        # Regression test: floor hockey is played in 3 periods, not 2 halves.
+        response = self.client.get(self.url)
+        content = response.content.decode()
+        self.assertIn("1st Period", content)
+        self.assertIn("2nd Period", content)
+        self.assertIn("3rd Period", content)
+        self.assertNotIn("Half", content)
+
 
 # ---------------------------------------------------------------------------
 # scoresheet_select view (landing page at /roster/)
