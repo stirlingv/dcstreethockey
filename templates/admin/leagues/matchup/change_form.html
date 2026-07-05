@@ -18,6 +18,97 @@
 {% block after_field_sets %}{% endblock %}
 
 {% block inline_field_sets %}
+{% if scoresheet %}
+<div class="module scoresheet-module">
+    <h2>Scoresheet &mdash; Player Stats</h2>
+    <p class="ss-hint">
+        Fill in goals and assists next to each player, and goals-against for the
+        goalie &mdash; just like the paper scoresheet. Leave a player's boxes
+        <strong>empty</strong> if they recorded nothing. A shutout is an explicit
+        <strong>0</strong> goals-against. Subs and unrostered players go in the
+        &ldquo;Subs &amp; other players&rdquo; section below.
+    </p>
+    <input type="hidden" name="ss-player-ids" value="{{ scoresheet_player_ids }}">
+    <div class="ss-grid">
+        {% include "admin/scoresheet_column.html" with side=scoresheet.away %}
+        {% include "admin/scoresheet_column.html" with side=scoresheet.home %}
+    </div>
+</div>
+<style>
+  .scoresheet-module { margin-bottom: 20px; }
+  .scoresheet-module h2 {
+    padding: 8px 12px;
+    background: #417690;
+    color: #fff;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .ss-hint {
+    font-size: 12px;
+    color: #555;
+    margin: 0;
+    padding: 10px 12px;
+    background: #f0f6fb;
+    border-left: 3px solid #417690;
+    line-height: 1.5;
+  }
+  .ss-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 24px;
+    padding: 4px 12px 12px;
+    border: 1px solid #ddd;
+    border-top: none;
+  }
+  .ss-team-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #333;
+    margin: 12px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #417690;
+  }
+  .ss-table { width: 100%; border-collapse: collapse; }
+  .ss-goalie-table { margin-top: 10px; }
+  .ss-table th {
+    font-size: 11px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: center;
+    padding: 4px 2px;
+  }
+  .ss-table th.ss-name { text-align: left; }
+  .ss-table td { padding: 3px 2px; border-top: 1px solid #f0f0f0; }
+  .ss-table td.ss-name {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0;
+    width: 100%;
+  }
+  .ss-cap { color: #888; font-size: 11px; }
+  .ss-num { text-align: center; }
+  .ss-input {
+    width: 52px !important;
+    min-height: 38px;
+    text-align: center;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .ss-input:focus { border-color: #417690; outline: 1px solid #417690; }
+  .ss-empty { color: #999; font-size: 12px; font-style: italic; }
+  @media (max-width: 767px) {
+    .ss-grid { grid-template-columns: 1fr; }
+    .ss-input { min-height: 44px; width: 58px !important; font-size: 16px; }
+  }
+</style>
+{% endif %}
 {{ block.super }}
 {% if home_stat_form and away_stat_form %}
 <div id="game-score-summary" class="game-score-summary">
@@ -188,6 +279,54 @@
     }
   }
 
+  /* Quick outcome buttons */
+  .quick-outcome-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-top: none;
+  }
+  .quick-outcome-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .quick-outcome-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .qo-btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    border: 1px solid #417690;
+    border-radius: 5px;
+    background: #fff;
+    color: #417690;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .qo-btn:hover { background: #eef5f9; }
+  .qo-btn.qo-active { background: #417690; color: #fff; }
+  .qo-ot-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+    margin: 0;
+  }
+  .qo-ot-label input { width: 16px; height: 16px; cursor: pointer; }
+  .qo-note { font-size: 12px; color: #2e7d32; font-weight: 600; }
+  @media (max-width: 600px) {
+    .qo-btn { flex: 1 1 auto; }
+  }
+
   /* Shootout section */
   .shootout-row {
     padding: 12px 20px;
@@ -238,6 +377,17 @@
 </p>
 <div class="module game-outcome-module">
   <h2>Game Outcome</h2>
+
+  <div class="quick-outcome-row">
+    <span class="quick-outcome-label">Record tonight's result:</span>
+    <div class="quick-outcome-buttons">
+      <button type="button" class="qo-btn" id="qo-away">{{ away_team_name }} won</button>
+      <button type="button" class="qo-btn" id="qo-home">{{ home_team_name }} won</button>
+    </div>
+    <label class="qo-ot-label"><input type="checkbox" id="qo-ot"> went to OT / shootout</label>
+    <span class="qo-note" id="qo-note" aria-live="polite"></span>
+  </div>
+
   <div class="game-outcome-grid">
 
     <div class="game-outcome-col">
@@ -368,6 +518,79 @@
   {% endif %}
 
 </div>
+
+<script>
+// Quick-outcome buttons: one tap sets the season counters below for
+// tonight's result. Stateless — deltas always apply on top of the values
+// present at page load, so re-clicking or switching sides never
+// double-increments. The number fields stay editable and remain the
+// source of truth for what gets saved.
+(function () {
+  var homeBtn = document.getElementById('qo-home');
+  var awayBtn = document.getElementById('qo-away');
+  var otBox = document.getElementById('qo-ot');
+  var note = document.getElementById('qo-note');
+  if (!homeBtn || !awayBtn || !otBox) return;
+
+  var FIELDS = ['win', 'otw', 'loss', 'otl'];
+  var orig = {};
+
+  function fieldEl(side, f) {
+    return document.querySelector('[name="' + side + '_stat-' + f + '"]');
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    ['home', 'away'].forEach(function (side) {
+      FIELDS.forEach(function (f) {
+        var el = fieldEl(side, f);
+        orig[side + f] = el ? (parseInt(el.value, 10) || 0) : 0;
+      });
+    });
+  });
+
+  var selected = null;
+
+  function setVal(side, f, v) {
+    var el = fieldEl(side, f);
+    if (!el) return;
+    el.value = v;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function apply() {
+    ['home', 'away'].forEach(function (side) {
+      FIELDS.forEach(function (f) { setVal(side, f, orig[side + f]); });
+    });
+    if (selected) {
+      var loser = selected === 'home' ? 'away' : 'home';
+      if (otBox.checked) {
+        setVal(selected, 'otw', orig[selected + 'otw'] + 1);
+        setVal(loser, 'otl', orig[loser + 'otl'] + 1);
+      } else {
+        setVal(selected, 'win', orig[selected + 'win'] + 1);
+        setVal(loser, 'loss', orig[loser + 'loss'] + 1);
+      }
+    }
+    homeBtn.classList.toggle('qo-active', selected === 'home');
+    awayBtn.classList.toggle('qo-active', selected === 'away');
+    if (note) {
+      note.textContent = selected
+        ? 'Counters below updated — review and Save.'
+        : '';
+    }
+  }
+
+  homeBtn.addEventListener('click', function () {
+    selected = selected === 'home' ? null : 'home';
+    apply();
+  });
+  awayBtn.addEventListener('click', function () {
+    selected = selected === 'away' ? null : 'away';
+    apply();
+  });
+  otBox.addEventListener('change', apply);
+})();
+</script>
 {% endif %}
 {% endif %}
 {% endblock %}

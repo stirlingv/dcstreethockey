@@ -2260,3 +2260,80 @@ class StatsEntryWidgetTest(TestCase):
         self.assertIn("se-playoff-badge", rendered)
         # The "recorded in the standings" outcome badge must not appear for it.
         self.assertNotIn("This game's result is recorded in the standings.", rendered)
+
+
+class StatsEntryWidgetOpenStateTest(TestCase):
+    """
+    Division rows open by default only while player stats are missing.
+    Outcome/goalie follow-ups show as badges without auto-expanding, so the
+    dashboard stays scannable on a phone after a busy game night.
+    """
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=1)
+        self.today = datetime.date.today()
+        self.team1 = Team.objects.create(
+            team_name="Red Team",
+            team_color="red",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.team2 = Team.objects.create(
+            team_name="Blue Team",
+            team_color="blue",
+            season=self.season,
+            division=self.division,
+            is_active=True,
+        )
+        self.player = Player.objects.create(
+            first_name="Test", last_name="Player", is_active=True
+        )
+
+    def _week(self, delta=0):
+        return Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today - datetime.timedelta(days=delta),
+        )
+
+    def _matchup(self, week):
+        return MatchUp.objects.create(
+            week=week,
+            time=datetime.time(19, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+        )
+
+    def _add_stat(self, matchup, team, goals=1):
+        from leagues.models import Stat
+
+        return Stat.objects.create(
+            player=self.player, team=team, matchup=matchup, goals=goals
+        )
+
+    def _render(self):
+        from django.template import Context, Template
+
+        return Template("{% load admin_quick_cancel %}{% stats_entry_widget %}").render(
+            Context({})
+        )
+
+    def test_division_open_when_stats_missing(self):
+        week = self._week(delta=1)
+        self._matchup(week)
+        rendered = self._render()
+        self.assertIn('<details class="se-division" open>', rendered)
+
+    def test_division_closed_when_only_outcome_needed(self):
+        week = self._week(delta=1)
+        game = self._matchup(week)
+        self._add_stat(game, self.team1, goals=2)
+        self._add_stat(game, self.team2, goals=3)
+        rendered = self._render()
+        # Stats are entered (outcome/goalie badges may show) — stay collapsed.
+        self.assertNotIn('<details class="se-division" open>', rendered)
+        self.assertIn('<details class="se-division">', rendered)

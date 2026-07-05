@@ -97,3 +97,22 @@ def weather_emoji(description):
 def jersey_path():
     """Returns the static path for jersey images."""
     return static("img/emojis/")
+
+
+@register.simple_tag
+def team_record(year, wins, losses, otw=0, otl=0, ties=0):
+    """
+    Render a team record in the era-appropriate format.
+
+    Seasons before 2022 tracked ties: W-L-T.
+    Seasons from 2022 on track overtime results: W-OTW-OTL-L.
+
+    Accepts None for any count (values()-dict rows may carry NULLs) and
+    treats it as 0. This is the single source of truth for record
+    formatting — templates must not hand-roll the year branch.
+    """
+    wins = wins or 0
+    losses = losses or 0
+    if year and int(year) < 2022:
+        return f"{wins}-{losses}-{ties or 0}"
+    return f"{wins}-{otw or 0}-{otl or 0}-{losses}"

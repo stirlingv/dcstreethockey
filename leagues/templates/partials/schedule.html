@@ -26,28 +26,24 @@
                     {% endif %}
                     <table class="game-overview">
                         <tr>
-                            <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.awayteam.id %}')">
-                                <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png"
-                                     alt="{{ match.awayteam.team_color }} jersey"
-                                     title="{{ match.awayteam.team_color }}"
-                                     class="team-color-emoji">
-                                {% if match.awayteam.season.year < 2022 %}
-                                    {{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_losses}}-{{match.away_ties}})
-                                {% else %}
-                                    {{match.awayteam.team_name}} ({{match.away_wins}}-{{match.away_otw}}-{{match.away_otl}}-{{match.away_losses}})
-                                {% endif %}
+                            <td>
+                                <a href="{% url 'teams' match.awayteam.id %}" class="cell-link">
+                                    <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png"
+                                         alt="{{ match.awayteam.team_color }} jersey"
+                                         title="{{ match.awayteam.team_color }}"
+                                         class="team-color-emoji">
+                                    {{match.awayteam.team_name}} ({% team_record match.awayteam.season.year match.away_wins match.away_losses match.away_otw match.away_otl match.away_ties %})
+                                </a>
                             </td>
                             <td>@</td>
-                            <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.hometeam.id %}')">
-                                <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png"
-                                     alt="{{ match.hometeam.team_color }} jersey"
-                                     title="{{ match.hometeam.team_color }}"
-                                     class="team-color-emoji">
-                                {% if match.hometeam.season.year < 2022 %}
-                                    {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_losses}}-{{match.home_ties}})
-                                {% else %}
-                                    {{match.hometeam.team_name}} ({{match.home_wins}}-{{match.home_otw}}-{{match.home_otl}}-{{match.home_losses}})
-                                {% endif %}
+                            <td>
+                                <a href="{% url 'teams' match.hometeam.id %}" class="cell-link">
+                                    <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png"
+                                         alt="{{ match.hometeam.team_color }} jersey"
+                                         title="{{ match.hometeam.team_color }}"
+                                         class="team-color-emoji">
+                                    {{match.hometeam.team_name}} ({% team_record match.hometeam.season.year match.home_wins match.home_losses match.home_otw match.home_otl match.home_ties %})
+                                </a>
                             </td>
                         </tr>
                     </table>

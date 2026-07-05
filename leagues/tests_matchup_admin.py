@@ -10,6 +10,7 @@ from leagues.models import (
     Division,
     MatchUp,
     Player,
+    Roster,
     Season,
     Stat,
     Team,
@@ -895,3 +896,274 @@ class MatchUpAdminPostseasonTest(TestCase):
             team=self.home_team, division=self.division, season=self.season
         )
         self.assertEqual(home.goals_for, 3)
+
+
+class ScoresheetGridTest(TestCase):
+    """
+    Scoresheet grid on the matchup change form: rostered players are entered
+    in a roster-shaped grid (ss-<player_id>-<field> inputs); blank means no
+    stat row, an explicit 0 GA is a recorded shutout.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture()
+        self.home_center = Player.objects.create(
+            first_name="Casey", last_name="Center", is_active=True
+        )
+        self.away_wing = Player.objects.create(
+            first_name="Alex", last_name="Wing", is_active=True
+        )
+        self.home_goalie = Player.objects.create(
+            first_name="Pat", last_name="Goalie", is_active=True
+        )
+        Roster.objects.create(player=self.home_center, team=self.home_team, position1=1)
+        Roster.objects.create(player=self.away_wing, team=self.away_team, position1=2)
+        Roster.objects.create(
+            player=self.home_goalie,
+            team=self.home_team,
+            position1=4,
+            is_primary_goalie=True,
+        )
+
+    def _url(self):
+        return reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+
+    def _post_data(self, **overrides):
+        base = {
+            "week": self.week.pk,
+            "time": "10:00 AM",
+            "awayteam": self.away_team.pk,
+            "hometeam": self.home_team.pk,
+            "away_goalie_status": 3,
+            "home_goalie_status": 3,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+            "home_stat-win": "1",
+            "home_stat-otw": "0",
+            "home_stat-loss": "0",
+            "home_stat-otl": "0",
+            "home_stat-tie": "0",
+            "home_stat-goals_for": "0",
+            "home_stat-goals_against": "0",
+            "away_stat-win": "0",
+            "away_stat-otw": "0",
+            "away_stat-loss": "1",
+            "away_stat-otl": "0",
+            "away_stat-tie": "0",
+            "away_stat-goals_for": "0",
+            "away_stat-goals_against": "0",
+            "ss-player-ids": (
+                f"{self.home_center.pk},{self.away_wing.pk},{self.home_goalie.pk}"
+            ),
+        }
+        base.update(overrides)
+        return base
+
+    # ── Rendering ─────────────────────────────────────────────────────
+
+    def test_change_view_renders_scoresheet_grid(self):
+        response = self.client.get(self._url())
+        self.assertContains(response, "Scoresheet")
+        self.assertContains(response, f'name="ss-{self.home_center.pk}-goals"')
+        self.assertContains(response, f'name="ss-{self.home_goalie.pk}-goals_against"')
+        self.assertContains(response, 'name="ss-player-ids"')
+
+    def test_grid_prefills_existing_stats(self):
+        Stat.objects.create(
+            matchup=self.matchup,
+            team=self.home_team,
+            player=self.home_center,
+            goals=2,
+            assists=1,
+        )
+        response = self.client.get(self._url())
+        self.assertContains(
+            response,
+            f'name="ss-{self.home_center.pk}-goals" value="2"',
+        )
+
+    def test_inline_excludes_rostered_players(self):
+        rostered_stat = Stat.objects.create(
+            matchup=self.matchup,
+            team=self.home_team,
+            player=self.home_center,
+            goals=2,
+        )
+        unrostered = Player.objects.create(
+            first_name="Sub", last_name="Goalie", is_active=True
+        )
+        sub_stat = Stat.objects.create(
+            matchup=self.matchup,
+            team=self.away_team,
+            player=unrostered,
+            goals_against=2,
+        )
+        response = self.client.get(self._url())
+        content = response.content.decode()
+        self.assertIn(f'value="{sub_stat.pk}"', content)
+        self.assertNotIn(f'name="stat_set-0-id" value="{rostered_stat.pk}"', content)
+
+    def test_quick_outcome_buttons_render(self):
+        response = self.client.get(self._url())
+        self.assertContains(response, 'id="qo-home"')
+        self.assertContains(response, 'id="qo-away"')
+        self.assertContains(response, "went to OT / shootout")
+
+    # ── Saving ────────────────────────────────────────────────────────
+
+    def test_grid_creates_stat_rows(self):
+        self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    f"ss-{self.home_center.pk}-goals": "2",
+                    f"ss-{self.home_center.pk}-assists": "1",
+                }
+            ),
+        )
+        stat = Stat.objects.get(matchup=self.matchup, player=self.home_center)
+        self.assertEqual(stat.team, self.home_team)
+        self.assertEqual(stat.goals, 2)
+        self.assertEqual(stat.assists, 1)
+
+    def test_blank_rows_create_nothing(self):
+        self.client.post(self._url(), self._post_data())
+        self.assertEqual(Stat.objects.filter(matchup=self.matchup).count(), 0)
+
+    def test_grid_updates_existing_stat(self):
+        Stat.objects.create(
+            matchup=self.matchup,
+            team=self.home_team,
+            player=self.home_center,
+            goals=1,
+        )
+        self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    f"ss-{self.home_center.pk}-goals": "3",
+                    f"ss-{self.home_center.pk}-assists": "0",
+                }
+            ),
+        )
+        stat = Stat.objects.get(matchup=self.matchup, player=self.home_center)
+        self.assertEqual(stat.goals, 3)
+
+    def test_clearing_grid_row_deletes_stat(self):
+        Stat.objects.create(
+            matchup=self.matchup,
+            team=self.home_team,
+            player=self.home_center,
+            goals=1,
+        )
+        self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    f"ss-{self.home_center.pk}-goals": "",
+                    f"ss-{self.home_center.pk}-assists": "",
+                }
+            ),
+        )
+        self.assertFalse(
+            Stat.objects.filter(matchup=self.matchup, player=self.home_center).exists()
+        )
+
+    def test_goalie_explicit_zero_ga_records_shutout(self):
+        self.client.post(
+            self._url(),
+            self._post_data(**{f"ss-{self.home_goalie.pk}-goals_against": "0"}),
+        )
+        stat = Stat.objects.get(matchup=self.matchup, player=self.home_goalie)
+        self.assertEqual(stat.goals_against, 0)
+
+    def test_grid_goals_feed_team_stat_recompute(self):
+        self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    f"ss-{self.home_center.pk}-goals": "4",
+                    f"ss-{self.away_wing.pk}-goals": "1",
+                    "home_stat-goals_for": "99",
+                    "away_stat-goals_for": "99",
+                }
+            ),
+        )
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        away = Team_Stat.objects.get(
+            team=self.away_team, division=self.division, season=self.season
+        )
+        self.assertEqual(home.goals_for, 4)
+        self.assertEqual(home.goals_against, 1)
+        self.assertEqual(away.goals_for, 1)
+        self.assertEqual(away.goals_against, 4)
+
+    def test_negative_values_clamped_to_zero(self):
+        self.client.post(
+            self._url(),
+            self._post_data(**{f"ss-{self.home_center.pk}-goals": "-3"}),
+        )
+        stat = Stat.objects.get(matchup=self.matchup, player=self.home_center)
+        self.assertEqual(stat.goals, 0)
+
+
+class StatRosterAdminTest(TestCase):
+    """Standalone Stat and Roster admins: usable changelists, no bare admin."""
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture()
+        self.player = Player.objects.create(
+            first_name="Casey", last_name="Center", is_active=True
+        )
+        Roster.objects.create(player=self.player, team=self.home_team, position1=1)
+        Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=self.player, goals=1
+        )
+
+    def test_stat_changelist_renders(self):
+        response = self.client.get(reverse("admin:leagues_stat_changelist"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_stat_changelist_search(self):
+        response = self.client.get(
+            reverse("admin:leagues_stat_changelist"), {"q": "Casey"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Center")
+
+    def test_roster_changelist_renders(self):
+        response = self.client.get(reverse("admin:leagues_roster_changelist"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_matchup_time_column_is_sortable(self):
+        from leagues.admin import MatchUpAdmin
+
+        self.assertEqual(MatchUpAdmin.formatted_time.admin_order_field, "time")

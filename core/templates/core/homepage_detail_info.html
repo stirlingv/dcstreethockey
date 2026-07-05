@@ -56,43 +56,46 @@
                             </div>
                         </header>
                         <ul class="quote-list">
-                            {% for match in matchup %}
-                                {% if match.week.date == row.week.date %}
-                                <li>
-                                    <p>
-                                        <table class="game-schedule{% if match.is_cancelled %} game-cancelled{% endif %}">
-                                            <tr>
-                                                <a href="{% url 'matchup_detail' match.id %}" class="matchup-time-link">{{ match.time|date:"g:i A" }}</a>
-                                                {% if match.is_cancelled %}<span class="game-cancelled-badge">Cancelled</span>{% endif %}
-                                            </tr>
-                                            <tr>
-                                                <!-- Away Team -->
-                                                <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.awayteam.id %}')">
-                                                    {{ match.awayteam.team_name }}
-                                                </td>
-                                                <!-- VS with team colors -->
-                                                <td class="vs-section">
-                                                    <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png"
-                                                         alt="{{ match.awayteam.team_color }} jersey"
-                                                         title="{{ match.awayteam.team_color }}"
-                                                         class="team-color-emoji">
-                                                    vs.
-                                                    <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png"
-                                                         alt="{{ match.hometeam.team_color }} jersey"
-                                                         title="{{ match.hometeam.team_color }}"
-                                                         class="team-color-emoji">
-                                                </td>
-                                                <!-- Home Team -->
-                                                <td class="clickable" onclick="javascript:handleTeam('{% url "teams" match.hometeam.id %}')">
-                                                    {{ match.hometeam.team_name }}
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </p>
-                                </li>
-                                {% endif %}
-                            {% endfor %}
-                        </ul>
+                        {% for match in matchup %}
+                            {% if match.week.date == row.week.date %}
+                            {% ifchanged row.week.date match.hometeam.division %}
+                            <li class="home-division-label">{{ match.hometeam.division.division|division_type }}</li>
+                            {% endifchanged %}
+                            <li>
+                                <table class="game-schedule{% if match.is_cancelled %} game-cancelled{% endif %}">
+                                    <tr>
+                                        <td colspan="3" class="game-schedule-time">
+                                            <a href="{% url 'matchup_detail' match.id %}" class="matchup-time-link">{{ match.time|date:"g:i A" }}</a>
+                                            {% if match.is_cancelled %}<span class="game-cancelled-badge">Cancelled</span>{% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <!-- Away Team -->
+                                        <td>
+                                            <a href="{% url 'teams' match.awayteam.id %}" class="cell-link">{{ match.awayteam.team_name }}</a>
+                                        </td>
+                                        <!-- VS with team colors -->
+                                        <td class="vs-section">
+                                            <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png"
+                                                 alt="{{ match.awayteam.team_color }} jersey"
+                                                 title="{{ match.awayteam.team_color }}"
+                                                 class="team-color-emoji">
+                                            vs.
+                                            <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png"
+                                                 alt="{{ match.hometeam.team_color }} jersey"
+                                                 title="{{ match.hometeam.team_color }}"
+                                                 class="team-color-emoji">
+                                        </td>
+                                        <!-- Home Team -->
+                                        <td>
+                                            <a href="{% url 'teams' match.hometeam.id %}" class="cell-link">{{ match.hometeam.team_name }}</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
                     </section>
                 </div>
                 {% endfor %}

@@ -13,14 +13,15 @@
             <div class="title">
                 Schedule
             </div>
+            <p class="record-legend">Team records: W-OTW-OTL-L <span class="record-legend-note">(seasons before 2022: W-L-T)</span></p>
 
 			<div class="pill-group" id="divisionFilter">
-				<div class="pill-item activeoption" data-division="all" onclick="filterSchedule('all')">All</div>
-				<div class="pill-item" data-division="Monday A League" onclick="filterSchedule('Monday A League')">Monday A</div>
-				<div class="pill-item" data-division="Monday B League" onclick="filterSchedule('Monday B League')">Monday B</div>
-				<div class="pill-item" data-division="Sunday D1" onclick="filterSchedule('Sunday D1')">Sunday D1</div>
-				<div class="pill-item" data-division="Sunday D2" onclick="filterSchedule('Sunday D2')">Sunday D2</div>
-				<div class="pill-item" data-division="Wednesday Draft League" onclick="filterSchedule('Wednesday')">Wednesday</div>
+				<button type="button" class="pill-item activeoption" data-division="all" onclick="filterSchedule('all')">All</button>
+				<button type="button" class="pill-item" data-division="Monday A League" onclick="filterSchedule('Monday A League')">Monday A</button>
+				<button type="button" class="pill-item" data-division="Monday B League" onclick="filterSchedule('Monday B League')">Monday B</button>
+				<button type="button" class="pill-item" data-division="Sunday D1" onclick="filterSchedule('Sunday D1')">Sunday D1</button>
+				<button type="button" class="pill-item" data-division="Sunday D2" onclick="filterSchedule('Sunday D2')">Sunday D2</button>
+				<button type="button" class="pill-item" data-division="Wednesday Draft League" onclick="filterSchedule('Wednesday')">Wednesday</button>
 			</div>
             {% include 'partials/schedule.html' %}
 		</div>
@@ -28,12 +29,6 @@
 </div>
 
 <script type="text/javascript">
-    function toggleTable(id) {
-        var stats = document.getElementById("stats-"+id);
-				var showstats = stats.style.display == "block";
-        stats.style.display = showstats ? "none" : "block";
-				document.getElementById("ex-"+id).style.display == showstats ? "block" : "none";
-    }
 		function handleSelect(elm){
 	  	window.location = elm.value;
 	  }

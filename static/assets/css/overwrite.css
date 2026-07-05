@@ -1359,3 +1359,79 @@ div div#content .matchupheader{
         gap: 1px;
     }
 }
+
+/* ── UX refresh: real links, box-score disclosures, legends ────────────── */
+.record-legend {
+    font-size: 0.8em;
+    color: #777;
+    margin: -6px 0 14px;
+}
+.record-legend-note { color: #999; }
+
+/* Block-style link that fills its table cell / card region */
+.cell-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+.cell-link:hover { text-decoration: underline; color: inherit; }
+.cell-link:focus-visible { outline: 2px solid #1a5276; outline-offset: 2px; }
+
+/* Pills rendered as real <a>/<button> elements */
+a.pill-item { text-decoration: none; display: inline-block; color: #4a4a4a; }
+a.pill-item:hover { text-decoration: none; }
+button.pill-item { font-family: inherit; line-height: inherit; }
+.pill-item:focus-visible { outline: 2px solid #1a5276; outline-offset: 2px; }
+
+/* Box score disclosure */
+details.box-score { margin: 2px 0 10px; }
+details.box-score > summary.box-score-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 4px 2px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    color: #1a5276;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+details.box-score > summary.box-score-toggle::-webkit-details-marker { display: none; }
+.box-score-chevron { font-size: 0.7em; transition: transform 0.15s ease; }
+details.box-score[open] .box-score-chevron { transform: rotate(180deg); }
+.box-score-body { padding-bottom: 8px; }
+.box-score-team { font-size: 0.95em; margin: 6px 0 4px; }
+.box-score-empty { color: #888; font-style: italic; font-size: 0.9em; }
+
+/* "Show all players" control on League Leaders */
+.show-more-btn {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 4px;
+    background: #f4f6f8;
+    border: 1px solid #d8dee3;
+    border-radius: 6px;
+    color: #1a5276;
+    font-weight: 600;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+.show-more-btn:hover { background: #e9eef2; }
+.show-more-btn:focus-visible { outline: 2px solid #1a5276; outline-offset: 2px; }
+
+/* Division sub-headers inside the home-page game columns */
+.quote-list li.home-division-label {
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #777;
+    border-bottom: 1px solid #e2e6e8;
+    padding: 10px 0 3px;
+    margin-bottom: 4px;
+    list-style: none;
+}
+.game-schedule-time { padding-bottom: 2px; }

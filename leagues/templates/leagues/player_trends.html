@@ -8,8 +8,8 @@
             {% if not player_id %}
                 <h2>Search for a player to see their trend history</h2>
             {% else %}
-                <h2 class="clickable title" onclick="javascript:handleTeam('{% url "player" player.id %}')">
-                    {{ player.first_name }} {{ player.last_name }}
+                <h2 class="title">
+                    <a href="{% url 'player' player.id %}" class="cell-link">{{ player.first_name }} {{ player.last_name }}</a>
                 </h2>
                 <h3>
                     {% if goalie_trend %}

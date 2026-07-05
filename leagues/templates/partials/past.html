@@ -1,3 +1,4 @@
+{% load helpers %}
 <table class="table">
     <tr>
         <th>Year</th>
@@ -7,24 +8,18 @@
         <th>GA</th>
         <th>Div</th>
     </tr>
-    {% load helpers %}
     {% for stat in past_team_stats %}
     <tr>
-
         <td>{{stat.team__season__year}}</td>
         <td>{{stat.team__season__season_type|season_type}}</td>
-        <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
-            {% if stat.team__season__year < 2022 %}
-                {{stat.team__team_name}} ({{stat.win}} - {{stat.loss}} - {{stat.tie}})
-            {% else %}
-                {{stat.team__team_name}} ({{stat.win}} - {{stat.otw}}  - {{stat.otl}}- {{stat.loss}})
-            {% endif %}
-        </td>
+        <td><a href="{% url 'teams' stat.team__id %}" class="cell-link">{{stat.team__team_name}} ({% team_record stat.team__season__year stat.win stat.loss stat.otw stat.otl stat.tie %})</a></td>
         <td>{{stat.goals_for}}</td>
         <td>{{stat.goals_against}}</td>
         <td>{{stat.team__division|division_type}}</td>
-        {% empty %}
-            <td>No past stats yet.</td>
-    {% endfor %}
     </tr>
+    {% empty %}
+    <tr>
+        <td colspan="6">No past stats yet.</td>
+    </tr>
+    {% endfor %}
 </table>

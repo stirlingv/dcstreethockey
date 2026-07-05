@@ -111,8 +111,12 @@ function handleTeam(url) {
     window.location.href = url;
 }
 
-function togglePlayersTable(id) {
+function togglePlayersTable(id, btn) {
     var playersTable = document.getElementById("playerstatsection-"+id);
     var showall = playersTable.className.includes("shorttable");
     playersTable.className = showall ? "longtable" : "shorttable";
+    if (btn) {
+        btn.textContent = showall ? "Show fewer \u25B4" : "Show all players \u25BE";
+        btn.setAttribute("aria-expanded", showall ? "true" : "false");
+    }
 }

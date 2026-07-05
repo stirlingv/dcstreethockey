@@ -21,41 +21,57 @@
                     {{ matchup.week.date|date:"l, N j" }}
                     &middot;
                     {{ matchup.time|date:"g:i A" }}
-                    {% if matchup.is_cancelled %}<span class="game-cancelled-badge">Cancelled</span>{% endif %}
+                    {% if matchup.is_cancelled %}
+                        <span class="game-cancelled-badge">Cancelled</span>
+                    {% elif is_final %}
+                        <span class="matchup-final-chip">Final{% if matchup.shootout_winner_is_home is not None %} &middot; Shootout{% endif %}</span>
+                    {% endif %}
                 </div>
 
                 <div class="matchup-detail-teams">
-                    <div class="matchup-detail-team">
+                    <div class="matchup-detail-team{% if is_final and box.match.away_goals > box.match.home_goals %} matchup-team-won{% endif %}">
                         <img src="{% jersey_path %}{{ matchup.awayteam.team_color|lower }}_jersey.png"
                              alt="{{ matchup.awayteam.team_color }} jersey"
                              class="matchup-detail-jersey">
                         <a href="{% url 'teams' matchup.awayteam.id %}" class="matchup-team-link">{{ matchup.awayteam.team_name }}</a>
-                        <div class="matchup-team-record">
-                            {% if matchup.awayteam.season.year < 2022 %}
-                                {{ matchup.away_wins }}-{{ matchup.away_losses }}-{{ matchup.away_ties }}
-                            {% else %}
-                                {{ matchup.away_wins }}-{{ matchup.away_otw }}-{{ matchup.away_otl }}-{{ matchup.away_losses }}
-                            {% endif %}
+                        <div class="matchup-team-record" title="{% if matchup.awayteam.season.year >= 2022 %}Wins - OT Wins - OT Losses - Losses{% else %}Wins - Losses - Ties{% endif %}">
+                            {% team_record matchup.awayteam.season.year matchup.away_wins matchup.away_losses matchup.away_otw matchup.away_otl matchup.away_ties %}
                         </div>
                     </div>
 
+                    {% if is_final %}
+                    <div class="matchup-final-score" aria-label="Final score">
+                        <span class="matchup-score{% if box.match.away_goals > box.match.home_goals %} matchup-score-winner{% endif %}">{{ box.match.away_goals }}</span>
+                        <span class="matchup-score-dash">&ndash;</span>
+                        <span class="matchup-score{% if box.match.home_goals > box.match.away_goals %} matchup-score-winner{% endif %}">{{ box.match.home_goals }}</span>
+                    </div>
+                    {% else %}
                     <div class="matchup-detail-vs">@</div>
+                    {% endif %}
 
-                    <div class="matchup-detail-team">
+                    <div class="matchup-detail-team{% if is_final and box.match.home_goals > box.match.away_goals %} matchup-team-won{% endif %}">
                         <img src="{% jersey_path %}{{ matchup.hometeam.team_color|lower }}_jersey.png"
                              alt="{{ matchup.hometeam.team_color }} jersey"
                              class="matchup-detail-jersey">
                         <a href="{% url 'teams' matchup.hometeam.id %}" class="matchup-team-link">{{ matchup.hometeam.team_name }}</a>
-                        <div class="matchup-team-record">
-                            {% if matchup.hometeam.season.year < 2022 %}
-                                {{ matchup.home_wins }}-{{ matchup.home_losses }}-{{ matchup.home_ties }}
-                            {% else %}
-                                {{ matchup.home_wins }}-{{ matchup.home_otw }}-{{ matchup.home_otl }}-{{ matchup.home_losses }}
-                            {% endif %}
+                        <div class="matchup-team-record" title="{% if matchup.hometeam.season.year >= 2022 %}Wins - OT Wins - OT Losses - Losses{% else %}Wins - Losses - Ties{% endif %}">
+                            {% team_record matchup.hometeam.season.year matchup.home_wins matchup.home_losses matchup.home_otw matchup.home_otl matchup.home_ties %}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {% if matchup.is_cancelled %}
+            <div class="matchup-status-note">This game was cancelled{% if has_stats %} &mdash; any stats below are unofficial{% endif %}.</div>
+            {% elif is_final %}
+            <!-- Box score -->
+            <div class="matchup-detail-section">
+                <div class="matchup-section-label">Box Score</div>
+                {% include 'partials/box_score.html' with value2=box box_score_open=True %}
+            </div>
+            {% elif is_past %}
+            <div class="matchup-status-note">The final score hasn't been posted yet &mdash; check back soon.</div>
+            {% endif %}
 
             {% if lines %}
             <!-- Game Lines -->
@@ -180,7 +196,7 @@
             </div>
             {% endif %}
 
-            {% if not lines and not props %}
+            {% if not is_final and not matchup.is_cancelled and not lines and not props %}
             <div class="matchup-no-lines">Game lines and player props are not available for this matchup.</div>
             {% endif %}
 

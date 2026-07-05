@@ -404,12 +404,26 @@ class PlayerAdmin(admin.ModelAdmin):
 class StatInline(admin.TabularInline):
     model = Stat
     extra = 1
+    verbose_name = "sub / other player stat"
+    verbose_name_plural = "Subs & other players (not on either roster)"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         match_id = request.resolver_match.kwargs.get("object_id")
         if match_id:
             qs = qs.filter(matchup_id=match_id)
+            # Rostered (non-substitute) players are edited via the scoresheet
+            # grid on the change form; the inline only handles subs and other
+            # players who aren't on either roster.
+            try:
+                match = MatchUp.objects.get(id=match_id)
+                rostered = Roster.objects.filter(
+                    team__in=[match.hometeam_id, match.awayteam_id],
+                    is_substitute=False,
+                ).values_list("player_id", flat=True)
+                qs = qs.exclude(player_id__in=rostered)
+            except MatchUp.DoesNotExist:
+                pass
         return qs
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
@@ -550,6 +564,7 @@ class MatchUpAdmin(admin.ModelAdmin):
         return None
 
     formatted_time.short_description = "Time"
+    formatted_time.admin_order_field = "time"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -714,11 +729,119 @@ class MatchUpAdmin(admin.ModelAdmin):
                 }
             )
 
+            # Scoresheet grid: both rosters with existing stats prefilled.
+            # Rostered players are entered here (the roster IS the form);
+            # the Stat inline below only handles subs / unrostered players.
+            existing_stats = {}
+            for stat_row in Stat.objects.filter(matchup=match).order_by("pk"):
+                existing_stats.setdefault(stat_row.player_id, stat_row)
+
+            def _sheet_rows(team):
+                rows = []
+                roster_qs = (
+                    Roster.objects.filter(team=team, is_substitute=False)
+                    .select_related("player")
+                    .order_by("player__last_name", "player__first_name")
+                )
+                for entry in roster_qs:
+                    if not entry.player_id:
+                        continue
+                    stat_row = existing_stats.get(entry.player_id)
+                    is_goalie = 4 in (entry.position1, entry.position2)
+                    rows.append(
+                        {
+                            "player_id": entry.player_id,
+                            "name": (
+                                f"{entry.player.first_name} "
+                                f"{entry.player.last_name}"
+                            ),
+                            "is_goalie": is_goalie,
+                            "is_captain": entry.is_captain,
+                            "goals": stat_row.goals if stat_row else "",
+                            "assists": stat_row.assists if stat_row else "",
+                            "goals_against": (
+                                stat_row.goals_against if stat_row else ""
+                            ),
+                            "empty_net": stat_row.empty_net if stat_row else "",
+                        }
+                    )
+                # Split like a paper scoresheet: players up top, goalies
+                # at the bottom with their own GA/EN columns.
+                return {
+                    "players": [r for r in rows if not r["is_goalie"]],
+                    "goalies": [r for r in rows if r["is_goalie"]],
+                }
+
+            away_rows = _sheet_rows(match.awayteam)
+            home_rows = _sheet_rows(match.hometeam)
+            extra_context["scoresheet"] = {
+                "away": {"team": match.awayteam, **away_rows},
+                "home": {"team": match.hometeam, **home_rows},
+            }
+            extra_context["scoresheet_player_ids"] = ",".join(
+                str(r["player_id"])
+                for side in (away_rows, home_rows)
+                for r in side["players"] + side["goalies"]
+            )
+
         except MatchUp.DoesNotExist:
             extra_context["player_team_map_json"] = "{}"
         return super().change_view(
             request, object_id, form_url=form_url, extra_context=extra_context
         )
+
+    # Scoresheet-grid fields are named ss-<player_id>-<field>. Blank means
+    # "no stat row" (deletes an existing row); an explicit 0 is a real value,
+    # which is how a goalie shutout (0 GA) gets recorded as a played game.
+    _SHEET_FIELDS = ("goals", "assists", "goals_against", "empty_net")
+
+    def _process_scoresheet(self, request, match):
+        raw_ids = request.POST.get("ss-player-ids", "")
+        if not raw_ids:
+            return
+        player_ids = [int(pid) for pid in raw_ids.split(",") if pid.strip().isdigit()]
+        if not player_ids:
+            return
+
+        team_by_player = {
+            r["player_id"]: r["team_id"]
+            for r in Roster.objects.filter(
+                team__in=[match.hometeam_id, match.awayteam_id],
+                is_substitute=False,
+            ).values("player_id", "team_id")
+        }
+
+        def _parse(pid, field):
+            raw = request.POST.get(f"ss-{pid}-{field}", "").strip()
+            if raw == "":
+                return None
+            try:
+                return max(int(raw), 0)
+            except ValueError:
+                return None
+
+        for pid in player_ids:
+            team_id = team_by_player.get(pid)
+            if team_id is None:
+                continue
+            values = {f: _parse(pid, f) for f in self._SHEET_FIELDS}
+            existing = list(
+                Stat.objects.filter(matchup=match, player_id=pid).order_by("pk")
+            )
+            if all(v is None for v in values.values()):
+                if existing:
+                    Stat.objects.filter(matchup=match, player_id=pid).delete()
+                continue
+            stat = existing[0] if existing else Stat(matchup=match, player_id=pid)
+            stat.team_id = team_id
+            stat.goals = values["goals"] or 0
+            stat.assists = values["assists"] or 0
+            stat.goals_against = values["goals_against"] or 0
+            stat.empty_net = values["empty_net"] or 0
+            stat.save()
+            # Collapse accidental duplicate rows into the one we just saved.
+            for dup in existing[1:]:
+                dup.delete()
 
     def save_related(self, request, form, formsets, change):
         match = getattr(request, "_matchup_for_stat", None)
@@ -753,6 +876,13 @@ class MatchUpAdmin(admin.ModelAdmin):
                 )
 
         super().save_related(request, form, formsets, change)
+
+        # Apply scoresheet-grid entries (rostered players) after the inline
+        # save and BEFORE the Team_Stat GF/GA recompute below, so tonight's
+        # grid entries are included in the totals.
+        saved = getattr(form, "instance", None)
+        if saved is not None and saved.pk:
+            self._process_scoresheet(request, saved)
 
         # Skip the Team_Stat write entirely for postseason games.
         if not match or is_postseason:
@@ -1117,6 +1247,7 @@ class MatchUpGoalieStatusAdmin(admin.ModelAdmin):
         return None
 
     formatted_time.short_description = "Time"
+    formatted_time.admin_order_field = "time"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -1530,6 +1661,7 @@ class WeekAdmin(admin.ModelAdmin):
 class TeamAdmin(admin.ModelAdmin):
     inlines = [TeamStatInline, RosterInline]
     list_filter = ["is_active", "division", "season"]
+    search_fields = ["team_name"]
     save_as = True
     raw_id_fields = ["division", "season"]
 
@@ -1918,16 +2050,74 @@ class TeamStatAdmin(admin.ModelAdmin):
     goals_from_stat_records.short_description = "Goals from Stat records"
 
 
+class StatAdmin(admin.ModelAdmin):
+    """
+    Standalone Stat admin. Day-to-day stat entry should happen on the
+    MatchUp change form (guarded, roster-filtered); this changelist exists
+    for auditing and one-off corrections, so it gets search, filters, and
+    autocomplete instead of full-table dropdowns.
+    """
+
+    list_display = ["player", "team", "game", "goals", "assists", "goals_against"]
+    list_select_related = ("player", "team", "matchup__week")
+    list_filter = [
+        "team__division",
+        ("team__season", admin.RelatedOnlyFieldListFilter),
+    ]
+    search_fields = [
+        "player__first_name",
+        "player__last_name",
+        "team__team_name",
+    ]
+    autocomplete_fields = ["player", "team", "matchup"]
+    list_per_page = 50
+
+    def game(self, obj):
+        if obj.matchup_id:
+            return obj.matchup.week.date
+        return None
+
+    game.short_description = "Game date"
+    game.admin_order_field = "matchup__week__date"
+
+
+class RosterAdmin(admin.ModelAdmin):
+    list_display = [
+        "player",
+        "team",
+        "position1",
+        "position2",
+        "is_captain",
+        "is_primary_goalie",
+        "is_substitute",
+        "player_number",
+    ]
+    list_select_related = ("player", "team__season")
+    list_filter = [
+        "team__division",
+        ("team__season", admin.RelatedOnlyFieldListFilter),
+        "is_captain",
+        "is_substitute",
+    ]
+    search_fields = [
+        "player__first_name",
+        "player__last_name",
+        "team__team_name",
+    ]
+    autocomplete_fields = ["player", "team"]
+    list_per_page = 100
+
+
 admin.site.register(Player, PlayerAdmin)
 admin.site.register(Team, TeamAdmin)
 admin.site.register(Week, WeekAdmin)
 admin.site.register(Season, SeasonAdmin)
 admin.site.register(Division)
-admin.site.register(Roster)
+admin.site.register(Roster, RosterAdmin)
 admin.site.register(Team_Stat, TeamStatAdmin)
 admin.site.register(MatchUp, MatchUpAdmin)
 admin.site.register(MatchUpGoalieStatus, MatchUpGoalieStatusAdmin)
-admin.site.register(Stat)
+admin.site.register(Stat, StatAdmin)
 
 
 # ===========================================================================

@@ -217,7 +217,9 @@
     </p>
 
     {% for div in info.divisions %}
-    <details class="se-division"{% if div.any_missing or div.outcome_needed or div.goalie_needed %} open{% endif %}>
+    {# Open only divisions still missing player stats — outcome/goalie flags
+       show as badges without expanding, keeping the phone view scannable. #}
+    <details class="se-division"{% if div.any_missing %} open{% endif %}>
       <summary class="se-division-summary">
         <span class="se-division-chevron">&#9658;</span>
         <span class="se-division-name">{{ div.division }}</span>

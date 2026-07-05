@@ -1,5 +1,6 @@
 {% extends 'core/base.html' %}
 {% load static %}
+{% load helpers %}
 {% block content %}
 <div id="content-wrapper" class="team">
 	<div id="content">
@@ -20,20 +21,16 @@
             </div>
             {% endif %}
             <div class="title">
-                {% if team.season.year < 2022 %}
-                    {{team.team_name}} ({{team.wins}}-{{team.losses}}-{{team.ties}})
-                {% else %}
-                    {{team.team_name}} ({{team.wins}}-{{team.otw}}-{{team.otl}}-{{team.losses}})
-                {% endif %}
+                {{team.team_name}} ({% team_record team.season.year team.wins team.losses team.otw team.otl team.ties %})
             </div>
             <h3 class="division">{{team.division}}</h3>
             <div class="stat-scope-note">Roster stats include regular season + playoffs.</div>
             <div class="cleardiv">
             <div class="pill-group">
-                <div id="rosteroptiondiv" class="pill-item activeoption" onclick="javascript:handleOption('roster')">Roster</div>
-                <div id="scheduleoptiondiv" class="pill-item" onclick="javascript:handleOption('schedule')">Schedule</div>
-                <div id="scoresoptiondiv" class="pill-item" onclick="javascript:handleOption('scores')">Scores</div>
-                <div id="pastoptiondiv" class="pill-item" onclick="javascript:handleOption('past')">Past Seasons</div>
+                <button type="button" id="rosteroptiondiv" class="pill-item activeoption" onclick="handleOption('roster')">Roster</button>
+                <button type="button" id="scheduleoptiondiv" class="pill-item" onclick="handleOption('schedule')">Schedule</button>
+                <button type="button" id="scoresoptiondiv" class="pill-item" onclick="handleOption('scores')">Scores</button>
+                <button type="button" id="pastoptiondiv" class="pill-item" onclick="handleOption('past')">Past Seasons</button>
             </div>
 
             <section id="schedulesection" class="hidden">
@@ -54,12 +51,6 @@
 </div>
 
 <script type="text/javascript">
-    function toggleTable(id) {
-        var stats = document.getElementById("stats-"+id);
-				var showstats = stats.style.display == "block";
-        stats.style.display = showstats ? "none" : "block";
-				document.getElementById("ex-"+id).style.display == showstats ? "block" : "none";
-    }
     function handleOption(name) {
         var schedule = document.getElementById("schedulesection");
         var roster = document.getElementById("rostersection");

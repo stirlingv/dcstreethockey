@@ -261,10 +261,12 @@ def home(request):
     next_week = today + datetime.timedelta(days=6)
 
     # select_related eliminates per-matchup FK queries in the template.
+    # Ordered by date, then division, then time so the template can group
+    # each day's games under division sub-headers.
     matchups = (
         MatchUp.objects.filter(week__date__range=(today, next_week))
-        .select_related("week", "hometeam", "awayteam")
-        .order_by("time")
+        .select_related("week", "hometeam__division", "awayteam")
+        .order_by("week__date", "hometeam__division", "time")
     )
     # One row per date, ordered by date then time so distinct picks the
     # earliest game — used for weather window targeting and template date headers.

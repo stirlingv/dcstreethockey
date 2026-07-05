@@ -16,12 +16,12 @@
                 </select>
             </div>
             <div class="pill-group">
-                <div id="combinedoptiondiv" class="pill-item activeoption" onclick="javascript:handleOption('combined')">Combined</div>
-                <div id="d1optiondiv" class="pill-item" onclick="javascript:handleOption('d1')">D1</div>
-                <div id="d2optiondiv" class="pill-item" onclick="javascript:handleOption('d2')">D2</div>
-                <div id="draftoptiondiv" class="pill-item" onclick="javascript:handleOption('draft')">Draft</div>
-                <div id="monaoptiondiv" class="pill-item" onclick="javascript:handleOption('mona')">Mon-A</div>
-                <div id="monboptiondiv" class="pill-item" onclick="javascript:handleOption('monb')">Mon-B</div>
+                <button type="button" id="combinedoptiondiv" class="pill-item activeoption" onclick="handleOption(\'combined\')">Combined</button>
+                <button type="button" id="d1optiondiv" class="pill-item" onclick="handleOption(\'d1\')">D1</button>
+                <button type="button" id="d2optiondiv" class="pill-item" onclick="handleOption(\'d2\')">D2</button>
+                <button type="button" id="draftoptiondiv" class="pill-item" onclick="handleOption(\'draft\')">Draft</button>
+                <button type="button" id="monaoptiondiv" class="pill-item" onclick="handleOption(\'mona\')">Mon-A</button>
+                <button type="button" id="monboptiondiv" class="pill-item" onclick="handleOption(\'monb\')">Mon-B</button>
             </div>
 
             <section id="combinedsection" class="stats show">
@@ -47,12 +47,6 @@
 </div>
 
 <script type="text/javascript">
-    function toggleTable(id) {
-        var stats = document.getElementById("stats-" + id);
-        var showstats = stats.style.display == "block";
-        stats.style.display = showstats ? "none" : "block";
-        document.getElementById("ex-" + id).style.display = showstats ? "block" : "none";
-    }
 
     function handleOption(name) {
         var sections = ["combined", "d1", "d2", "draft", "mona", "monb"];

@@ -33,7 +33,7 @@
             <div class="row stats">
                 {% for division, player_list in player_stat_list.items %}
                     <div class="4u 12u(mobile)">
-                        <section id="playerstatsection-{{ division }}" class="shorttable" onclick="togglePlayersTable('{{ division }}')">
+                        <section id="playerstatsection-{{ division }}" class="shorttable">
                             <h3 class="divisionheader">{{ division }}</h3>
                             {% include 'partials/stats.html' %}
                         </section>
@@ -49,18 +49,6 @@
     }
     function handleScope(dest) {
         window.location = dest;
-    }
-
-    function toggleTable(division) {
-        const section = document.getElementById(`playerstatsection-${division}`);
-        const expand = document.getElementById(`ex-${division}`);
-        if (section.classList.contains('expanded')) {
-            section.classList.remove('expanded');
-            expand.innerHTML = 'v'; // Down arrow when collapsed
-        } else {
-            section.classList.add('expanded');
-            expand.innerHTML = '^'; // Up arrow when expanded
-        }
     }
 </script>
 {% endblock %}

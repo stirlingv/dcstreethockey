@@ -11,6 +11,7 @@ Covers:
   - schedule view
   - cups view
 """
+
 import datetime
 
 from django.db.models import F, Q
@@ -42,7 +43,6 @@ from leagues.models import (
     Team_Stat,
     Week,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared fixture mixin
@@ -1845,3 +1845,121 @@ class ScoresheetSelectViewTest(ScheduleTestBase):
             info["date"] for info in response.context["recent"]
         ]
         self.assertNotIn(old_date, all_dates)
+
+
+# ---------------------------------------------------------------------------
+# matchup_detail game center (score hero + box score states)
+# ---------------------------------------------------------------------------
+
+
+class MatchupDetailGameCenterTest(ScheduleTestBase):
+    """State-based rendering: upcoming, final, awaiting stats, cancelled."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = Client()
+        self.url = reverse("matchup_detail", args=[self.matchup.id])
+
+    def _make_final(self):
+        """Give the past matchup stats so it renders as a final."""
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=3,
+            assists=1,
+        )
+        Stat.objects.create(
+            player=self.away_player,
+            team=self.away_team,
+            matchup=self.matchup,
+            goals=1,
+            assists=0,
+        )
+
+    def test_upcoming_game_shows_at_symbol_not_final(self):
+        future_week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date.today() + datetime.timedelta(days=3),
+        )
+        future = MatchUp.objects.create(
+            week=future_week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        response = self.client.get(reverse("matchup_detail", args=[future.id]))
+        self.assertFalse(response.context["is_final"])
+        self.assertContains(response, "matchup-detail-vs")
+        self.assertNotContains(response, "matchup-final-chip")
+        self.assertNotContains(response, "been posted yet")
+
+    def test_past_game_without_stats_shows_pending_note(self):
+        response = self.client.get(self.url)
+        self.assertFalse(response.context["is_final"])
+        self.assertTrue(response.context["is_past"])
+        self.assertContains(response, "been posted yet")
+
+    def test_final_game_shows_score_and_chip(self):
+        self._make_final()
+        response = self.client.get(self.url)
+        self.assertTrue(response.context["is_final"])
+        self.assertContains(response, "matchup-final-chip")
+        self.assertContains(response, "matchup-final-score")
+        # Home won 3-1: home score marked as winner
+        self.assertContains(response, "matchup-score-winner")
+        self.assertContains(response, "matchup-team-won")
+
+    def test_final_game_shows_box_score_open(self):
+        self._make_final()
+        response = self.client.get(self.url)
+        self.assertContains(response, "Box Score")
+        self.assertContains(response, "box-score")
+        # Scorers listed with real player links
+        self.assertContains(response, reverse("player", args=[self.home_player.id]))
+        self.assertContains(response, "Player, Home")
+
+    def test_final_score_matches_scores_page_aggregation(self):
+        self._make_final()
+        response = self.client.get(self.url)
+        box = response.context["box"]
+        self.assertEqual(box["match"].home_goals, 3)
+        self.assertEqual(box["match"].away_goals, 1)
+
+    def test_shootout_final_shows_shootout_chip_and_extra_goal(self):
+        self._make_final()
+        self.matchup.shootout_winner_is_home = True
+        self.matchup.save()
+        response = self.client.get(self.url)
+        self.assertContains(response, "Shootout")
+        # add_goals_for_matchups credits the shootout winner one extra goal
+        self.assertEqual(response.context["box"]["match"].home_goals, 4)
+
+    def test_cancelled_game_shows_cancelled_note(self):
+        self._make_final()
+        self.matchup.is_cancelled = True
+        self.matchup.save()
+        response = self.client.get(self.url)
+        self.assertFalse(response.context["is_final"])
+        self.assertContains(response, "This game was cancelled")
+
+    def test_upcoming_d1_game_shows_no_lines_note(self):
+        future_week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date.today() + datetime.timedelta(days=3),
+        )
+        future = MatchUp.objects.create(
+            week=future_week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+        response = self.client.get(reverse("matchup_detail", args=[future.id]))
+        self.assertContains(response, "not available for this matchup")
+
+    def test_final_game_hides_no_lines_note(self):
+        self._make_final()
+        response = self.client.get(self.url)
+        self.assertNotContains(response, "not available for this matchup")

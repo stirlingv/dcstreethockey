@@ -30,7 +30,7 @@
         <tbody>
             {% for ts in teams %}
             <tr class="clickable" onclick="handleTeam('{% url "teams" ts.team.id %}')">
-                <td class="col-name">{{ ts.team.team_name }}</td>
+                <td class="col-name"><a href="{% url 'teams' ts.team.id %}" class="cell-link">{{ ts.team.team_name }}</a></td>
                 <td class="col-stat">{{ ts.win }}</td>
                 <td class="col-stat">{{ ts.otw }}</td>
                 <td class="col-stat">{{ ts.loss }}</td>

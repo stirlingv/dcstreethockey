@@ -224,7 +224,9 @@ def get_detailed_matchups(matchups):
     result = OrderedDict()
 
     matchup_list = list(
-        matchups.select_related("hometeam", "awayteam", "week").annotate(
+        matchups.select_related(
+            "hometeam__season", "awayteam__season", "week"
+        ).annotate(
             home_wins=Coalesce(Max("hometeam__team_stat__win"), 0),
             home_losses=Coalesce(Max("hometeam__team_stat__loss"), 0),
             home_ties=Coalesce(Max("hometeam__team_stat__tie"), 0),
@@ -282,7 +284,7 @@ def get_detailed_matchups(matchups):
 def get_schedule_for_matchups(matchups):
     schedule = OrderedDict()
     for match in matchups.select_related(
-        "week", "hometeam", "awayteam__division"
+        "week", "hometeam__season", "awayteam__division", "awayteam__season"
     ).annotate(
         home_wins=Coalesce(Max("hometeam__team_stat__win"), 0),
         home_losses=Coalesce(Max("hometeam__team_stat__loss"), 0),
@@ -496,6 +498,22 @@ def matchup_detail(request, matchup_id):
         id=matchup_id,
     )
 
+    # Final score and box score reuse the same aggregation helpers as the
+    # Scores page (add_goals_for_matchups / get_detailed_matchups) so the two
+    # pages can never disagree about a result.
+    box = None
+    detailed = get_detailed_matchups(
+        add_goals_for_matchups(MatchUp.objects.filter(id=matchup_id))
+    )
+    for day_games in detailed.values():
+        box = day_games.get(str(matchup_id), box)
+
+    has_stats = bool(
+        box and (box["stats"] or box["home_goalie_stats"] or box["away_goalie_stats"])
+    )
+    is_final = has_stats and not matchup.is_cancelled
+    is_past = matchup.week.date < datetime.date.today()
+
     lines = None
     props = None
     if matchup.hometeam.division.division != 1:
@@ -505,7 +523,15 @@ def matchup_detail(request, matchup_id):
     return render(
         request,
         "core/matchup_detail.html",
-        {"matchup": matchup, "lines": lines, "props": props},
+        {
+            "matchup": matchup,
+            "lines": lines,
+            "props": props,
+            "box": box,
+            "has_stats": has_stats,
+            "is_final": is_final,
+            "is_past": is_past,
+        },
     )
 
 

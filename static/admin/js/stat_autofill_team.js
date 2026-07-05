@@ -48,6 +48,15 @@
             }
         });
 
+        // Scoresheet grid rows (rostered players) carry their team id.
+        document.querySelectorAll('input.ss-input[data-ss="goals"]').forEach(function (input) {
+            var tid = String(input.getAttribute('data-team') || '');
+            var goals = parseInt(input.value, 10) || 0;
+            if (Object.prototype.hasOwnProperty.call(totals, tid)) {
+                totals[tid] += goals;
+            }
+        });
+
         return totals;
     }
 
@@ -70,6 +79,22 @@
             var ga = parseInt(input.value, 10) || 0;
             if (Object.prototype.hasOwnProperty.call(totals, tid)) {
                 totals[tid] += ga;
+            }
+        });
+
+        // Scoresheet grid goalie rows. A "0" here is a recorded shutout, so
+        // count any non-blank value.
+        document.querySelectorAll('input.ss-input[data-ss="goals_against"]').forEach(function (input) {
+            if (input.value === '') return;
+            var tid = String(input.getAttribute('data-team') || '');
+            var ga = parseInt(input.value, 10) || 0;
+            if (Object.prototype.hasOwnProperty.call(totals, tid)) {
+                // Treat an explicit entry as goalie stats being present even
+                // when it is 0 (shutout) by nudging the warning check below.
+                totals[tid] += ga;
+                if (ga === 0 && !totals['__recorded_' + tid]) {
+                    totals['__recorded_' + tid] = true;
+                }
             }
         });
 
@@ -208,13 +233,15 @@
         var ga = computeGoalsAgainstTotals();
         var homeGA = ga[homeTeamId] || 0;
         var awayGA = ga[awayTeamId] || 0;
+        var homeRecorded = homeGA > 0 || ga['__recorded_' + homeTeamId];
+        var awayRecorded = awayGA > 0 || ga['__recorded_' + awayTeamId];
 
         var msgs = [];
         // Home conceded the away team's goals; away conceded the home team's.
-        if (awayScored > 0 && homeGA === 0) {
+        if (awayScored > 0 && !homeRecorded) {
             msgs.push(goalieMsg(homeTeamName, awayScored));
         }
-        if (homeScored > 0 && awayGA === 0) {
+        if (homeScored > 0 && !awayRecorded) {
             msgs.push(goalieMsg(awayTeamName, homeScored));
         }
 
@@ -305,7 +332,7 @@
         if (/^stat_set-\d+-player$/.test(name)) {
             autofillTeam(e.target);
             updateSuggestions();
-        } else if (/^stat_set-\d+-team$/.test(name) || /^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-goals_against$/.test(name) || /^stat_set-\d+-DELETE$/.test(name)) {
+        } else if (/^stat_set-\d+-team$/.test(name) || /^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-goals_against$/.test(name) || /^stat_set-\d+-DELETE$/.test(name) || /^ss-\d+-(goals|goals_against)$/.test(name)) {
             updateSuggestions();
         } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
             updateShootoutVisibility();
@@ -317,7 +344,7 @@
 
     document.addEventListener('input', function (e) {
         var name = e.target.name || '';
-        if (/^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-goals_against$/.test(name)) {
+        if (/^stat_set-\d+-goals$/.test(name) || /^stat_set-\d+-goals_against$/.test(name) || /^ss-\d+-(goals|goals_against)$/.test(name)) {
             updateSuggestions();
         } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
             updateShootoutVisibility();

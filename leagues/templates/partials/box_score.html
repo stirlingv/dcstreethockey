@@ -1,0 +1,84 @@
+{% comment %}
+Box score for one matchup. Expects `value2` (dict from get_detailed_matchups:
+match, stats, home_goalie_stats, away_goalie_stats). Rendered inside a
+<details> so it needs no JavaScript and works with keyboard/screen readers.
+{% endcomment %}
+<details class="box-score"{% if box_score_open %} open{% endif %}>
+    <summary class="box-score-toggle">
+        <span class="box-score-label">Box score</span>
+        <span class="box-score-chevron" aria-hidden="true">&#9660;</span>
+    </summary>
+    <div class="row stats box-score-body">
+        {% if not value2.stats and not value2.away_goalie_stats and not value2.home_goalie_stats %}
+        <p class="box-score-empty">No player stats recorded for this game.</p>
+        {% else %}
+        <div class="6u 12u(mobile)">
+            <h4 class="box-score-team">{{ value2.match.awayteam.team_name }}</h4>
+            <table>
+                <tr>
+                    <th>Player</th>
+                    <th>Goals</th>
+                    <th>Assists</th>
+                </tr>
+                {% for stat in value2.stats %}
+                    {% if value2.match.awayteam == stat.team %}
+                    <tr>
+                        <td><a href="{% url 'player' stat.player_id %}" class="cell-link">{{ stat.player }}</a></td>
+                        <td>{{ stat.goals }}</td>
+                        <td>{{ stat.assists }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+            </table>
+            <table>
+                <tr>
+                    <th>Goalie</th>
+                    <th>GA</th>
+                    <th>EN</th>
+                </tr>
+                {% for stat in value2.away_goalie_stats %}
+                <tr>
+                    <td><a href="{% url 'player' stat.player_id %}" class="cell-link">{{ stat.player }}</a></td>
+                    <td>{{ stat.goals_against }}</td>
+                    <td>{{ stat.empty_net }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="6u 12u(mobile)">
+            <h4 class="box-score-team">{{ value2.match.hometeam.team_name }}</h4>
+            <table>
+                <tr>
+                    <th>Player</th>
+                    <th>Goals</th>
+                    <th>Assists</th>
+                </tr>
+                {% for stat in value2.stats %}
+                    {% if value2.match.hometeam == stat.team %}
+                    <tr>
+                        <td><a href="{% url 'player' stat.player_id %}" class="cell-link">{{ stat.player }}</a></td>
+                        <td>{{ stat.goals }}</td>
+                        <td>{{ stat.assists }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+            </table>
+            <table>
+                <tr>
+                    <th>Goalie</th>
+                    <th>GA</th>
+                    <th>EN</th>
+                </tr>
+                {% for stat in value2.home_goalie_stats %}
+                <tr>
+                    <td><a href="{% url 'player' stat.player_id %}" class="cell-link">{{ stat.player }}</a></td>
+                    <td>{{ stat.goals_against }}</td>
+                    <td>{{ stat.empty_net }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</details>

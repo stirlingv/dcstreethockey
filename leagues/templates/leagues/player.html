@@ -333,12 +333,8 @@
                                 <tr>
                                     <td>{{ stat.team__season__year }}</td>
                                     <td>{{ stat.team__season__season_type|season_type }}</td>
-                                    <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
-                                        {% if stat.team__season__year < 2022 %}
-                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
-                                        {% else %}
-                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_otw|default:0 }} - {{ stat.team_otl|default:0 }} - {{ stat.team_losses|default:0 }})
-                                        {% endif %}
+                                    <td>
+                                        <a href="{% url 'teams' stat.team__id %}" class="cell-link">{{ stat.team__team_name }} ({% team_record stat.team__season__year stat.team_wins stat.team_losses stat.team_otw stat.team_otl stat.team_ties %})</a>
                                     </td>
                                     <td>{{ stat.sum_goals|default:0 }}</td>
                                     <td>{{ stat.sum_assists|default:0 }}</td>
@@ -385,12 +381,8 @@
                                 <tr>
                                     <td>{{ stat.team__season__year }}</td>
                                     <td>{{ stat.team__season__season_type|season_type }}</td>
-                                    <td class="clickable" onclick="javascript:handleTeam('{% url "teams" stat.team__id %}')">
-                                        {% if stat.team__season__year < 2022 %}
-                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_losses|default:0 }} - {{ stat.team_ties|default:0 }})
-                                        {% else %}
-                                            {{ stat.team__team_name }} ({{ stat.team_wins|default:0 }} - {{ stat.team_otw|default:0 }} - {{ stat.team_otl|default:0 }} - {{ stat.team_losses|default:0 }})
-                                        {% endif %}
+                                    <td>
+                                        <a href="{% url 'teams' stat.team__id %}" class="cell-link">{{ stat.team__team_name }} ({% team_record stat.team__season__year stat.team_wins stat.team_losses stat.team_otw stat.team_otl stat.team_ties %})</a>
                                     </td>
                                     <td>{{ stat.average_goals_against|floatformat:2 }}</td>
                                     <td>{{ stat.sum_games_played|default:0 }}</td>
@@ -512,13 +504,6 @@
 {% if offensive_stats %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        console.log("JavaScript loaded");
-
-        console.log("Player Seasons: ", {{ player_seasons|safe }});
-        console.log("Player Goals: ", {{ player_goals|safe }});
-        console.log("Player Assists: ", {{ player_assists|safe }});
-        console.log("Trend Line: ", {{ trend_line|safe }});
-
         var ctx = document.getElementById('playerTrendsSnapshot').getContext('2d');
         var playerTrendsSnapshot = new Chart(ctx, {
             type: 'line',

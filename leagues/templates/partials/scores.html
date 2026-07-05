@@ -1,3 +1,4 @@
+{% load helpers %}
 {% for day,value in matchups.items %}
         {% if division_name %}
             <section>
@@ -12,27 +13,17 @@
                 {% endif %}
                 <table class="game-overview">
                     <tr>
-                        <td
-                            onclick="javascript:handleTeam('{% url "teams" value2.match.awayteam.id %}')"
-                            class="clickable
-                            {% if value2.match.home_goals < value2.match.away_goals %}
-                                winner
-                            {% endif %}
-                            "
-                        >{{value2.match.awayteam.team_name}}<br>({{value2.match.away_wins}}-{{value2.match.away_losses}}-{{value2.match.away_ties}})</td>
+                        <td class="{% if value2.match.home_goals < value2.match.away_goals %}winner{% endif %}">
+                            <a href="{% url 'teams' value2.match.awayteam.id %}" class="cell-link">{{value2.match.awayteam.team_name}}<br>({% team_record value2.match.awayteam.season.year value2.match.away_wins value2.match.away_losses value2.match.away_otw value2.match.away_otl value2.match.away_ties %})</a>
+                        </td>
                         <td
                             {% if value2.match.home_goals < value2.match.away_goals %}
                                 class="winner"
                             {% endif %}
                             >{{value2.match.away_goals}}</td>
-                        <td
-                            onclick="javascript:handleTeam('{% url "teams" value2.match.hometeam.id %}')"
-                            class="clickable
-                            {% if value2.match.home_goals > value2.match.away_goals %}
-                                winner
-                            {% endif %}
-                            "
-                            >{{value2.match.hometeam.team_name}}<br>({{value2.match.home_wins}}-{{value2.match.home_losses}}-{{value2.match.home_ties}})</td>
+                        <td class="{% if value2.match.home_goals > value2.match.away_goals %}winner{% endif %}">
+                            <a href="{% url 'teams' value2.match.hometeam.id %}" class="cell-link">{{value2.match.hometeam.team_name}}<br>({% team_record value2.match.hometeam.season.year value2.match.home_wins value2.match.home_losses value2.match.home_otw value2.match.home_otl value2.match.home_ties %})</a>
+                        </td>
                         <td
                             {% if value2.match.home_goals > value2.match.away_goals %}
                                 class="winner"
@@ -40,79 +31,7 @@
                             >{{value2.match.home_goals}}</td>
                     </tr>
                 </table>
-
-                <div class="row stats" id="stats-{{mid}}" style="display:none;" onclick="javascript:toggleTable('{{mid}}')">
-                    <!-- <div class="row stats" id="stats-{{mid}}" onclick="javascript:toggleTable('{{mid}}')"> -->
-                    <div class="6u 12u(mobile)">
-                        <table>
-                            <tr>
-                                <th>Player</th>
-                                <th>Goals</th>
-                                <th>Assists</th>
-                            </tr>
-                            {% for stat in value2.stats %}
-                                {% if value2.match.awayteam == stat.team %}
-                                    <tr>
-                                        <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
-                                        <td>{{stat.goals}}</td>
-                                        <td>{{stat.assists}}</td>
-                                    </tr>
-                                {% endif %}
-                            {% endfor %}
-                        </table>
-                        <table>
-                            <tr>
-                                <th>Goalie</th>
-                                <th>GA</th>
-                                <th>EN</th>
-                            </tr>
-                            {% for stat in value2.away_goalie_stats %}
-                                <tr>
-                                    <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
-                                    <td>{{stat.goals_against}}</td>
-                                    <td>{{stat.empty_net}}</td>
-                                </tr>
-                            {% endfor %}
-                        </table>
-                    </div>
-
-                    <div class="6u 12u(mobile)">
-                        <table>
-                            <tr>
-                                <th>Player</th>
-                                <th>Goals</th>
-                                <th>Assists</th>
-                            </tr>
-                            {% for stat in value2.stats %}
-                                {% if value2.match.hometeam == stat.team %}
-                                    <tr>
-                                        <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
-                                        <td>{{stat.goals}}</td>
-                                        <td>{{stat.assists}}</td>
-                                    </tr>
-                                {% endif %}
-                            {% endfor %}
-                        </table>
-                        <table>
-                            <tr>
-                                <th>Goalie</th>
-                                <th>GA</th>
-                                <th>EN</th>
-                            </tr>
-                            {% for stat in value2.home_goalie_stats %}
-                                <tr>
-                                    <td class="clickable" onclick="javascript:handleTeam('{% url "player" stat.player_id %}')">{{stat.player}}</td>
-                                    <td>{{stat.goals_against}}</td>
-                                    <td>{{stat.empty_net}}</td>
-                                </tr>
-                            {% endfor %}
-                        </table>
-                    </div>
-                    <p class="collapse">^</p>
-                </div> <!-- row (stats)-->
-                <div class="expand" id="ex-{{mid}}" onclick="javascript:toggleTable('{{mid}}')">
-                    ^
-                </div>
+                {% include 'partials/box_score.html' %}
             </div> <!-- /game -->
         {% endfor %} <!-- match -->
         {% if division_name %}

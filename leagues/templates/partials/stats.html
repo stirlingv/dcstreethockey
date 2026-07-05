@@ -9,10 +9,10 @@
     {% for player in player_list %}
         {% if player.total_points > 0 or player.roster__position1 != 4 and player.roster__position2 != 4 %}
             <tr>
-                <td class="player-name clickable" onclick="handleTeam('{% url "player" player.id %}')">
-                    {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
+                <td class="player-name">
+                    <a href="{% url 'player' player.id %}" class="cell-link">{{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}</a>
                 </td>
-                <td class="team-name clickable" onclick="handleTeam('{% url "teams" player.roster__team__id %}')">{{ player.roster__team__team_name }}</td>
+                <td class="team-name"><a href="{% url 'teams' player.roster__team__id %}" class="cell-link">{{ player.roster__team__team_name }}</a></td>
                 <td class="stat-column">{{ player.sum_goals }}</td>
                 <td class="stat-column">{{ player.sum_assists }}</td>
                 <td class="stat-column">{{ player.total_points }}</td>
@@ -35,10 +35,10 @@
     {% for player in player_list %}
         {% if player.roster__position1 == 4 or player.roster__position2 == 4 %}
             <tr>
-                <td class="player-name clickable" onclick="handleTeam('{% url "player" player.id %}')">
-                    {{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}
+                <td class="player-name">
+                    <a href="{% url 'player' player.id %}" class="cell-link">{{ player.first_name }} {{ player.last_name }}{% if player.roster__is_captain %} (C){% endif %}</a>
                 </td>
-                <td class="team-name clickable" onclick="handleTeam(''{% url "teams" player.roster__team__id %}')">{{ player.roster__team__team_name }}</td>
+                <td class="team-name"><a href="{% url 'teams' player.roster__team__id %}" class="cell-link">{{ player.roster__team__team_name }}</a></td>
                 <td class="stat-column">{{ player.rounded_average_goals_against }}</td>
                 <td class="stat-column">{{ player.sum_games_played }}</td>
                 <td class="stat-column">{{ player.sum_goals_against }}</td>
@@ -50,4 +50,6 @@
         </tr>
     {% endfor %}
 </table>
-<div class="expand" id="ex-{{ division }}" onclick="toggleTable('{{ division }}')">^</div>
+{% if division and player_list|length > 20 %}
+<button type="button" class="show-more-btn" aria-expanded="false" onclick="togglePlayersTable('{{ division }}', this)">Show all players &#9662;</button>
+{% endif %}
