@@ -127,15 +127,16 @@ Every UI change must work well on both desktop and mobile devices. This is not o
 
 ---
 
-## Terminology — floor hockey, not ice hockey
+## Terminology — street hockey (a.k.a. ball hockey)
 
-DC Street Hockey is a **floor hockey** league. It plays just like ice hockey — same positions, same rules — except players run instead of skate, and a ball is used instead of a puck. Use the correct vocabulary everywhere: code, comments, templates, and test fixtures.
+DC Street Hockey is a **street hockey** league — also called **ball hockey**. It shares the same positions and rules as ice hockey, but it is neither ice hockey nor floor hockey: players run instead of skate, and a ball is used instead of a puck. Never call the sport "ice hockey" or "floor hockey". Use the correct vocabulary everywhere: code, comments, templates, and test fixtures.
 
 | Never use | Use instead |
 | --- | --- |
 | skater | player, or their specific position |
 | skating | running |
 | field player | player, non-goalie, or their specific position |
+| floor hockey / ice hockey | street hockey, or ball hockey |
 
 Acceptable position terms: **player** (generic), **center**, **wing**, **defense**, **goalie**, **forward** (center or wing). When the distinction matters, prefer the specific position.
 
