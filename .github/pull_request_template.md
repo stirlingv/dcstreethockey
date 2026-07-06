@@ -4,4 +4,4 @@
 ## Checklist
 - [ ] Tests added/updated and the suite passes
 - [ ] Works on mobile (≤600px) and desktop
-- [ ] Street-hockey terminology (no "skater"/"ice hockey" language)
+- [ ] Correct terminology: street hockey / ball hockey (never "ice hockey" or "floor hockey"), and players/forwards/defense/goalies (never "skater")

@@ -94,7 +94,7 @@ class ComputePlayabilityTest(TestCase):
         self.assertEqual(_compute_playability(None, "Sunny"), "good")
 
     def test_fog_is_good(self):
-        # Fog is not a cancellation condition for floor hockey
+        # Fog is not a cancellation condition for street hockey
         self.assertEqual(_compute_playability(0, "Dense Fog"), "good")
 
 

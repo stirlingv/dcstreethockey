@@ -1770,7 +1770,7 @@ class MatchUpDetailViewTest(ScheduleTestBase):
         self.assertEqual(response.context["date_of_week"], self.past_date)
 
     def test_scoresheet_uses_hockey_periods_not_halves(self):
-        # Floor hockey has three periods, not two halves. The printed score
+        # Street hockey has three periods, not two halves. The printed score
         # grid must show 1st / 2nd / 3rd period columns.
         response = self.client.get(self.url)
         content = response.content.decode()
