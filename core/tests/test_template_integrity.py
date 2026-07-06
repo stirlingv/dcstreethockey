@@ -130,6 +130,40 @@ class HofRankingsPartialTest(TestCase):
         self.assertIn("No Offensive stats yet.", html)
 
 
+class HofDivisionButtonsTest(TestCase):
+    """
+    leagues/hof.html division pills used onclick="handleOption(\\'d1\\')" with
+    literal backslash-escaped quotes. Inside the double-quoted attribute those
+    backslashes are not an escape, so the browser parsed handleOption(\\'d1\\')
+    as invalid JS and every division button silently did nothing when clicked.
+    The handlers must use plain single quotes.
+    """
+
+    def _render(self):
+        empty = {"player_ranks": [], "section_name": "combined"}
+        return render_to_string(
+            "leagues/hof.html",
+            {
+                "all_ranks": [],
+                "d1_ranks": [],
+                "d2_ranks": [],
+                "draft_ranks": [],
+                "mona_ranks": [],
+                "monb_ranks": [],
+                "selected_gender": "all",
+                **empty,
+            },
+        )
+
+    def test_division_buttons_have_valid_onclick(self):
+        html = self._render()
+        # The broken form had a backslash before the quote.
+        self.assertNotIn("handleOption(\\'", html)
+        # Every division pill must call handleOption with a plain-quoted arg.
+        for name in ("combined", "d1", "d2", "draft", "mona", "monb"):
+            self.assertIn(f"handleOption('{name}')", html)
+
+
 class TemplateFixtureBase(TestCase):
     """Minimal season/team/matchup/stat fixture for full-page rendering."""
 
