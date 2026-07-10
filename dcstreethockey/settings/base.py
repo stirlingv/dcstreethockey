@@ -36,11 +36,10 @@ DEBUG = True
 if not DEBUG:
     # Tell Django to copy static assets into a path called `staticfiles` (this is specific to Render)
     STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
-    # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
-    # and renames the files with unique names for each version to support long-term caching
-    STATICFILES_STORAGE = (
-        "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"
-    )
+    # Enable the WhiteNoise storage backend, which precompresses static files
+    # (gzip + brotli) to reduce outbound bandwidth and renames them with
+    # content-hashed names for long-term browser caching.
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 ALLOWED_HOSTS = ["*"]
 
