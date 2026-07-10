@@ -1,5 +1,7 @@
+import importlib
+
 from django.core.cache import cache
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from core.views import PlayerStatDetailView
@@ -97,3 +99,32 @@ class DraftSignupUrlContextProcessorTest(TestCase):
         DraftSession.objects.create(season=self.season, signups_open=False)
         ctx = draft_signup_url(self._make_request())
         self.assertIsNone(ctx["draft_signup_url"])
+
+
+class ProductionStaticStorageTest(SimpleTestCase):
+    """
+    Production must serve static files through WhiteNoise's compressed manifest
+    storage so CSS/JS ship gzip + brotli compressed. Serving them uncompressed
+    (plain ManifestStaticFilesStorage) needlessly inflates Render bandwidth,
+    which is now metered in 1GB increments. Guard both the production and the
+    shared not-DEBUG configuration against regressing to an uncompressed backend.
+    """
+
+    COMPRESSED = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+    def test_production_uses_compressed_whitenoise_storage(self):
+        production = importlib.import_module("dcstreethockey.settings.production")
+        self.assertEqual(production.STATICFILES_STORAGE, self.COMPRESSED)
+
+    def test_base_not_debug_block_uses_compressed_whitenoise_storage(self):
+        # The not-DEBUG branch of base.py (used by any non-debug deployment)
+        # must configure the same compressed backend.
+        import inspect
+
+        from dcstreethockey.settings import base
+
+        source = inspect.getsource(base)
+        self.assertIn(self.COMPRESSED, source)
+        self.assertNotIn(
+            "django.contrib.staticfiles.storage.ManifestStaticFilesStorage", source
+        )
