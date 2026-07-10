@@ -2521,7 +2521,7 @@ function emailMyTeam() {
         bodyLines.push('');
       }
     }
-    bodyLines.push('See you on the floor!');
+    bodyLines.push("Let's go!");
     const body = encodeURIComponent(bodyLines.join('\n'));
 
     const mailto = `mailto:${emails.join(',')}?subject=${subject}&body=${body}`;

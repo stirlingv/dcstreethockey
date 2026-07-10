@@ -468,6 +468,16 @@ class BoardViewTests(DraftTestBase):
         )
         self.assertEqual(response.status_code, 200)
 
+    def test_roster_email_signoff_is_generic(self):
+        # The captain roster-email sign-off should be a generic cheer, not a
+        # venue-specific "on the floor" line.
+        response = self.client.get(
+            reverse("draft_board_spectator", args=[self.session.pk])
+        )
+        content = response.content.decode()
+        self.assertIn("Let's go!", content)
+        self.assertNotIn("See you on the floor", content)
+
     def test_commissioner_view_renders(self):
         response = self.client.get(
             reverse(
