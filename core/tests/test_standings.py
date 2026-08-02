@@ -991,7 +991,78 @@ class StandingsChampionTest(TestCase):
         self.assertEqual(champ.team_name, "Old Winners")
         content = response.content.decode()
         self.assertIn("Champions: <strong>Old Winners</strong>", content)
-        self.assertIn("champ-trophy", content)
+        # Trophy must render inside the team-name link (cell-link is
+        # display:block, so a trailing sibling would wrap to its own line).
+        self.assertRegex(
+            content, r'class="cell-link">Old Winners <span class="champ-trophy"'
+        )
+
+    def test_wednesday_champion_is_league_level(self):
+        """East/West are conferences of one Wednesday league, so the champion
+        belongs to the section header, not to a conference table label."""
+        import datetime
+
+        from leagues.models import (
+            Division,
+            MatchUp,
+            Player,
+            Stat,
+            Team,
+            Team_Stat,
+            Week,
+        )
+
+        wednesday = Division.objects.create(division=3)
+
+        def make_team(name, conference):
+            team = Team.objects.create(
+                team_name=name,
+                team_color="Green",
+                division=wednesday,
+                season=self.old_season,
+                is_active=False,
+                conference=conference,
+            )
+            Team_Stat.objects.create(
+                team=team, division=wednesday, season=self.old_season, win=1
+            )
+            return team
+
+        east_team = make_team("East Winners", 1)
+        west_team = make_team("West Runners Up", 2)
+        week = Week.objects.create(
+            division=wednesday,
+            season=self.old_season,
+            date=datetime.date(2025, 11, 26),
+        )
+        final = MatchUp.objects.create(
+            week=week,
+            time=datetime.time(19, 0),
+            hometeam=east_team,
+            awayteam=west_team,
+            is_postseason=True,
+            is_championship=True,
+        )
+        scorer = Player.objects.create(first_name="Dana", last_name="Defense")
+        Stat.objects.create(player=scorer, team=east_team, matchup=final, goals=2)
+
+        response = self._get(wednesday=self.old_season.id)
+        self.assertEqual(
+            response.context["wednesday_champion"].team_name, "East Winners"
+        )
+        self.assertNotIn("wednesday_east_champion", response.context)
+        self.assertNotIn("wednesday_west_champion", response.context)
+        content = response.content.decode()
+        # Banner appears once, in the section header before the East label.
+        self.assertEqual(content.count("Champions: <strong>East Winners</strong>"), 1)
+        header = content.split("Wednesday Draft League</h3>")[1].split(
+            'class="standings-split"'
+        )[0]
+        self.assertIn("Champions: <strong>East Winners</strong>", header)
+        # Trophy lands in the East table, where the champion's row is.
+        self.assertRegex(
+            content, r'class="cell-link">East Winners <span class="champ-trophy"'
+        )
 
     def test_no_champion_for_division_without_final(self):
         response = self._get(sunday=self.old_season.id)
