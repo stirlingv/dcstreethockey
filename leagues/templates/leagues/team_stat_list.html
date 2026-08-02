@@ -54,16 +54,17 @@
             <div class="standings-section" id="wednesday">
                 <div class="standings-section-header">
                     <h3 class="standings-section-title">Wednesday Draft League</h3>
+                    {% if wednesday_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ wednesday_champion.team_name }}</strong></span>{% endif %}
                     {% include "partials/standings_season_picker.html" with param="wednesday" options=wednesday_seasons selected=wednesday_selected show_current=wednesday_show_current all_selected=picker_selected %}
                 </div>
                 <div class="standings-split">
                     <div class="standings-group">
-                        <div class="standings-group-label"><span>East{% if wednesday_season %} <span class="season-chip">{{ wednesday_season }}</span>{% endif %}</span>{% if wednesday_east_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ wednesday_east_champion.team_name }}</strong></span>{% endif %}</div>
-                        {% include "partials/standings_table.html" with teams=wednesday_east champion_id=wednesday_east_champion.id %}
+                        <div class="standings-group-label"><span>East{% if wednesday_season %} <span class="season-chip">{{ wednesday_season }}</span>{% endif %}</span></div>
+                        {% include "partials/standings_table.html" with teams=wednesday_east champion_id=wednesday_champion.id %}
                     </div>
                     <div class="standings-group">
-                        <div class="standings-group-label"><span>West{% if wednesday_season %} <span class="season-chip">{{ wednesday_season }}</span>{% endif %}</span>{% if wednesday_west_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ wednesday_west_champion.team_name }}</strong></span>{% endif %}</div>
-                        {% include "partials/standings_table.html" with teams=wednesday_west champion_id=wednesday_west_champion.id %}
+                        <div class="standings-group-label"><span>West{% if wednesday_season %} <span class="season-chip">{{ wednesday_season }}</span>{% endif %}</span></div>
+                        {% include "partials/standings_table.html" with teams=wednesday_west champion_id=wednesday_champion.id %}
                     </div>
                 </div>
             </div>

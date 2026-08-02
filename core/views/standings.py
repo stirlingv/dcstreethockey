@@ -262,8 +262,9 @@ class TeamStatDetailView(TemplateView):
                 "monday_b_season": monday_b_season,
                 "sunday_d1_champion": champion_for(1, sunday_d1),
                 "sunday_d2_champion": champion_for(2, sunday_d2),
-                "wednesday_east_champion": champion_for(3, wednesday_east),
-                "wednesday_west_champion": champion_for(3, wednesday_west),
+                # East/West are conferences within one Wednesday league, so
+                # there is a single league champion, shown at section level.
+                "wednesday_champion": champion_for(3, wednesday),
                 "monday_a_champion": champion_for(4, monday_a),
                 "monday_b_champion": champion_for(5, monday_b),
             }

@@ -17,12 +17,15 @@
 .standings-section-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px 16px;
     border-bottom: 2px solid #e2e8f0;
     padding-bottom: 6px;
     margin-bottom: 16px;
+}
+/* Title (and league-level champion, when present) sit left; picker right */
+.standings-section-header .season-picker {
+    margin-left: auto;
 }
 .standings-section-header .standings-section-title {
     border-bottom: none;
