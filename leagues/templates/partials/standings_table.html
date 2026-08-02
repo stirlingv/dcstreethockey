@@ -30,7 +30,7 @@
         <tbody>
             {% for ts in teams %}
             <tr class="clickable" onclick="handleTeam('{% url "teams" ts.team.id %}')">
-                <td class="col-name"><a href="{% url 'teams' ts.team.id %}" class="cell-link">{{ ts.team.team_name }}</a></td>
+                <td class="col-name"><a href="{% url 'teams' ts.team.id %}" class="cell-link">{{ ts.team.team_name }}</a>{% if champion_id and ts.team.id == champion_id %} <span class="champ-trophy" role="img" aria-label="Season champions" title="Season champions">🏆</span>{% endif %}</td>
                 <td class="col-stat">{{ ts.win }}</td>
                 <td class="col-stat">{{ ts.otw }}</td>
                 <td class="col-stat">{{ ts.loss }}</td>
@@ -42,7 +42,7 @@
                 <td class="col-stat">{{ ts.gp }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="10" class="empty-msg">No stats entered yet.</td></tr>
+            <tr><td colspan="10" class="empty-msg">No games recorded for this season.</td></tr>
             {% endfor %}
         </tbody>
     </table>
