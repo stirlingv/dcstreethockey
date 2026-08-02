@@ -33,46 +33,55 @@
             <p class="description">Click a team name to see full details.</p>
 
             <!-- Sunday -->
-            <div class="standings-section">
-                <h3 class="standings-section-title">Sunday</h3>
+            <div class="standings-section" id="sunday">
+                <div class="standings-section-header">
+                    <h3 class="standings-section-title">Sunday</h3>
+                    {% include "partials/standings_season_picker.html" with param="sunday" options=sunday_seasons selected=sunday_selected show_current=sunday_show_current all_selected=picker_selected %}
+                </div>
                 <div class="standings-split">
                     <div class="standings-group">
-                        <div class="standings-group-label">D1</div>
-                        {% include "partials/standings_table.html" with teams=sunday_d1 %}
+                        <div class="standings-group-label"><span>D1{% if sunday_d1_season %} <span class="season-chip">{{ sunday_d1_season }}</span>{% endif %}</span>{% if sunday_d1_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ sunday_d1_champion.team_name }}</strong></span>{% endif %}</div>
+                        {% include "partials/standings_table.html" with teams=sunday_d1 champion_id=sunday_d1_champion.id %}
                     </div>
                     <div class="standings-group">
-                        <div class="standings-group-label">D2</div>
-                        {% include "partials/standings_table.html" with teams=sunday_d2 %}
+                        <div class="standings-group-label"><span>D2{% if sunday_d2_season %} <span class="season-chip">{{ sunday_d2_season }}</span>{% endif %}</span>{% if sunday_d2_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ sunday_d2_champion.team_name }}</strong></span>{% endif %}</div>
+                        {% include "partials/standings_table.html" with teams=sunday_d2 champion_id=sunday_d2_champion.id %}
                     </div>
                 </div>
             </div>
 
             <!-- Wednesday Draft League -->
-            <div class="standings-section">
-                <h3 class="standings-section-title">Wednesday Draft League</h3>
+            <div class="standings-section" id="wednesday">
+                <div class="standings-section-header">
+                    <h3 class="standings-section-title">Wednesday Draft League</h3>
+                    {% include "partials/standings_season_picker.html" with param="wednesday" options=wednesday_seasons selected=wednesday_selected show_current=wednesday_show_current all_selected=picker_selected %}
+                </div>
                 <div class="standings-split">
                     <div class="standings-group">
-                        <div class="standings-group-label">East</div>
-                        {% include "partials/standings_table.html" with teams=wednesday_east %}
+                        <div class="standings-group-label"><span>East{% if wednesday_season %} <span class="season-chip">{{ wednesday_season }}</span>{% endif %}</span>{% if wednesday_east_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ wednesday_east_champion.team_name }}</strong></span>{% endif %}</div>
+                        {% include "partials/standings_table.html" with teams=wednesday_east champion_id=wednesday_east_champion.id %}
                     </div>
                     <div class="standings-group">
-                        <div class="standings-group-label">West</div>
-                        {% include "partials/standings_table.html" with teams=wednesday_west %}
+                        <div class="standings-group-label"><span>West{% if wednesday_season %} <span class="season-chip">{{ wednesday_season }}</span>{% endif %}</span>{% if wednesday_west_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ wednesday_west_champion.team_name }}</strong></span>{% endif %}</div>
+                        {% include "partials/standings_table.html" with teams=wednesday_west champion_id=wednesday_west_champion.id %}
                     </div>
                 </div>
             </div>
 
             <!-- Monday Coed -->
-            <div class="standings-section">
-                <h3 class="standings-section-title">Monday Coed</h3>
+            <div class="standings-section" id="monday">
+                <div class="standings-section-header">
+                    <h3 class="standings-section-title">Monday Coed</h3>
+                    {% include "partials/standings_season_picker.html" with param="monday" options=monday_seasons selected=monday_selected show_current=monday_show_current all_selected=picker_selected %}
+                </div>
                 <div class="standings-split">
                     <div class="standings-group">
-                        <div class="standings-group-label">A League</div>
-                        {% include "partials/standings_table.html" with teams=monday_a %}
+                        <div class="standings-group-label"><span>A League{% if monday_a_season %} <span class="season-chip">{{ monday_a_season }}</span>{% endif %}</span>{% if monday_a_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ monday_a_champion.team_name }}</strong></span>{% endif %}</div>
+                        {% include "partials/standings_table.html" with teams=monday_a champion_id=monday_a_champion.id %}
                     </div>
                     <div class="standings-group">
-                        <div class="standings-group-label">B League</div>
-                        {% include "partials/standings_table.html" with teams=monday_b %}
+                        <div class="standings-group-label"><span>B League{% if monday_b_season %} <span class="season-chip">{{ monday_b_season }}</span>{% endif %}</span>{% if monday_b_champion %}<span class="champion-banner">🏆 Champions: <strong>{{ monday_b_champion.team_name }}</strong></span>{% endif %}</div>
+                        {% include "partials/standings_table.html" with teams=monday_b champion_id=monday_b_champion.id %}
                     </div>
                 </div>
             </div>

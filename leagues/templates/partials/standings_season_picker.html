@@ -1,0 +1,21 @@
+{% comment %}
+Season dropdown for one standings section.
+Expects: param (section key), options (list of {id, label}), selected (id or
+None), show_current (bool — offered only when the section's divisions are in
+different seasons), all_selected (dict of explicitly chosen section params to
+preserve across pickers).
+{% endcomment %}
+{% if options %}
+<form method="get" action="{% url 'team_standings' %}#{{ param }}" class="season-picker">
+    <label class="season-picker-label" for="season-{{ param }}">Season</label>
+    <select id="season-{{ param }}" name="{{ param }}" onchange="this.form.submit()">
+        {% if show_current %}<option value=""{% if selected is None %} selected{% endif %}>Current</option>{% endif %}
+        {% for opt in options %}
+        <option value="{{ opt.id }}" {% if opt.id == selected %}selected{% endif %}>{{ opt.label }}</option>
+        {% endfor %}
+    </select>
+    {% for key, value in all_selected.items %}
+        {% if key != param %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}
+    {% endfor %}
+</form>
+{% endif %}

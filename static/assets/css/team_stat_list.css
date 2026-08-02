@@ -12,10 +12,87 @@
     padding-bottom: 6px;
     margin-bottom: 16px;
 }
+
+/* ── Section header (title + season picker) ─────────── */
+.standings-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin-bottom: 16px;
+}
+.standings-section-header .standings-section-title {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+.season-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.season-picker-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #718096;
+}
+.season-picker select {
+    font-size: 14px;
+    color: #2d3748;
+    background: #fff;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    min-height: 36px;
+    cursor: pointer;
+}
+.season-picker select:focus {
+    outline: 2px solid #2b6cb0;
+    outline-offset: 1px;
+}
+.season-chip {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: #a0aec0;
+    margin-left: 6px;
+}
+
+/* ── Champion banner & row marker ───────────────────── */
+.champion-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #744210;
+    background: #fefcbf;
+    border: 1px solid #f6e05e;
+    border-radius: 6px;
+    padding: 2px 8px;
+}
+.champion-banner strong {
+    color: #744210;
+}
+.champ-trophy {
+    font-size: 13px;
+    margin-left: 4px;
+}
 .standings-group {
     margin-bottom: 20px;
 }
 .standings-group-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     font-size: 0.78em;
     font-weight: 700;
     text-transform: uppercase;
@@ -299,4 +376,13 @@
     .team-stats-table col.col-stat { width: 44px; }
     /* Tooltips are hover-only — not relevant on touch devices */
     .team-stats-table thead th.has-tip { cursor: default; }
+    /* Season picker: full-width row with a 44px touch target */
+    .season-picker {
+        width: 100%;
+    }
+    .season-picker select {
+        flex: 1;
+        min-height: 44px;
+        font-size: 15px;
+    }
 }

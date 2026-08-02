@@ -670,6 +670,7 @@ class StandingsViewContextTest(TestCase):
         Team_Stat.objects.create(
             team=self.team_a,
             division=self.division,
+            season=self.season,
             win=3,
             otw=1,
             otl=1,
@@ -682,6 +683,7 @@ class StandingsViewContextTest(TestCase):
         Team_Stat.objects.create(
             team=self.team_b,
             division=self.division,
+            season=self.season,
             win=1,
             otw=0,
             otl=0,
@@ -738,26 +740,289 @@ class StandingsViewContextTest(TestCase):
         bravo = next(t for t in teams if t.team.team_name == "Bravo")
         self.assertEqual(bravo.goal_differential, -15)  # 10 - 25
 
-    def test_inactive_team_excluded(self):
-        from leagues.models import Team, Team_Stat
+    def test_old_season_team_excluded_by_default(self):
+        """Regression: the default view must show only each division's latest
+        season, never a mix of seasons (the old is_active filter allowed teams
+        from two seasons to appear together)."""
+        from leagues.models import Season, Team, Team_Stat
 
-        inactive = Team.objects.create(
-            team_name="Inactive",
+        old_season = Season.objects.create(year=2024, season_type=3)
+        old_team = Team.objects.create(
+            team_name="Old Season Team",
             team_color="Grey",
             division=self.division,
-            season=self.season,
-            is_active=False,
+            season=old_season,
+            is_active=True,
         )
         Team_Stat.objects.create(
-            team=inactive,
+            team=old_team,
             division=self.division,
+            season=old_season,
             win=10,
             goals_for=50,
             goals_against=10,
         )
         teams = self._get().context["sunday_d1"]
         names = [t.team.team_name for t in teams]
-        self.assertNotIn("Inactive", names)
+        self.assertNotIn("Old Season Team", names)
+        self.assertEqual(names, ["Alpha", "Bravo"])
+
+
+class StandingsSeasonSelectionTest(TestCase):
+    """Tests for the per-section season dropdown on the standings page."""
+
+    def setUp(self):
+        from leagues.models import Division, Season, Team, Team_Stat
+
+        self.client = Client()
+        self.d1 = Division.objects.create(division=1)  # Sunday D1
+        self.d2 = Division.objects.create(division=2)  # Sunday D2
+        self.monday_a = Division.objects.create(division=4)  # Monday A
+        self.old_season = Season.objects.create(year=2025, season_type=3)  # Fall
+        self.new_season = Season.objects.create(year=2026, season_type=1)  # Spring
+
+        def make(name, division, season, win=1):
+            team = Team.objects.create(
+                team_name=name,
+                team_color="Red",
+                division=division,
+                season=season,
+                is_active=season == self.new_season,
+            )
+            Team_Stat.objects.create(
+                team=team,
+                division=division,
+                season=season,
+                win=win,
+                goals_for=10,
+                goals_against=5,
+            )
+            return team
+
+        # D1 played both seasons; D2 only played the older season.
+        make("D1 Old", self.d1, self.old_season)
+        make("D1 New", self.d1, self.new_season)
+        make("D2 Old", self.d2, self.old_season)
+
+    def _get(self, **params):
+        from django.urls import reverse
+
+        return self.client.get(reverse("team_standings"), params)
+
+    def test_default_shows_latest_season_per_division(self):
+        """With no params, each division independently shows its own latest
+        season — D1 its 2026 season, D2 its 2025 season."""
+        ctx = self._get().context
+        self.assertEqual([t.team.team_name for t in ctx["sunday_d1"]], ["D1 New"])
+        self.assertEqual([t.team.team_name for t in ctx["sunday_d2"]], ["D2 Old"])
+        self.assertEqual(ctx["sunday_d1_season"], "Spring 2026")
+        self.assertEqual(ctx["sunday_d2_season"], "Fall 2025")
+
+    def test_season_param_shows_historical_standings(self):
+        ctx = self._get(sunday=self.old_season.id).context
+        self.assertEqual([t.team.team_name for t in ctx["sunday_d1"]], ["D1 Old"])
+        self.assertEqual(ctx["sunday_d1_season"], "Fall 2025")
+        self.assertEqual(ctx["sunday_selected"], self.old_season.id)
+
+    def test_selected_season_applies_to_whole_section(self):
+        """Choosing 2026 for Sunday empties D2, which didn't play that season."""
+        ctx = self._get(sunday=self.new_season.id).context
+        self.assertEqual([t.team.team_name for t in ctx["sunday_d1"]], ["D1 New"])
+        self.assertEqual(ctx["sunday_d2"], [])
+
+    def test_invalid_season_param_falls_back_to_default(self):
+        for bad in ("junk", "999999", ""):
+            response = self._get(sunday=bad)
+            self.assertEqual(response.status_code, 200)
+            names = [t.team.team_name for t in response.context["sunday_d1"]]
+            self.assertEqual(names, ["D1 New"])
+            self.assertIsNone(response.context["sunday_selected"])
+
+    def test_inactive_teams_shown_for_their_season(self):
+        """Historical teams are inactive but must still appear when their
+        season is selected."""
+        ctx = self._get(sunday=self.old_season.id).context
+        self.assertEqual([t.team.team_name for t in ctx["sunday_d1"]], ["D1 Old"])
+
+    def test_dropdown_lists_only_seasons_with_section_data(self):
+        ctx = self._get().context
+        sunday_labels = [opt["label"] for opt in ctx["sunday_seasons"]]
+        self.assertEqual(sunday_labels, ["Spring 2026", "Fall 2025"])  # newest first
+        self.assertEqual(ctx["monday_seasons"], [])  # Monday never played
+
+    def test_duplicate_season_names_get_session_labels(self):
+        """Two real seasons that share a display name (e.g. two Monday sessions
+        both labeled Spring 2025) must be distinguishable in the dropdown."""
+        from leagues.models import Season, Team, Team_Stat
+
+        dup_a = Season.objects.create(year=2025, season_type=1)
+        dup_b = Season.objects.create(year=2025, season_type=1)
+        for i, season in enumerate([dup_a, dup_b]):
+            team = Team.objects.create(
+                team_name=f"Monday Team {i}",
+                team_color="Blue",
+                division=self.monday_a,
+                season=season,
+                is_active=False,
+            )
+            Team_Stat.objects.create(
+                team=team, division=self.monday_a, season=season, win=1
+            )
+        ctx = self._get().context
+        monday_labels = [opt["label"] for opt in ctx["monday_seasons"]]
+        self.assertEqual(
+            monday_labels, ["Spring 2025 (Session 2)", "Spring 2025 (Session 1)"]
+        )
+
+    def test_season_dropdown_rendered_per_section_with_data(self):
+        """Each section that has stats gets its own dropdown; sections with no
+        stats at all (here: Wednesday, Monday) get none."""
+        content = self._get().content.decode()
+        self.assertIn('id="season-sunday"', content)
+        self.assertNotIn('id="season-wednesday"', content)
+        self.assertNotIn('id="season-monday"', content)
+        self.assertIn("Fall 2025", content)
+
+    def test_current_option_shown_when_division_seasons_diverge(self):
+        """D1's latest is 2026 but D2's is 2025, so Sunday needs an explicit
+        'Current' choice meaning 'each division's own latest season'."""
+        response = self._get()
+        self.assertTrue(response.context["sunday_show_current"])
+        self.assertIsNone(response.context["sunday_selected"])
+        self.assertIn(">Current</option>", response.content.decode())
+
+    def test_current_option_hidden_when_division_seasons_align(self):
+        """When every division in a section is in the same latest season,
+        'Current' would duplicate that season's option, so it is dropped and
+        the latest season is preselected instead."""
+        from leagues.models import Team, Team_Stat
+
+        d2_new = Team.objects.create(
+            team_name="D2 New",
+            team_color="Red",
+            division=self.d2,
+            season=self.new_season,
+            is_active=True,
+        )
+        Team_Stat.objects.create(
+            team=d2_new, division=self.d2, season=self.new_season, win=1
+        )
+        response = self._get()
+        self.assertFalse(response.context["sunday_show_current"])
+        self.assertEqual(response.context["sunday_selected"], self.new_season.id)
+        content = response.content.decode()
+        self.assertNotIn(">Current</option>", content)
+        self.assertIn(
+            f'<option value="{self.new_season.id}" selected>Spring 2026</option>',
+            content,
+        )
+
+
+class StandingsChampionTest(TestCase):
+    """Tests for the champion banner shown with a division's standings."""
+
+    def setUp(self):
+        import datetime
+
+        from leagues.models import (
+            Division,
+            MatchUp,
+            Player,
+            Season,
+            Stat,
+            Team,
+            Team_Stat,
+            Week,
+        )
+
+        self.client = Client()
+        self.d1 = Division.objects.create(division=1)  # Sunday D1
+        self.d2 = Division.objects.create(division=2)  # Sunday D2
+        self.old_season = Season.objects.create(year=2025, season_type=3)  # Fall
+        self.new_season = Season.objects.create(year=2026, season_type=1)  # Spring
+
+        def make_team(name, division, season):
+            team = Team.objects.create(
+                team_name=name,
+                team_color="Red",
+                division=division,
+                season=season,
+                is_active=season == self.new_season,
+            )
+            Team_Stat.objects.create(team=team, division=division, season=season, win=1)
+            return team
+
+        self.winner = make_team("Old Winners", self.d1, self.old_season)
+        self.runner_up = make_team("Old Runners Up", self.d1, self.old_season)
+        make_team("D1 Current", self.d1, self.new_season)
+        make_team("D2 Old", self.d2, self.old_season)
+
+        week = Week.objects.create(
+            division=self.d1,
+            season=self.old_season,
+            date=datetime.date(2025, 11, 23),
+        )
+        self.final = MatchUp.objects.create(
+            week=week,
+            time=datetime.time(19, 0),
+            hometeam=self.winner,
+            awayteam=self.runner_up,
+            is_postseason=True,
+            is_championship=True,
+        )
+        scorer = Player.objects.create(first_name="Casey", last_name="Center")
+        opponent = Player.objects.create(first_name="Willa", last_name="Wing")
+        Stat.objects.create(
+            player=scorer, team=self.winner, matchup=self.final, goals=3
+        )
+        Stat.objects.create(
+            player=opponent, team=self.runner_up, matchup=self.final, goals=1
+        )
+
+    def _get(self, **params):
+        from django.urls import reverse
+
+        return self.client.get(reverse("team_standings"), params)
+
+    def test_champion_shown_for_selected_season(self):
+        response = self._get(sunday=self.old_season.id)
+        champ = response.context["sunday_d1_champion"]
+        self.assertIsNotNone(champ)
+        self.assertEqual(champ.team_name, "Old Winners")
+        content = response.content.decode()
+        self.assertIn("Champions: <strong>Old Winners</strong>", content)
+        self.assertIn("champ-trophy", content)
+
+    def test_no_champion_for_division_without_final(self):
+        response = self._get(sunday=self.old_season.id)
+        self.assertIsNone(response.context["sunday_d2_champion"])
+
+    def test_no_champion_on_default_view_without_decided_final(self):
+        """The current D1 season has no championship game, so the default view
+        must not show a champion banner for it."""
+        response = self._get()
+        self.assertIsNone(response.context["sunday_d1_champion"])
+        self.assertNotIn("champion-banner", response.content.decode())
+
+    def test_unplayed_final_produces_no_champion(self):
+        """A scheduled final with no stats yet (0-0) must not crown anyone."""
+        from leagues.models import Stat
+
+        Stat.objects.filter(matchup=self.final).delete()
+        response = self._get(sunday=self.old_season.id)
+        self.assertIsNone(response.context["sunday_d1_champion"])
+
+    def test_tied_final_produces_no_champion(self):
+        from leagues.models import Stat
+
+        Stat.objects.filter(team=self.runner_up).update(goals=3)
+        response = self._get(sunday=self.old_season.id)
+        self.assertIsNone(response.context["sunday_d1_champion"])
+
+    def test_championship_results_empty_pairs(self):
+        from core.views.standings import championship_results
+
+        self.assertEqual(championship_results([]), {})
 
 
 if __name__ == "__main__":
