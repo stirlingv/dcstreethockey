@@ -23,11 +23,11 @@
     padding-bottom: 6px;
     margin-bottom: 16px;
 }
-/* Title (and league-level champion, when present) sit left; picker right */
-.standings-section-header .season-picker {
-    margin-left: auto;
-}
+/* Title stays left; everything after it (league champion banner, then the
+   season picker) is pushed right, so the Wednesday champion right-aligns like
+   the per-division banners in the other sections. */
 .standings-section-header .standings-section-title {
+    margin-right: auto;
     border-bottom: none;
     padding-bottom: 0;
     margin-bottom: 0;
