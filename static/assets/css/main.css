@@ -1450,21 +1450,6 @@
 					margin: 0 0 1em 0;
 				}
 
-				/*
-				 * The logo column is stretched to match the text column's
-				 * height so an admin-uploaded logo of any resolution or
-				 * aspect ratio scales to fit without JS measuring layout.
-				 */
-				#banner .row {
-					display: flex;
-					align-items: stretch;
-				}
-
-				#banner .row:before,
-				#banner .row:after {
-					display: none;
-				}
-
 				#banner .banner-logo-container {
 					flex: 0 0 auto;
 					display: flex;
@@ -1472,10 +1457,18 @@
 					align-items: center;
 				}
 
+				/*
+				 * Fixed cap, not a match to the text column's height: text
+				 * length varies (short vs. long announcements), so tying
+				 * the logo's size to it would make the logo balloon or
+				 * shrink with unrelated copy. A steady cap keeps a
+				 * consistent logo size and scales any upload's resolution
+				 * or aspect ratio to fit without JS.
+				 */
 				#banner .banner-logo {
 					display: block;
 					max-width: 100%;
-					max-height: 100%;
+					max-height: 260px;
 					width: auto;
 					height: auto;
 				}
@@ -1733,17 +1726,12 @@
 					margin: 0 0 1em 0;
 				}
 
-				/* Columns stack, so there's no text-column height to stretch to. */
-				#banner .row {
-					flex-direction: column;
-				}
-
 				#banner .banner-logo-container {
 					margin-top: 20px;
 				}
 
 				#banner .banner-logo {
-					max-height: 240px;
+					max-height: 200px;
 				}
 
 		/* Features */
