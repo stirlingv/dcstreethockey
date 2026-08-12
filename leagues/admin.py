@@ -2526,8 +2526,116 @@ class DraftSessionAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.start_signups_view),
                 name="leagues_draftsession_start_signups",
             ),
+            path(
+                "<int:pk>/setup-teams/",
+                self.admin_site.admin_view(self.setup_teams_view),
+                name="leagues_draftsession_setup_teams",
+            ),
         ]
         return custom + urls
+
+    def setup_teams_view(self, request, pk):
+        """
+        Build the draft's team slots from signups who volunteered to captain.
+
+        Creating a DraftTeam per captain by hand is the last manual step
+        before draft night, so this offers the volunteers as a checklist and
+        sets num_teams / num_rounds to match in one go.
+
+        Only available in SETUP: once positions are drawn, adding a team
+        would invalidate the pick order.
+        """
+        from django.template.response import TemplateResponse
+
+        from leagues.draft_views import _draft_advisory
+
+        session = get_object_or_404(DraftSession, pk=pk)
+
+        if session.state != DraftSession.STATE_SETUP:
+            self.message_user(
+                request,
+                "Teams can only be set up before positions are drawn. "
+                "Add or remove teams from the Teams section below instead.",
+                messages.WARNING,
+            )
+            return redirect(
+                reverse("admin:leagues_draftsession_change", args=[session.pk])
+            )
+
+        existing_captain_ids = set(session.teams.values_list("captain_id", flat=True))
+
+        if request.method == "POST":
+            chosen_ids = request.POST.getlist("captains")
+            chosen = session.season.signups.filter(pk__in=chosen_ids).exclude(
+                pk__in=existing_captain_ids
+            )
+
+            created = 0
+            for signup in chosen:
+                _, was_created = DraftTeam.objects.get_or_create(
+                    session=session, captain=signup
+                )
+                if was_created:
+                    created += 1
+
+            team_total = session.teams.count()
+            if not team_total:
+                self.message_user(
+                    request,
+                    "No captains selected — nothing to set up.",
+                    messages.WARNING,
+                )
+                return redirect(
+                    reverse("admin:leagues_draftsession_setup_teams", args=[session.pk])
+                )
+
+            session.num_teams = team_total
+            session.save(update_fields=["num_teams"])
+
+            # Recompute against the saved team count so the recommended
+            # round count matches what the draft board will advise.
+            advisory = _draft_advisory(session)
+            session.num_rounds = advisory["recommended_rounds"]
+            session.save(update_fields=["num_rounds"])
+
+            self.message_user(
+                request,
+                f"{created} team(s) created. Draft set to {session.num_teams} "
+                f"teams x {session.num_rounds} rounds for "
+                f"{advisory['total_signups']} signups.",
+                messages.SUCCESS,
+            )
+            return redirect(
+                reverse("admin:leagues_draftsession_change", args=[session.pk])
+            )
+
+        signups = list(
+            session.season.signups.exclude(
+                captain_interest=SeasonSignup.CAPTAIN_NO
+            ).order_by("captain_interest", "last_name", "first_name")
+        )
+        # Yes / overdue are pre-checked; "only if you can't find 8" is offered
+        # but left unchecked so it stays a deliberate choice.
+        preselected = {SeasonSignup.CAPTAIN_YES, SeasonSignup.CAPTAIN_OVERDUE}
+        candidates = [
+            {
+                "signup": s,
+                "interest": s.get_captain_interest_display(),
+                "already_added": s.pk in existing_captain_ids,
+                "preselected": s.captain_interest in preselected,
+            }
+            for s in signups
+        ]
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Set Up Teams from Captains — {session.season}",
+            "session": session,
+            "candidates": candidates,
+            "existing_count": len(existing_captain_ids),
+            "total_signups": session.season.signups.count(),
+        }
+        return TemplateResponse(request, "admin/leagues/setup_teams.html", context)
 
     def start_signups_view(self, request):
         """
@@ -2670,6 +2778,7 @@ class DraftSessionAdmin(admin.ModelAdmin):
     readonly_fields = (
         "commissioner_token",
         "created_at",
+        "setup_teams_action",
         "commissioner_url",
         "spectator_url",
         "signup_url",
@@ -2687,7 +2796,7 @@ class DraftSessionAdmin(admin.ModelAdmin):
         (
             "Draft Configuration",
             {
-                "fields": ("num_teams", "num_rounds"),
+                "fields": ("setup_teams_action", "num_teams", "num_rounds"),
                 "description": (
                     "Set these before starting the draft. "
                     "Rounds are configured in the Rounds section below."
@@ -2720,6 +2829,23 @@ class DraftSessionAdmin(admin.ModelAdmin):
         return obj.season.signups.count()
 
     signup_count.short_description = "Signups"
+
+    def setup_teams_action(self, obj):
+        if not obj.pk:
+            return "Save the session first, then set up teams from captains."
+        if obj.state != DraftSession.STATE_SETUP:
+            return "Only available before positions are drawn."
+        url = reverse("admin:leagues_draftsession_setup_teams", args=[obj.pk])
+        return format_html(
+            '<a class="button" href="{}" style="background:#2f855a;">'
+            "Set Up Teams from Captains</a>"
+            '<p class="help" style="margin-top:6px;">Creates a team for each '
+            "signup who volunteered to captain, and sets the team and round "
+            "counts to match.</p>",
+            url,
+        )
+
+    setup_teams_action.short_description = "Quick setup"
 
     def commissioner_url(self, obj):
         if not obj.pk:

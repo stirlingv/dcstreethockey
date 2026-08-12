@@ -3490,6 +3490,121 @@ class StartSignupsAdminTests(DraftTestBase):
 
 
 # ---------------------------------------------------------------------------
+# Admin: set up teams from captains
+# ---------------------------------------------------------------------------
+
+
+class SetupTeamsFromCaptainsTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse(
+            "admin:leagues_draftsession_setup_teams", args=[self.session.pk]
+        )
+        # The base fixture pre-creates a team per captain; clear them so this
+        # exercises building teams from scratch.
+        self.session.teams.all().delete()
+
+    def test_get_lists_captain_volunteers(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        names = [c["signup"].pk for c in resp.context["candidates"]]
+        self.assertIn(self.cap1.pk, names)
+
+    def test_players_who_declined_are_not_offered(self):
+        resp = self.client.get(self.url)
+        offered = [c["signup"].pk for c in resp.context["candidates"]]
+        # players[] all have CAPTAIN_NO in the base fixture
+        self.assertNotIn(self.players[0].pk, offered)
+
+    def test_yes_and_overdue_preselected_last_resort_is_not(self):
+        self.cap2.captain_interest = SeasonSignup.CAPTAIN_OVERDUE
+        self.cap2.save(update_fields=["captain_interest"])
+        self.cap3.captain_interest = SeasonSignup.CAPTAIN_LAST_RESORT
+        self.cap3.save(update_fields=["captain_interest"])
+
+        resp = self.client.get(self.url)
+        by_pk = {c["signup"].pk: c for c in resp.context["candidates"]}
+        self.assertTrue(by_pk[self.cap1.pk]["preselected"])
+        self.assertTrue(by_pk[self.cap2.pk]["preselected"])
+        self.assertFalse(by_pk[self.cap3.pk]["preselected"])
+
+    def test_post_creates_a_team_per_selected_captain(self):
+        resp = self.client.post(self.url, {"captains": [self.cap1.pk, self.cap2.pk]})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.session.teams.count(), 2)
+        captains = set(self.session.teams.values_list("captain_id", flat=True))
+        self.assertEqual(captains, {self.cap1.pk, self.cap2.pk})
+
+    def test_team_names_default_to_captain_first_name(self):
+        self.client.post(self.url, {"captains": [self.cap1.pk]})
+        team = self.session.teams.get(captain=self.cap1)
+        self.assertEqual(team.team_name, f"{self.cap1.first_name}'s Team")
+
+    def test_num_teams_and_rounds_set_to_match(self):
+        self.client.post(
+            self.url, {"captains": [self.cap1.pk, self.cap2.pk, self.cap3.pk]}
+        )
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.num_teams, 3)
+        # 11 signups across 3 teams -> ceil(11/3) = 4 rounds
+        self.assertEqual(self.session.num_rounds, 4)
+
+    def test_rerunning_does_not_duplicate_existing_teams(self):
+        self.client.post(self.url, {"captains": [self.cap1.pk]})
+        self.client.post(self.url, {"captains": [self.cap1.pk, self.cap2.pk]})
+        self.assertEqual(self.session.teams.count(), 2)
+        self.assertEqual(self.session.teams.filter(captain=self.cap1).count(), 1)
+
+    def test_already_added_captains_flagged_on_revisit(self):
+        self.client.post(self.url, {"captains": [self.cap1.pk]})
+        resp = self.client.get(self.url)
+        by_pk = {c["signup"].pk: c for c in resp.context["candidates"]}
+        self.assertTrue(by_pk[self.cap1.pk]["already_added"])
+        self.assertFalse(by_pk[self.cap2.pk]["already_added"])
+
+    def test_selecting_nobody_changes_nothing(self):
+        resp = self.client.post(self.url, {"captains": []})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.session.teams.count(), 0)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.num_teams, 3)  # untouched fixture value
+
+    def test_blocked_once_positions_are_drawn(self):
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+        resp = self.client.post(self.url, {"captains": [self.cap1.pk]})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.session.teams.count(), 0)
+
+    def test_blocked_when_draft_is_active(self):
+        self.session.state = DraftSession.STATE_ACTIVE
+        self.session.save(update_fields=["state"])
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 302)
+
+    def test_change_page_shows_setup_button_in_setup_state(self):
+        change_url = reverse(
+            "admin:leagues_draftsession_change", args=[self.session.pk]
+        )
+        resp = self.client.get(change_url)
+        self.assertContains(resp, "Set Up Teams from Captains")
+        self.assertContains(resp, self.url)
+
+    def test_change_page_hides_button_once_drawn(self):
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+        change_url = reverse(
+            "admin:leagues_draftsession_change", args=[self.session.pk]
+        )
+        resp = self.client.get(change_url)
+        self.assertNotContains(resp, "Set Up Teams from Captains")
+
+
+# ---------------------------------------------------------------------------
 # Admin: signup CSV export
 # ---------------------------------------------------------------------------
 
