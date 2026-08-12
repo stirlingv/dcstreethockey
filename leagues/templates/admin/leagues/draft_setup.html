@@ -5,9 +5,36 @@
 
 {% block content %}
 <div id="content-main">
-  <p style="color:#ccc;margin-bottom:24px;">
+  <p style="color:#ccc;margin-bottom:20px;">
     Manage all Wednesday Draft League records from one place.
   </p>
+
+  <div style="
+    background:#14342a;
+    border:1px solid #2f6b53;
+    border-radius:6px;
+    padding:18px 24px;
+    margin-bottom:24px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:20px;
+    flex-wrap:wrap;
+  ">
+    <div>
+      <h2 style="margin:0 0 4px;font-size:16px;color:#d6f5e6;">
+        Starting a new season?
+      </h2>
+      <p style="color:#9ec9b4;margin:0;font-size:13px;">
+        Create the season, open its signup form, and get the link to share —
+        in one step.
+      </p>
+    </div>
+    <a class="button" href="{% url 'admin:leagues_draftsession_start_signups' %}"
+       style="background:#2f855a;white-space:nowrap;">
+      Open Signups for Next Season
+    </a>
+  </div>
 
   <div style="display:grid;gap:16px;">
     {% for section in draft_sections %}

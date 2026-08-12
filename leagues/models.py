@@ -6,7 +6,6 @@ import uuid
 
 from django.db.models import indexes
 
-
 YEAR_CHOICES = []
 for r in range(2000, (datetime.datetime.now().year + 2)):
     YEAR_CHOICES.append((r, r))
@@ -492,6 +491,15 @@ class SeasonSignup(models.Model):
         (POSITION_ONE_THING, "I only do one thing, period!"),
     )
 
+    TSHIRT_SIZE_CHOICES = (
+        ("S", "Small"),
+        ("M", "Medium"),
+        ("L", "Large"),
+        ("XL", "X-Large"),
+        ("XXL", "2X-Large"),
+        ("XXXL", "3X-Large"),
+    )
+
     CAPTAIN_YES = 1
     CAPTAIN_OVERDUE = 2
     CAPTAIN_LAST_RESORT = 3
@@ -508,6 +516,22 @@ class SeasonSignup(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     email = models.EmailField()
+    # Blank is allowed so signups collected before these fields existed stay
+    # valid; the public signup form requires both.
+    cell_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="Cell phone",
+        help_text="Used for game-day contact only.",
+    )
+    tshirt_size = models.CharField(
+        max_length=4,
+        choices=TSHIRT_SIZE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="T-shirt size",
+    )
     primary_position = models.PositiveIntegerField(
         choices=PRIMARY_POSITION_CHOICES,
     )

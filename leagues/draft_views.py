@@ -506,6 +506,31 @@ def _session_state_payload(session, stats_cache=None):
 # ---------------------------------------------------------------------------
 
 
+def _normalize_phone(raw):
+    """
+    Normalise a user-entered phone number for consistent display and export.
+
+    A 10-digit US number (or 11 digits starting with 1) becomes
+    "(202) 555-0143".  Anything else is returned stripped but otherwise
+    untouched, so international or extension formats are never mangled.
+    Returns ("", None) style: the normalised value, or "" when blank.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    return raw
+
+
+def _phone_is_valid(raw):
+    """True when a phone number has enough digits to be callable."""
+    return len("".join(ch for ch in (raw or "") if ch.isdigit())) >= 10
+
+
 def draft_signup(request, season_pk):
     """Public signup form for a Wednesday Draft League season."""
     season = get_object_or_404(Season, pk=season_pk)
@@ -534,6 +559,8 @@ def draft_signup(request, season_pk):
         last_name = request.POST.get("last_name", "").strip()
         email = request.POST.get("email", "").strip()
         notes = request.POST.get("notes", "").strip()
+        cell_phone = request.POST.get("cell_phone", "").strip()
+        tshirt_size = request.POST.get("tshirt_size", "").strip()
 
         try:
             primary_position = int(request.POST.get("primary_position", ""))
@@ -556,10 +583,18 @@ def draft_signup(request, season_pk):
         except (TypeError, ValueError):
             captain_interest = None
 
+        VALID_TSHIRT = {c[0] for c in SeasonSignup.TSHIRT_SIZE_CHOICES}
+
         if not first_name or not last_name:
             error = "First and last name are required."
         elif not email:
             error = "Email is required."
+        elif not cell_phone:
+            error = "Cell phone number is required."
+        elif not _phone_is_valid(cell_phone):
+            error = "Please enter a valid phone number with at least 10 digits."
+        elif tshirt_size not in VALID_TSHIRT:
+            error = "Please select a t-shirt size."
         elif primary_position is None:
             error = "Please select a primary position."
         elif secondary_position is None:
@@ -590,6 +625,8 @@ def draft_signup(request, season_pk):
                     first_name=first_name,
                     last_name=last_name,
                     email=email,
+                    cell_phone=_normalize_phone(cell_phone),
+                    tshirt_size=tshirt_size,
                     primary_position=primary_position,
                     secondary_position=secondary_position,
                     captain_interest=captain_interest,
@@ -598,13 +635,22 @@ def draft_signup(request, season_pk):
                 )
                 submitted = True
 
+    # Public tally — no names or contact details, just how full the season is
+    signup_count = season.signups.count()
+    goalie_count = season.signups.filter(
+        primary_position=SeasonSignup.POSITION_GOALIE
+    ).count()
+
     context = {
         "season": season,
         "submitted": submitted,
         "error": error,
+        "signup_count": signup_count,
+        "goalie_count": goalie_count,
         "primary_position_choices": SeasonSignup.PRIMARY_POSITION_CHOICES,
         "secondary_position_choices": SeasonSignup.SECONDARY_POSITION_CHOICES,
         "captain_interest_choices": SeasonSignup.CAPTAIN_INTEREST_CHOICES,
+        "tshirt_size_choices": SeasonSignup.TSHIRT_SIZE_CHOICES,
     }
     return render(request, "leagues/draft_signup.html", context)
 
@@ -1609,11 +1655,19 @@ def add_late_signup(request, session_pk, token):
     if linked_player is None:
         linked_player = Player.objects.filter(email__iexact=email).first()
 
+    # Optional here by design — the commissioner is adding a player mid-draft
+    # and can fill these in from the admin afterwards.
+    tshirt_size = request.POST.get("tshirt_size", "").strip()
+    if tshirt_size not in {c[0] for c in SeasonSignup.TSHIRT_SIZE_CHOICES}:
+        tshirt_size = ""
+
     signup = SeasonSignup.objects.create(
         season=session.season,
         first_name=first_name,
         last_name=last_name,
         email=email,
+        cell_phone=_normalize_phone(request.POST.get("cell_phone", "")),
+        tshirt_size=tshirt_size,
         primary_position=primary_position,
         secondary_position=secondary_position,
         captain_interest=SeasonSignup.CAPTAIN_NO,

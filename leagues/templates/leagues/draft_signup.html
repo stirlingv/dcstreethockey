@@ -26,6 +26,26 @@
     opacity: 0.88;
     font-size: 0.95rem;
   }
+  .signup-tally {
+    background: #f4ede4;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    border-bottom: 1px solid #e3d9cc;
+    padding: 11px 32px;
+    font-size: 0.9rem;
+    color: #5a4a3a;
+  }
+  .signup-tally .tally-count {
+    font-weight: 700;
+    color: #8b1a1a;
+  }
+  .signup-tally .tally-sep {
+    margin: 0 6px;
+    color: #b9a894;
+  }
+  .signup-tally .tally-need {
+    font-style: italic;
+  }
   .signup-body {
     background: #fff;
     border: 1px solid #ddd;
@@ -58,6 +78,7 @@
   }
   .form-group input[type="text"],
   .form-group input[type="email"],
+  .form-group input[type="tel"],
   .form-group textarea,
   .form-group select {
     width: 100%;
@@ -78,6 +99,13 @@
   .form-group textarea {
     resize: vertical;
     min-height: 60px;
+  }
+  .form-group .field-help {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.82rem;
+    color: #666;
+    font-weight: 400;
   }
   .radio-option {
     display: flex;
@@ -154,6 +182,22 @@
         <p>Fill this out to tell people who you are and what you do (hockey-wise)</p>
       </div>
 
+      <div class="signup-tally">
+        {% if signup_count %}
+          <span class="tally-count">{{ signup_count }}</span>
+          player{{ signup_count|pluralize }} signed up so far
+          {% if goalie_count %}
+            <span class="tally-sep">&middot;</span>
+            <span class="tally-count">{{ goalie_count }}</span> goalie{{ goalie_count|pluralize }}
+          {% else %}
+            <span class="tally-sep">&middot;</span>
+            <span class="tally-need">still need goalies</span>
+          {% endif %}
+        {% else %}
+          Be the first to sign up for the season!
+        {% endif %}
+      </div>
+
       <div class="signup-body">
 
         {% if submitted %}
@@ -189,6 +233,25 @@
               <label for="id_last_name">What's your Last name? <span class="required-star">*</span></label>
               <input type="text" id="id_last_name" name="last_name" placeholder="Your answer"
                      value="{{ request.POST.last_name }}" required>
+            </div>
+
+            <div class="form-group">
+              <label for="id_cell_phone">Cell phone <span class="required-star">*</span></label>
+              <input type="tel" id="id_cell_phone" name="cell_phone" placeholder="(202) 555-0143"
+                     autocomplete="tel" inputmode="tel"
+                     value="{{ request.POST.cell_phone }}" required>
+              <span class="field-help">So we can reach you about game-day changes.</span>
+            </div>
+
+            <div class="form-group">
+              <label for="id_tshirt_size">T-shirt size <span class="required-star">*</span></label>
+              <select id="id_tshirt_size" name="tshirt_size" required>
+                <option value="" disabled {% if not request.POST.tshirt_size %}selected{% endif %}>Choose</option>
+                {% for value, label in tshirt_size_choices %}
+                  <option value="{{ value }}"
+                    {% if request.POST.tshirt_size == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
             </div>
 
             <div class="form-group">
