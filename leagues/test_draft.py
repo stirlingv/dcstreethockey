@@ -38,6 +38,8 @@ from leagues.draft_views import (
     _batch_wednesday_stats,
     _draft_advisory,
     _draft_completion_warnings,
+    _normalize_phone,
+    _phone_is_valid,
     _get_champion_data_for_sessions,
     _get_session_champion,
     _get_wednesday_stats,
@@ -365,6 +367,8 @@ class DraftSignupViewTests(DraftTestBase):
             "first_name": first,
             "last_name": last,
             "email": "new@test.com",
+            "cell_phone": "2025550143",
+            "tshirt_size": "L",
             "primary_position": SeasonSignup.POSITION_WING,
             "secondary_position": SeasonSignup.POSITION_CENTER,
             "captain_interest": SeasonSignup.CAPTAIN_NO,
@@ -392,6 +396,41 @@ class DraftSignupViewTests(DraftTestBase):
                 last_name=data["last_name"], first_name=""
             ).exists()
         )
+
+    def test_signup_stores_phone_and_tshirt_size(self):
+        self.client.post(self._signup_url(), self._valid_post_data())
+        signup = SeasonSignup.objects.get(email="new@test.com")
+        self.assertEqual(signup.tshirt_size, "L")
+        # Stored in normalised display form
+        self.assertEqual(signup.cell_phone, "(202) 555-0143")
+
+    def test_post_missing_phone_shows_error(self):
+        data = self._valid_post_data()
+        data["cell_phone"] = ""
+        response = self.client.post(self._signup_url(), data)
+        self.assertContains(response, "Cell phone number is required")
+        self.assertFalse(SeasonSignup.objects.filter(email="new@test.com").exists())
+
+    def test_post_short_phone_shows_error(self):
+        data = self._valid_post_data()
+        data["cell_phone"] = "555-0143"
+        response = self.client.post(self._signup_url(), data)
+        self.assertContains(response, "valid phone number")
+        self.assertFalse(SeasonSignup.objects.filter(email="new@test.com").exists())
+
+    def test_post_missing_tshirt_size_shows_error(self):
+        data = self._valid_post_data()
+        data["tshirt_size"] = ""
+        response = self.client.post(self._signup_url(), data)
+        self.assertContains(response, "select a t-shirt size")
+        self.assertFalse(SeasonSignup.objects.filter(email="new@test.com").exists())
+
+    def test_post_invalid_tshirt_size_rejected(self):
+        data = self._valid_post_data()
+        data["tshirt_size"] = "XXXXL"
+        response = self.client.post(self._signup_url(), data)
+        self.assertContains(response, "select a t-shirt size")
+        self.assertFalse(SeasonSignup.objects.filter(email="new@test.com").exists())
 
     def test_same_name_different_email_is_allowed(self):
         self.client.post(self._signup_url(), self._valid_post_data())
@@ -3158,6 +3197,28 @@ class AddLateSignupTests(DraftTestBase):
         signup = SeasonSignup.objects.get(email="new@test.com")
         self.assertEqual(signup.linked_player, player)
 
+    def test_optional_phone_and_tshirt_stored_when_provided(self):
+        self._activate()
+        self._post(cell_phone="202-555-0143", tshirt_size="XL")
+        signup = SeasonSignup.objects.get(email="new@test.com")
+        self.assertEqual(signup.cell_phone, "(202) 555-0143")
+        self.assertEqual(signup.tshirt_size, "XL")
+
+    def test_phone_and_tshirt_optional_mid_draft(self):
+        # Commissioner adding a player mid-draft shouldn't be blocked on these
+        self._activate()
+        resp = self._post()
+        self.assertEqual(resp.status_code, 200)
+        signup = SeasonSignup.objects.get(email="new@test.com")
+        self.assertEqual(signup.cell_phone, "")
+        self.assertEqual(signup.tshirt_size, "")
+
+    def test_invalid_tshirt_size_stored_blank(self):
+        self._activate()
+        self._post(tshirt_size="BOGUS")
+        signup = SeasonSignup.objects.get(email="new@test.com")
+        self.assertEqual(signup.tshirt_size, "")
+
     def test_wrong_token_returns_404(self):
         self._activate()
         import uuid
@@ -3308,6 +3369,320 @@ class FinalizeDraftWarningsTests(DraftTestBase):
         data = json.loads(resp.content)
         self.assertIn("warnings", data)
         self.assertIsInstance(data["warnings"], list)
+
+
+# ---------------------------------------------------------------------------
+# Admin: open signups for the next season
+# ---------------------------------------------------------------------------
+
+
+class StartSignupsAdminTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_draftsession_start_signups")
+
+    def test_get_renders_form_with_suggested_next_season(self):
+        # Base fixture season is Winter (4) of the current year, so the
+        # season after the latest draft is Spring (1) of next year — later
+        # than anything the calendar could suggest this year.
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["suggested_type"], 1)
+        self.assertEqual(resp.context["suggested_year"], self.season.year + 1)
+
+    def test_suggestion_skips_past_seasons_when_league_missed_one(self):
+        """A league that skipped seasons shouldn't be offered a stale one."""
+        from unittest.mock import patch
+        import datetime as _dt
+
+        from leagues.admin import _next_draft_season
+
+        # Latest draft was Spring (1); "now" is August, i.e. Summer.
+        self.season.season_type = 1
+        self.season.year = 2026
+        self.season.save(update_fields=["season_type", "year"])
+
+        august = _dt.datetime(2026, 8, 12, tzinfo=_dt.timezone.utc)
+        with patch("leagues.admin.timezone.now", return_value=august):
+            season_type, year = _next_draft_season()
+
+        # Fall 2026, not Summer 2026 which is already under way
+        self.assertEqual((season_type, year), (3, 2026))
+
+    def test_suggestion_rolls_into_next_year_after_winter(self):
+        from unittest.mock import patch
+        import datetime as _dt
+
+        from leagues.admin import _next_draft_season
+
+        self.season.season_type = 4
+        self.season.year = 2026
+        self.season.save(update_fields=["season_type", "year"])
+
+        december = _dt.datetime(2026, 12, 3, tzinfo=_dt.timezone.utc)
+        with patch("leagues.admin.timezone.now", return_value=december):
+            season_type, year = _next_draft_season()
+
+        self.assertEqual((season_type, year), (1, 2027))
+
+    def test_post_creates_season_and_open_session(self):
+        year = self.season.year + 1
+        resp = self.client.post(self.url, {"season_type": 1, "year": year})
+        self.assertEqual(resp.status_code, 302)
+
+        season = Season.objects.get(season_type=1, year=year)
+        session = DraftSession.objects.get(season=season)
+        self.assertTrue(session.signups_open)
+        self.assertEqual(session.state, DraftSession.STATE_SETUP)
+
+    def test_new_season_is_not_marked_current(self):
+        # Flipping is_current_season mid-playoffs would break the live site
+        year = self.season.year + 1
+        self.client.post(self.url, {"season_type": 1, "year": year})
+        season = Season.objects.get(season_type=1, year=year)
+        self.assertFalse(season.is_current_season)
+
+    def test_existing_current_season_untouched(self):
+        self.season.is_current_season = True
+        self.season.save(update_fields=["is_current_season"])
+        self.client.post(self.url, {"season_type": 1, "year": self.season.year + 1})
+        self.season.refresh_from_db()
+        self.assertTrue(self.season.is_current_season)
+
+    def test_reuses_existing_season_without_duplicating(self):
+        year = self.season.year + 2
+        existing = Season.objects.create(
+            season_type=2, year=year, is_current_season=False
+        )
+        self.client.post(self.url, {"season_type": 2, "year": year})
+        self.assertEqual(Season.objects.filter(season_type=2, year=year).count(), 1)
+        self.assertTrue(DraftSession.objects.filter(season=existing).exists())
+
+    def test_existing_session_reopens_instead_of_erroring(self):
+        # The base fixture season already has a session; season is a
+        # OneToOneField so a second one would be an IntegrityError.
+        self.session.signups_open = False
+        self.session.save(update_fields=["signups_open"])
+        before = DraftSession.objects.count()
+
+        resp = self.client.post(
+            self.url,
+            {"season_type": self.season.season_type, "year": self.season.year},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(DraftSession.objects.count(), before)
+        self.session.refresh_from_db()
+        self.assertTrue(self.session.signups_open)
+
+    def test_invalid_input_does_not_create_anything(self):
+        before = Season.objects.count()
+        self.client.post(self.url, {"season_type": "bogus", "year": "nope"})
+        self.assertEqual(Season.objects.count(), before)
+
+    def test_hub_links_to_start_signups(self):
+        hub = reverse("admin:leagues_draftsession_draft_setup_hub")
+        resp = self.client.get(hub)
+        self.assertContains(resp, self.url)
+
+
+# ---------------------------------------------------------------------------
+# Admin: signup CSV export
+# ---------------------------------------------------------------------------
+
+
+class SignupCsvExportTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_seasonsignup_changelist")
+
+    def _export(self, queryset=None):
+        signups = queryset or SeasonSignup.objects.all()
+        return self.client.post(
+            self.url,
+            {
+                "action": "export_roster_csv",
+                "_selected_action": [str(s.pk) for s in signups],
+            },
+        )
+
+    def _rows(self, response):
+        body = response.content.decode("utf-8")
+        return [line for line in body.splitlines() if line.strip()]
+
+    def test_export_returns_csv_attachment(self):
+        resp = self._export()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv")
+        self.assertIn("attachment; filename=", resp["Content-Disposition"])
+
+    def test_header_has_names_and_positions_only(self):
+        resp = self._export()
+        header = self._rows(resp)[0]
+        self.assertEqual(header, "Last Name,First Name,Primary,Secondary,Goalie,Season")
+
+    def test_export_excludes_contact_details(self):
+        # Give a signup contact data, then confirm none of it reaches the file
+        self.cap1.cell_phone = "(202) 555-0143"
+        self.cap1.tshirt_size = "XL"
+        self.cap1.save(update_fields=["cell_phone", "tshirt_size"])
+
+        body = self._export().content.decode("utf-8")
+        self.assertNotIn("555-0143", body)
+        self.assertNotIn("XL", body)
+        self.assertNotIn(self.cap1.email, body)
+        self.assertNotIn("@", body)
+
+    def test_row_count_matches_selection(self):
+        resp = self._export()
+        # Header + one row per signup in the base fixture
+        self.assertEqual(len(self._rows(resp)), SeasonSignup.objects.count() + 1)
+
+    def test_primary_goalie_flagged_yes(self):
+        body = self._export(queryset=[self.goalie1]).content.decode("utf-8")
+        row = self._rows_for(body, self.goalie1.last_name)
+        self.assertIn("YES", row)
+
+    def test_secondary_goalie_flagged_as_fill_in(self):
+        player = self.players[0]
+        player.secondary_position = SeasonSignup.POSITION_GOALIE
+        player.save(update_fields=["secondary_position"])
+        body = self._export(queryset=[player]).content.decode("utf-8")
+        row = self._rows_for(body, player.last_name)
+        self.assertIn("Can fill in", row)
+
+    def test_non_goalie_has_blank_goalie_column(self):
+        player = self.players[0]
+        body = self._export(queryset=[player]).content.decode("utf-8")
+        row = self._rows_for(body, player.last_name)
+        self.assertNotIn("YES", row)
+        self.assertNotIn("Can fill in", row)
+
+    def test_one_thing_only_secondary_rendered_as_dash(self):
+        player = self.players[0]
+        player.secondary_position = SeasonSignup.POSITION_ONE_THING
+        player.save(update_fields=["secondary_position"])
+        body = self._export(queryset=[player]).content.decode("utf-8")
+        row = self._rows_for(body, player.last_name)
+        self.assertIn("—", row)
+        self.assertNotIn("one thing", row.lower())
+
+    def _rows_for(self, body, last_name):
+        for line in body.splitlines():
+            if line.startswith(last_name + ","):
+                return line
+        self.fail(f"No CSV row found for {last_name}")
+
+
+# ---------------------------------------------------------------------------
+# Public signup counter
+# ---------------------------------------------------------------------------
+
+
+class SignupCounterTests(DraftTestBase):
+    def _signup_url(self):
+        return reverse("draft_signup", args=[self.season.pk])
+
+    def test_counts_in_context(self):
+        resp = self.client.get(self._signup_url())
+        self.assertEqual(resp.context["signup_count"], 11)
+        self.assertEqual(resp.context["goalie_count"], 2)
+
+    def test_counter_rendered_on_page(self):
+        resp = self.client.get(self._signup_url())
+        self.assertContains(resp, "signed up so far")
+        self.assertContains(resp, "goalie")
+
+    def test_counter_shows_empty_state(self):
+        # DraftTeam.captain protects its signup, so clear teams first
+        self.session.teams.all().delete()
+        SeasonSignup.objects.filter(season=self.season).delete()
+        resp = self.client.get(self._signup_url())
+        self.assertEqual(resp.context["signup_count"], 0)
+        self.assertContains(resp, "Be the first")
+
+    def test_counter_prompts_when_no_goalies(self):
+        SeasonSignup.objects.filter(
+            season=self.season, primary_position=SeasonSignup.POSITION_GOALIE
+        ).delete()
+        resp = self.client.get(self._signup_url())
+        self.assertEqual(resp.context["goalie_count"], 0)
+        self.assertContains(resp, "still need goalies")
+
+    def test_counter_excludes_other_seasons(self):
+        other = Season.objects.create(
+            year=self.season.year + 5, season_type=1, is_current_season=False
+        )
+        SeasonSignup.objects.create(
+            season=other,
+            first_name="Other",
+            last_name="Season",
+            email="other@test.com",
+            primary_position=SeasonSignup.POSITION_GOALIE,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        resp = self.client.get(self._signup_url())
+        self.assertEqual(resp.context["signup_count"], 11)
+
+    def test_counter_reflects_new_signup(self):
+        self.client.post(
+            self._signup_url(),
+            {
+                "first_name": "Fresh",
+                "last_name": "Signup",
+                "email": "fresh@test.com",
+                "cell_phone": "2025550188",
+                "tshirt_size": "M",
+                "primary_position": SeasonSignup.POSITION_WING,
+                "secondary_position": SeasonSignup.POSITION_ONE_THING,
+                "captain_interest": SeasonSignup.CAPTAIN_NO,
+            },
+        )
+        resp = self.client.get(self._signup_url())
+        self.assertEqual(resp.context["signup_count"], 12)
+
+
+# ---------------------------------------------------------------------------
+# Phone number normalisation
+# ---------------------------------------------------------------------------
+
+
+class PhoneNormalizationTests(TestCase):
+    def test_ten_digits_formatted(self):
+        self.assertEqual(_normalize_phone("2025550143"), "(202) 555-0143")
+
+    def test_punctuation_stripped_and_reformatted(self):
+        self.assertEqual(_normalize_phone("202.555.0143"), "(202) 555-0143")
+        self.assertEqual(_normalize_phone("202-555-0143"), "(202) 555-0143")
+        self.assertEqual(_normalize_phone(" (202) 555 0143 "), "(202) 555-0143")
+
+    def test_leading_country_code_dropped(self):
+        self.assertEqual(_normalize_phone("+1 202 555 0143"), "(202) 555-0143")
+
+    def test_unusual_format_left_alone(self):
+        # International or extension formats must not be mangled
+        raw = "+44 20 7946 0958"
+        self.assertEqual(_normalize_phone(raw), raw)
+
+    def test_blank_returns_empty_string(self):
+        self.assertEqual(_normalize_phone(""), "")
+        self.assertEqual(_normalize_phone("   "), "")
+        self.assertEqual(_normalize_phone(None), "")
+
+    def test_validity_requires_ten_digits(self):
+        self.assertTrue(_phone_is_valid("2025550143"))
+        self.assertTrue(_phone_is_valid("+1 (202) 555-0143"))
+        self.assertFalse(_phone_is_valid("555-0143"))
+        self.assertFalse(_phone_is_valid(""))
+        self.assertFalse(_phone_is_valid(None))
 
 
 # ---------------------------------------------------------------------------
