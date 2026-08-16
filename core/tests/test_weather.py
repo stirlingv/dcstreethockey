@@ -8,6 +8,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 
 from core.views.home import (
+    _classify_precip_type,
     _compute_playability,
     _compute_window_max_pop,
     _compute_window_playability,
@@ -96,6 +97,39 @@ class ComputePlayabilityTest(TestCase):
     def test_fog_is_good(self):
         # Fog is not a cancellation condition for street hockey
         self.assertEqual(_compute_playability(0, "Dense Fog"), "good")
+
+
+class ClassifyPrecipTypeTest(TestCase):
+    """
+    Unit tests for _classify_precip_type().
+
+    Regression coverage for the bug where the "likely_cancelled" warning
+    label always said "Rain or snow likely" even when the forecast text
+    never mentioned snow (e.g. an August rain forecast in DC).
+    """
+
+    def test_rain_only_forecast_is_rain(self):
+        self.assertEqual(_classify_precip_type("Rain Likely"), "rain")
+
+    def test_shower_forecast_is_rain(self):
+        self.assertEqual(_classify_precip_type("Chance Rain Showers"), "rain")
+
+    def test_snow_only_forecast_is_snow(self):
+        self.assertEqual(_classify_precip_type("Snow Showers Likely"), "snow")
+
+    def test_sleet_forecast_is_snow(self):
+        self.assertEqual(_classify_precip_type("Sleet"), "snow")
+
+    def test_rain_and_snow_forecast_is_mix(self):
+        self.assertEqual(_classify_precip_type("Rain and Snow Likely"), "mix")
+
+    def test_no_precip_keyword_defaults_to_rain(self):
+        # High PoP with no descriptive keyword still needs a label; rain is
+        # the safer general-purpose default (never claims snow).
+        self.assertEqual(_classify_precip_type("Mostly Cloudy"), "rain")
+
+    def test_is_case_insensitive(self):
+        self.assertEqual(_classify_precip_type("SNOW SHOWERS"), "snow")
 
 
 class FindBestForecastSlotTest(TestCase):
@@ -492,13 +526,16 @@ class WeatherTemplateRenderingTest(TestCase):
             "precip_start": precip_start,
         }
 
-    def _bad_weather(self, pop_pct=70, thunder=False, precip_start=None):
+    def _bad_weather(
+        self, pop_pct=70, thunder=False, precip_type="rain", precip_start=None
+    ):
         return {
             "playability": "likely_cancelled",
             "pop_pct": pop_pct,
             "temp": 62,
             "description": "Rain Likely",
             "thunder": thunder,
+            "precip_type": precip_type,
             "precip_start": precip_start,
         }
 
@@ -533,6 +570,20 @@ class WeatherTemplateRenderingTest(TestCase):
     def test_homepage_thunder_label(self):
         html = _render_homepage_weather(self._bad_weather(thunder=True))
         self.assertIn("Thunderstorms possible", html)
+
+    def test_homepage_rain_only_label_never_mentions_snow(self):
+        # Regression: an August rain forecast must never say "snow".
+        html = _render_homepage_weather(self._bad_weather(precip_type="rain"))
+        self.assertIn("Rain likely", html)
+        self.assertNotIn("Snow", html)
+
+    def test_homepage_snow_label(self):
+        html = _render_homepage_weather(self._bad_weather(precip_type="snow"))
+        self.assertIn("Snow likely", html)
+
+    def test_homepage_mix_label(self):
+        html = _render_homepage_weather(self._bad_weather(precip_type="mix"))
+        self.assertIn("Wintry mix likely", html)
 
     # --- Schedule ---
 
@@ -572,3 +623,17 @@ class WeatherTemplateRenderingTest(TestCase):
     def test_schedule_precip_start_hidden_when_none(self):
         html = _render_schedule_weather(self._bad_weather(precip_start=None))
         self.assertNotIn("Starting around", html)
+
+    def test_schedule_rain_only_label_never_mentions_snow(self):
+        # Regression: an August rain forecast must never say "snow".
+        html = _render_schedule_weather(self._bad_weather(precip_type="rain"))
+        self.assertIn("Rain likely", html)
+        self.assertNotIn("Snow", html)
+
+    def test_schedule_snow_label(self):
+        html = _render_schedule_weather(self._bad_weather(precip_type="snow"))
+        self.assertIn("Snow likely", html)
+
+    def test_schedule_mix_label(self):
+        html = _render_schedule_weather(self._bad_weather(precip_type="mix"))
+        self.assertIn("Wintry mix likely", html)
