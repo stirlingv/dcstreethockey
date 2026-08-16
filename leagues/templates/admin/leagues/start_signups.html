@@ -3,6 +3,38 @@
 
 {% block content_title %}<h1>{{ title }}</h1>{% endblock %}
 
+{% block extrahead %}{{ block.super }}
+<style>
+  /* Django admin's base.css pins `select { height: 1.875rem }`. Combined
+     with padding that clips the text, so release the height and let
+     padding plus line-height size the control (same approach admin uses
+     for select[multiple]). */
+  .signup-season-form select {
+    width: 100%;
+    height: auto;
+    line-height: 1.4;
+    padding: 8px 10px;
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    border: 1px solid #4b5563;
+    border-radius: 4px;
+    background: #111827;
+    color: #e5e7eb;
+  }
+  .signup-season-form select:focus {
+    border-color: #79aec8;
+    outline: none;
+  }
+  .signup-season-form label {
+    display: block;
+    color: #e5e7eb;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .signup-season-field + .signup-season-field { margin-top: 18px; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div id="content-main">
 
@@ -22,21 +54,16 @@
   <form method="post">
     {% csrf_token %}
 
-    <div style="
+    <div class="signup-season-form" style="
       background:#1f2937;
       border:1px solid #374151;
       border-radius:6px;
       padding:22px 24px;
       max-width:520px;
     ">
-      <div style="margin-bottom:18px;">
-        <label for="id_season_type"
-               style="display:block;color:#e5e7eb;font-weight:600;margin-bottom:6px;">
-          Season
-        </label>
-        <select name="season_type" id="id_season_type"
-                style="width:100%;padding:8px;border-radius:4px;
-                       border:1px solid #4b5563;background:#111827;color:#e5e7eb;">
+      <div class="signup-season-field">
+        <label for="id_season_type">Season</label>
+        <select name="season_type" id="id_season_type">
           {% for value, label in season_type_choices %}
             <option value="{{ value }}"
               {% if suggested_type == value %}selected{% endif %}>{{ label }}</option>
@@ -44,14 +71,9 @@
         </select>
       </div>
 
-      <div>
-        <label for="id_year"
-               style="display:block;color:#e5e7eb;font-weight:600;margin-bottom:6px;">
-          Year
-        </label>
-        <select name="year" id="id_year"
-                style="width:100%;padding:8px;border-radius:4px;
-                       border:1px solid #4b5563;background:#111827;color:#e5e7eb;">
+      <div class="signup-season-field">
+        <label for="id_year">Year</label>
+        <select name="year" id="id_year">
           {% for y in year_choices %}
             <option value="{{ y }}"
               {% if suggested_year == y %}selected{% endif %}>{{ y }}</option>
