@@ -42,7 +42,7 @@
                                             {% else %}
                                             <details class="play-forecast play-forecast-bad">
                                                 <summary class="play-forecast-summary">
-                                                    <span class="play-forecast-label">{% if weather.thunder %}&#9889; Thunderstorms possible{% else %}&#127783; Rain or snow likely{% endif %}</span>
+                                                    <span class="play-forecast-label">{% if weather.thunder %}&#9889; Thunderstorms possible{% elif weather.precip_type == "snow" %}&#10052;&#65039; Snow likely{% elif weather.precip_type == "mix" %}&#127784;&#65039; Wintry mix likely{% else %}&#127783; Rain likely{% endif %}</span>
                                                     <span class="play-forecast-pop">{{ weather.pop_pct|default:0 }}% chance of rain &middot; {{ weather.temp|floatformat:0 }}&deg;F</span>
                                                     <span class="play-forecast-info"><button type="button" class="play-forecast-info-btn" aria-label="About this forecast">&#9432;</button><span class="play-forecast-info-tooltip" role="tooltip">Weather forecast only &mdash; not an official cancellation. Check with your captain for game status.</span></span>
                                                 </summary>
