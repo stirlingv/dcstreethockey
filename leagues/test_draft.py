@@ -3490,6 +3490,121 @@ class StartSignupsAdminTests(DraftTestBase):
 
 
 # ---------------------------------------------------------------------------
+# Admin: signup season filter defaults
+# ---------------------------------------------------------------------------
+
+
+class SignupSeasonFilterTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_seasonsignup_changelist")
+
+        # A second, older season with its own signup and finalized draft
+        self.old_season = Season.objects.create(
+            year=self.season.year - 1, season_type=1, is_current_season=False
+        )
+        DraftSession.objects.create(
+            season=self.old_season,
+            num_teams=2,
+            num_rounds=2,
+            state=DraftSession.STATE_COMPLETE,
+            finalized_at=timezone.now(),
+        )
+        self.old_signup = SeasonSignup.objects.create(
+            season=self.old_season,
+            first_name="Past",
+            last_name="Player",
+            email="past@test.com",
+            primary_position=SeasonSignup.POSITION_WING,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+
+    def _visible_pks(self, resp):
+        return {obj.pk for obj in resp.context["cl"].queryset}
+
+    def test_defaults_to_open_signup_season(self):
+        self.session.signups_open = True
+        self.session.save(update_fields=["signups_open"])
+        visible = self._visible_pks(self.client.get(self.url))
+        self.assertIn(self.cap1.pk, visible)
+        self.assertNotIn(self.old_signup.pk, visible)
+
+    def test_falls_back_to_latest_draft_season_when_none_open(self):
+        # Base fixture season is newer than old_season and has no open signups
+        self.session.signups_open = False
+        self.session.save(update_fields=["signups_open"])
+        visible = self._visible_pks(self.client.get(self.url))
+        self.assertIn(self.cap1.pk, visible)
+        self.assertNotIn(self.old_signup.pk, visible)
+
+    def test_all_seasons_choice_shows_everything(self):
+        resp = self.client.get(self.url, {"season__id__exact": "all"})
+        visible = self._visible_pks(resp)
+        self.assertIn(self.cap1.pk, visible)
+        self.assertIn(self.old_signup.pk, visible)
+
+    def test_explicit_season_overrides_default(self):
+        resp = self.client.get(self.url, {"season__id__exact": self.old_season.pk})
+        visible = self._visible_pks(resp)
+        self.assertIn(self.old_signup.pk, visible)
+        self.assertNotIn(self.cap1.pk, visible)
+
+    def test_defaulted_season_shows_as_selected_not_all(self):
+        """The sidebar must not claim 'All' while the list is scoped."""
+        self.session.signups_open = True
+        self.session.save(update_fields=["signups_open"])
+        resp = self.client.get(self.url)
+
+        spec = next(
+            s
+            for s in resp.context["cl"].filter_specs
+            if getattr(s, "parameter_name", None) == "season__id__exact"
+        )
+        choices = list(spec.choices(resp.context["cl"]))
+        selected = [c for c in choices if c["selected"]]
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0]["display"], str(self.season))
+
+    def test_all_seasons_choice_is_offered(self):
+        resp = self.client.get(self.url)
+        spec = next(
+            s
+            for s in resp.context["cl"].filter_specs
+            if getattr(s, "parameter_name", None) == "season__id__exact"
+        )
+        displays = [c["display"] for c in spec.choices(resp.context["cl"])]
+        self.assertIn("All Seasons", displays)
+
+    def test_duplicate_banner_scopes_to_defaulted_season(self):
+        # Duplicate lives in the older season, which the default hides
+        for i in range(2):
+            SeasonSignup.objects.create(
+                season=self.old_season,
+                first_name="Dup",
+                last_name="Player",
+                email=f"dup{i}@test.com",
+                primary_position=SeasonSignup.POSITION_CENTER,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_NO,
+            )
+        resp = self.client.get(self.url)
+        self.assertNotContains(resp, "Potential duplicate signups")
+
+        resp = self.client.get(self.url, {"season__id__exact": self.old_season.pk})
+        self.assertContains(resp, "Potential duplicate signups")
+
+    def test_session_list_links_signup_count_to_filtered_view(self):
+        resp = self.client.get(reverse("admin:leagues_draftsession_changelist"))
+        self.assertContains(resp, f"{self.url}?season__id__exact={self.season.pk}")
+
+
+# ---------------------------------------------------------------------------
 # Admin: set up teams from captains
 # ---------------------------------------------------------------------------
 

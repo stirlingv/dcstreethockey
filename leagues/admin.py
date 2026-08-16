@@ -16,6 +16,7 @@ from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 
 from dal import autocomplete
+from .filters import SignupSeasonFilter, _default_signup_season_id
 from .forms import MatchUpForm, TeamStatForm
 from .fields import TwelveHourTimeField
 from .widgets import Time12HourWidget
@@ -2145,7 +2146,7 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         "submitted_at",
     )
     list_filter = (
-        "season",
+        SignupSeasonFilter,
         "primary_position",
         "captain_interest",
         "is_returning",
@@ -2269,10 +2270,20 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         if season_filter and season_filter.isdigit():
             # Season filter applied → only flag duplicates in that season
             signups = signups.filter(season_id=season_filter)
-        else:
-            # Unfiltered → skip seasons whose draft is already finalized,
-            # so stale duplicates from past seasons don't nag forever
+        elif season_filter == "all":
+            # Viewing every season → skip seasons whose draft is already
+            # finalized, so stale duplicates from past seasons don't nag
             signups = signups.exclude(season__draft_session__finalized_at__isnull=False)
+        else:
+            # No parameter means the list is showing the defaulted season,
+            # so scope the warning to match what's actually on screen.
+            default_season_id = _default_signup_season_id()
+            if default_season_id:
+                signups = signups.filter(season_id=default_season_id)
+            else:
+                signups = signups.exclude(
+                    season__draft_session__finalized_at__isnull=False
+                )
 
         duplicates = (
             signups.values("season_id", "first_name", "last_name")
@@ -2827,7 +2838,11 @@ class DraftSessionAdmin(admin.ModelAdmin):
     )
 
     def signup_count(self, obj):
-        return obj.season.signups.count()
+        count = obj.season.signups.count()
+        url = "{}?season__id__exact={}".format(
+            reverse("admin:leagues_seasonsignup_changelist"), obj.season_id
+        )
+        return format_html('<a href="{}">{}</a>', url, count)
 
     signup_count.short_description = "Signups"
 
