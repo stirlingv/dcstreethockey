@@ -1594,7 +1594,10 @@ class WeekAdmin(admin.ModelAdmin):
         return request.user.has_perm("leagues.can_quick_cancel_games")
 
     def quick_cancel_week_view(self, request, week_id):
-        """Cancel or restore all games for a single Week, and stamp each MatchUp."""
+        """Cancel or restore all games for a single Week.
+
+        Week.save() cascades is_cancelled to every MatchUp on the week.
+        """
         if not self.has_quick_cancel_permission(request):
             raise PermissionDenied
         if request.method != "POST":
@@ -1602,8 +1605,6 @@ class WeekAdmin(admin.ModelAdmin):
         week = Week.objects.select_related("division").get(pk=week_id)
         week.is_cancelled = not week.is_cancelled
         week.save()
-        MatchUp.objects.filter(week=week).update(is_cancelled=week.is_cancelled)
-        cache.delete("cancelled_games_ctx")
         status = "cancelled" if week.is_cancelled else "restored"
         messages.success(
             request,

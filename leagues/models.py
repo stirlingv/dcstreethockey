@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from django.core.cache import cache
 from django.db import models
 import datetime
 import uuid
@@ -315,6 +316,26 @@ class Week(models.Model):
 
     def __str__(self):
         return self.__unicode__()
+
+    def save(self, *args, **kwargs):
+        cascade_cancellation = False
+        if self.pk:
+            previous_cancelled = (
+                Week.objects.filter(pk=self.pk)
+                .values_list("is_cancelled", flat=True)
+                .first()
+            )
+            cascade_cancellation = (
+                previous_cancelled is not None
+                and previous_cancelled != self.is_cancelled
+            )
+        super().save(*args, **kwargs)
+        if cascade_cancellation:
+            # Keep every game on this week/division in sync with a single
+            # cancel or restore, regardless of which admin screen changed
+            # it — no separate per-game step required.
+            self.matchup_set.update(is_cancelled=self.is_cancelled)
+            cache.delete("cancelled_games_ctx")
 
 
 class MatchUp(models.Model):

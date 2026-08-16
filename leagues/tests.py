@@ -821,6 +821,97 @@ class WeekCancellationModelTest(TestCase):
             Week.objects.filter(date=self.today, is_cancelled=True).exists()
         )
 
+    def _make_team(self, name, color):
+        return Team.objects.create(
+            team_name=name,
+            team_color=color,
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+
+    def test_cancelling_week_cascades_to_its_games(self):
+        """A single Week.is_cancelled toggle cancels every game on it — no
+        separate per-game step, regardless of which admin screen made the
+        change (this is what MatchUpForm's Week field help text promises)."""
+        week = Week.objects.create(
+            division=self.division, season=self.season, date=self.today
+        )
+        away = self._make_team("Away", "Blue")
+        home = self._make_team("Home", "Red")
+        game1 = MatchUp.objects.create(
+            week=week, awayteam=away, hometeam=home, time=datetime.time(19, 0)
+        )
+        game2 = MatchUp.objects.create(
+            week=week, awayteam=home, hometeam=away, time=datetime.time(20, 30)
+        )
+
+        week.is_cancelled = True
+        week.save()
+
+        game1.refresh_from_db()
+        game2.refresh_from_db()
+        self.assertTrue(game1.is_cancelled)
+        self.assertTrue(game2.is_cancelled)
+
+    def test_restoring_week_cascades_to_its_games(self):
+        week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today,
+            is_cancelled=True,
+        )
+        away = self._make_team("Away", "Blue")
+        home = self._make_team("Home", "Red")
+        game = MatchUp.objects.create(
+            week=week,
+            awayteam=away,
+            hometeam=home,
+            time=datetime.time(19, 0),
+            is_cancelled=True,
+        )
+
+        week.is_cancelled = False
+        week.save()
+
+        game.refresh_from_db()
+        self.assertFalse(game.is_cancelled)
+
+    def test_saving_week_without_cancellation_change_leaves_games_alone(self):
+        """A save that doesn't touch is_cancelled (e.g. fixing the date)
+        must not disturb games that were individually cancelled on their
+        own — only an actual change to the week's own flag cascades."""
+        week = Week.objects.create(
+            division=self.division, season=self.season, date=self.today
+        )
+        away = self._make_team("Away", "Blue")
+        home = self._make_team("Home", "Red")
+        cancelled_game = MatchUp.objects.create(
+            week=week,
+            awayteam=away,
+            hometeam=home,
+            time=datetime.time(19, 0),
+            is_cancelled=True,
+        )
+
+        week.date = self.today + datetime.timedelta(days=7)
+        week.save()
+
+        cancelled_game.refresh_from_db()
+        self.assertTrue(cancelled_game.is_cancelled)
+
+    def test_creating_a_pre_cancelled_week_does_not_query_for_games(self):
+        """Cascade only makes sense once the week has a prior saved state;
+        a brand-new week has no games yet, so creation should not attempt
+        a comparison against a nonexistent previous value."""
+        week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today,
+            is_cancelled=True,
+        )
+        self.assertTrue(week.is_cancelled)
+
 
 class WeekAdminQuickCancelViewTest(TestCase):
     """Tests for WeekAdmin quick-cancel views."""
@@ -864,6 +955,29 @@ class WeekAdminQuickCancelViewTest(TestCase):
         self.week.refresh_from_db()
         self.assertTrue(self.week.is_cancelled)
         self.assertRedirects(response, reverse("admin:index"))
+
+    def test_quick_cancel_week_cascades_to_its_games(self):
+        away = Team.objects.create(
+            team_name="Away",
+            team_color="Blue",
+            division=self.division1,
+            season=self.season,
+            is_active=True,
+        )
+        home = Team.objects.create(
+            team_name="Home",
+            team_color="Red",
+            division=self.division1,
+            season=self.season,
+            is_active=True,
+        )
+        game = MatchUp.objects.create(
+            week=self.week, awayteam=away, hometeam=home, time=datetime.time(19, 0)
+        )
+        url = reverse("admin:leagues_week_quick_cancel", args=[self.week.pk])
+        self.client.post(url)
+        game.refresh_from_db()
+        self.assertTrue(game.is_cancelled)
 
     def test_quick_cancel_week_toggles_back_to_active(self):
         self.week.is_cancelled = True
