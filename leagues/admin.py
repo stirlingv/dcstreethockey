@@ -1,4 +1,6 @@
 # leagues/admin.py
+import csv
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
@@ -9,11 +11,12 @@ from django.utils.html import format_html
 from django.utils import timezone
 from django.urls import reverse, path
 from django.shortcuts import get_object_or_404, redirect, render
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 
 from dal import autocomplete
+from .filters import SignupSeasonFilter, _default_signup_season_id
 from .forms import MatchUpForm, TeamStatForm
 from .fields import TwelveHourTimeField
 from .widgets import Time12HourWidget
@@ -1592,7 +1595,10 @@ class WeekAdmin(admin.ModelAdmin):
         return request.user.has_perm("leagues.can_quick_cancel_games")
 
     def quick_cancel_week_view(self, request, week_id):
-        """Cancel or restore all games for a single Week, and stamp each MatchUp."""
+        """Cancel or restore all games for a single Week.
+
+        Week.save() cascades is_cancelled to every MatchUp on the week.
+        """
         if not self.has_quick_cancel_permission(request):
             raise PermissionDenied
         if request.method != "POST":
@@ -1600,8 +1606,6 @@ class WeekAdmin(admin.ModelAdmin):
         week = Week.objects.select_related("division").get(pk=week_id)
         week.is_cancelled = not week.is_cancelled
         week.save()
-        MatchUp.objects.filter(week=week).update(is_cancelled=week.is_cancelled)
-        cache.delete("cancelled_games_ctx")
         status = "cancelled" if week.is_cancelled else "restored"
         messages.success(
             request,
@@ -2131,6 +2135,8 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         "last_name",
         "first_name",
         "email",
+        "cell_phone",
+        "tshirt_size",
         "season",
         "primary_position",
         "secondary_position",
@@ -2139,8 +2145,14 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         "linked_player",
         "submitted_at",
     )
-    list_filter = ("season", "primary_position", "captain_interest", "is_returning")
-    search_fields = ("first_name", "last_name", "email")
+    list_filter = (
+        SignupSeasonFilter,
+        "primary_position",
+        "captain_interest",
+        "is_returning",
+        "tshirt_size",
+    )
+    search_fields = ("first_name", "last_name", "email", "cell_phone")
     autocomplete_fields = ("linked_player",)
     readonly_fields = ("submitted_at",)
     list_editable = ("is_returning", "linked_player")
@@ -2150,7 +2162,14 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         (
             "Player Info",
             {
-                "fields": ("season", "first_name", "last_name", "email"),
+                "fields": (
+                    "season",
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "cell_phone",
+                    "tshirt_size",
+                ),
             },
         ),
         (
@@ -2185,6 +2204,63 @@ class SeasonSignupAdmin(admin.ModelAdmin):
 
     captain_interest_short.short_description = "Captain?"
 
+    actions = ["export_roster_csv"]
+
+    @admin.action(description="Export selected to CSV (names & positions)")
+    def export_roster_csv(self, request, queryset):
+        """
+        Export a shareable player list: names and positions only.
+
+        Contact details (email, phone) and t-shirt sizes are deliberately
+        left out so the file can be handed around freely.  Those stay in
+        the admin, where access is already controlled.
+        """
+        queryset = queryset.select_related("season").order_by(
+            "season", "last_name", "first_name"
+        )
+
+        seasons = {s.season_id for s in queryset}
+        if len(seasons) == 1 and queryset:
+            stem = str(queryset[0].season).replace(":", "").replace(" ", "-").lower()
+            filename = f"draft-signups-{stem}.csv"
+        else:
+            filename = "draft-signups.csv"
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow(
+            ["Last Name", "First Name", "Primary", "Secondary", "Goalie", "Season"]
+        )
+
+        for signup in queryset:
+            if signup.primary_position == SeasonSignup.POSITION_GOALIE:
+                goalie = "YES"
+            elif signup.secondary_position == SeasonSignup.POSITION_GOALIE:
+                goalie = "Can fill in"
+            else:
+                goalie = ""
+
+            # "I only do one thing, period!" means no real secondary position
+            if signup.secondary_position == SeasonSignup.POSITION_ONE_THING:
+                secondary = "—"
+            else:
+                secondary = signup.get_secondary_position_display()
+
+            writer.writerow(
+                [
+                    signup.last_name,
+                    signup.first_name,
+                    signup.get_primary_position_display(),
+                    secondary,
+                    goalie,
+                    str(signup.season),
+                ]
+            )
+
+        return response
+
     def changelist_view(self, request, extra_context=None):
         from django.contrib import messages as _messages
         from django.db.models import Count
@@ -2194,10 +2270,20 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         if season_filter and season_filter.isdigit():
             # Season filter applied → only flag duplicates in that season
             signups = signups.filter(season_id=season_filter)
-        else:
-            # Unfiltered → skip seasons whose draft is already finalized,
-            # so stale duplicates from past seasons don't nag forever
+        elif season_filter == "all":
+            # Viewing every season → skip seasons whose draft is already
+            # finalized, so stale duplicates from past seasons don't nag
             signups = signups.exclude(season__draft_session__finalized_at__isnull=False)
+        else:
+            # No parameter means the list is showing the defaulted season,
+            # so scope the warning to match what's actually on screen.
+            default_season_id = _default_signup_season_id()
+            if default_season_id:
+                signups = signups.filter(season_id=default_season_id)
+            else:
+                signups = signups.exclude(
+                    season__draft_session__finalized_at__isnull=False
+                )
 
         duplicates = (
             signups.values("season_id", "first_name", "last_name")
@@ -2289,6 +2375,59 @@ def _secondary_position_for_signup(signup):
         SeasonSignup.POSITION_GOALIE: 4,
     }
     return mapping.get(signup.secondary_position)
+
+
+def _advance_season(season_type, year):
+    """Step one place through the Spring→Summer→Fall→Winter cycle."""
+    if season_type >= 4:
+        return 1, year + 1
+    return season_type + 1, year
+
+
+def _next_draft_season():
+    """
+    Suggest the (season_type, year) to open signups for.
+
+    Two candidates are considered and the later one wins:
+      * the season following the most recent draft, and
+      * the season following the one we're in right now.
+
+    Without the calendar half, a league that skipped a season would be
+    offered a season that has already passed — e.g. after a Spring draft,
+    signing up in August would suggest Summer rather than Fall.
+
+    Season types sort chronologically within a year (1=Spring … 4=Winter),
+    so (year, season_type) tuples compare directly.
+    """
+    now = timezone.now()
+    # Dec–Feb Winter, Mar–May Spring, Jun–Aug Summer, Sep–Nov Fall
+    calendar_type = {
+        12: 4,
+        1: 4,
+        2: 4,
+        3: 1,
+        4: 1,
+        5: 1,
+        6: 2,
+        7: 2,
+        8: 2,
+        9: 3,
+        10: 3,
+        11: 3,
+    }[now.month]
+    candidate = _advance_season(calendar_type, now.year)
+
+    latest = (
+        DraftSession.objects.select_related("season")
+        .order_by("-season__year", "-season__season_type")
+        .first()
+    )
+    if latest is not None and latest.season.season_type is not None:
+        after_latest = _advance_season(latest.season.season_type, latest.season.year)
+        if (after_latest[1], after_latest[0]) > (candidate[1], candidate[0]):
+            candidate = after_latest
+
+    return candidate
 
 
 @admin.register(DraftSession)
@@ -2394,8 +2533,211 @@ class DraftSessionAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.draft_setup_hub),
                 name="leagues_draftsession_draft_setup_hub",
             ),
+            path(
+                "draft-setup/start-signups/",
+                self.admin_site.admin_view(self.start_signups_view),
+                name="leagues_draftsession_start_signups",
+            ),
+            path(
+                "<int:pk>/setup-teams/",
+                self.admin_site.admin_view(self.setup_teams_view),
+                name="leagues_draftsession_setup_teams",
+            ),
         ]
         return custom + urls
+
+    def setup_teams_view(self, request, pk):
+        """
+        Build the draft's team slots from signups who volunteered to captain.
+
+        Creating a DraftTeam per captain by hand is the last manual step
+        before draft night, so this offers the volunteers as a checklist and
+        sets num_teams / num_rounds to match in one go.
+
+        Only available in SETUP: once positions are drawn, adding a team
+        would invalidate the pick order.
+        """
+        from django.template.response import TemplateResponse
+
+        from leagues.draft_views import _draft_advisory
+
+        session = get_object_or_404(DraftSession, pk=pk)
+
+        if session.state != DraftSession.STATE_SETUP:
+            self.message_user(
+                request,
+                "Teams can only be set up before positions are drawn. "
+                "Add or remove teams from the Teams section below instead.",
+                messages.WARNING,
+            )
+            return redirect(
+                reverse("admin:leagues_draftsession_change", args=[session.pk])
+            )
+
+        existing_captain_ids = set(session.teams.values_list("captain_id", flat=True))
+
+        if request.method == "POST":
+            chosen_ids = request.POST.getlist("captains")
+            chosen = session.season.signups.filter(pk__in=chosen_ids).exclude(
+                pk__in=existing_captain_ids
+            )
+
+            created = 0
+            for signup in chosen:
+                _, was_created = DraftTeam.objects.get_or_create(
+                    session=session, captain=signup
+                )
+                if was_created:
+                    created += 1
+
+            team_total = session.teams.count()
+            if not team_total:
+                self.message_user(
+                    request,
+                    "No captains selected — nothing to set up.",
+                    messages.WARNING,
+                )
+                return redirect(
+                    reverse("admin:leagues_draftsession_setup_teams", args=[session.pk])
+                )
+
+            session.num_teams = team_total
+            session.save(update_fields=["num_teams"])
+
+            # Recompute against the saved team count so the recommended
+            # round count matches what the draft board will advise.
+            advisory = _draft_advisory(session)
+            session.num_rounds = advisory["recommended_rounds"]
+            session.save(update_fields=["num_rounds"])
+
+            self.message_user(
+                request,
+                f"{created} team(s) created. Draft set to {session.num_teams} "
+                f"teams x {session.num_rounds} rounds for "
+                f"{advisory['total_signups']} signups.",
+                messages.SUCCESS,
+            )
+            return redirect(
+                reverse("admin:leagues_draftsession_change", args=[session.pk])
+            )
+
+        signups = list(
+            session.season.signups.exclude(
+                captain_interest=SeasonSignup.CAPTAIN_NO
+            ).order_by("captain_interest", "last_name", "first_name")
+        )
+        # Yes / overdue are pre-checked; "only if you can't find 8" is offered
+        # but left unchecked so it stays a deliberate choice.
+        preselected = {SeasonSignup.CAPTAIN_YES, SeasonSignup.CAPTAIN_OVERDUE}
+        candidates = [
+            {
+                "signup": s,
+                "interest": s.get_captain_interest_display(),
+                "already_added": s.pk in existing_captain_ids,
+                "preselected": s.captain_interest in preselected,
+            }
+            for s in signups
+        ]
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Set Up Teams from Captains — {session.season}",
+            "session": session,
+            "candidates": candidates,
+            "existing_count": len(existing_captain_ids),
+            "total_signups": session.season.signups.count(),
+        }
+        return TemplateResponse(request, "admin/leagues/setup_teams.html", context)
+
+    def start_signups_view(self, request):
+        """
+        One-step "open signups for the next season" flow.
+
+        Creates the Season (if needed) and its DraftSession with signups
+        open, then hands back the public signup link.  Deliberately leaves
+        `is_current_season` alone: flipping it mid-playoffs would swap the
+        standings and schedule pages over to a season with no games yet.
+        """
+        from django.template.response import TemplateResponse
+
+        suggested_type, suggested_year = _next_draft_season()
+
+        if request.method == "POST":
+            try:
+                season_type = int(request.POST.get("season_type", ""))
+                year = int(request.POST.get("year", ""))
+            except (TypeError, ValueError):
+                self.message_user(
+                    request, "Please choose a valid season and year.", messages.ERROR
+                )
+                return redirect(reverse("admin:leagues_draftsession_start_signups"))
+
+            season, season_created = Season.objects.get_or_create(
+                season_type=season_type,
+                year=year,
+                defaults={"is_current_season": False},
+            )
+
+            existing = DraftSession.objects.filter(season=season).first()
+            if existing:
+                if not existing.signups_open:
+                    existing.signups_open = True
+                    existing.save(update_fields=["signups_open"])
+                    note = "Signups reopened for the existing draft session."
+                else:
+                    note = "This season already has an open draft session."
+                self.message_user(
+                    request,
+                    format_html(
+                        '{} Signup link: <a href="{}" target="_blank">{}</a>',
+                        note,
+                        f"/draft/signup/{season.pk}/",
+                        f"/draft/signup/{season.pk}/",
+                    ),
+                    messages.WARNING,
+                )
+                return redirect(
+                    reverse("admin:leagues_draftsession_change", args=[existing.pk])
+                )
+
+            session = DraftSession.objects.create(
+                season=season,
+                signups_open=True,
+                state=DraftSession.STATE_SETUP,
+            )
+            signup_path = f"/draft/signup/{season.pk}/"
+            self.message_user(
+                request,
+                format_html(
+                    "Signups are open for {}{}. Share this link: "
+                    '<a href="{}" target="_blank"><strong>{}</strong></a>',
+                    season,
+                    "" if season_created else " (existing season reused)",
+                    signup_path,
+                    signup_path,
+                ),
+                messages.SUCCESS,
+            )
+            return redirect(
+                reverse("admin:leagues_draftsession_change", args=[session.pk])
+            )
+
+        latest = (
+            DraftSession.objects.select_related("season")
+            .order_by("-season__year", "-season__season_type")
+            .first()
+        )
+        this_year = timezone.now().year
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Open Signups for the Next Season",
+            "season_type_choices": Season.SEASON_TYPE,
+            "year_choices": range(this_year - 1, this_year + 3),
+            "suggested_type": suggested_type,
+            "suggested_year": suggested_year,
+            "latest_session": latest,
+        }
+        return TemplateResponse(request, "admin/leagues/start_signups.html", context)
 
     def draft_setup_hub(self, request):
         from django.template.response import TemplateResponse
@@ -2448,6 +2790,7 @@ class DraftSessionAdmin(admin.ModelAdmin):
     readonly_fields = (
         "commissioner_token",
         "created_at",
+        "setup_teams_action",
         "commissioner_url",
         "spectator_url",
         "signup_url",
@@ -2465,7 +2808,7 @@ class DraftSessionAdmin(admin.ModelAdmin):
         (
             "Draft Configuration",
             {
-                "fields": ("num_teams", "num_rounds"),
+                "fields": ("setup_teams_action", "num_teams", "num_rounds"),
                 "description": (
                     "Set these before starting the draft. "
                     "Rounds are configured in the Rounds section below."
@@ -2495,9 +2838,30 @@ class DraftSessionAdmin(admin.ModelAdmin):
     )
 
     def signup_count(self, obj):
-        return obj.season.signups.count()
+        count = obj.season.signups.count()
+        url = "{}?season__id__exact={}".format(
+            reverse("admin:leagues_seasonsignup_changelist"), obj.season_id
+        )
+        return format_html('<a href="{}">{}</a>', url, count)
 
     signup_count.short_description = "Signups"
+
+    def setup_teams_action(self, obj):
+        if not obj.pk:
+            return "Save the session first, then set up teams from captains."
+        if obj.state != DraftSession.STATE_SETUP:
+            return "Only available before positions are drawn."
+        url = reverse("admin:leagues_draftsession_setup_teams", args=[obj.pk])
+        return format_html(
+            '<a class="button" href="{}" style="background:#2f855a;">'
+            "Set Up Teams from Captains</a>"
+            '<p class="help" style="margin-top:6px;">Creates a team for each '
+            "signup who volunteered to captain, and sets the team and round "
+            "counts to match.</p>",
+            url,
+        )
+
+    setup_teams_action.short_description = "Quick setup"
 
     def commissioner_url(self, obj):
         if not obj.pk:

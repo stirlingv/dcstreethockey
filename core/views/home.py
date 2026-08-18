@@ -60,6 +60,28 @@ def _compute_playability(pop_pct, short_forecast):
     return "good"
 
 
+def _classify_precip_type(short_forecast):
+    """
+    Determine which kind of precipitation an NWS shortForecast string
+    actually names, so the "likely_cancelled" warning label never states a
+    possibility the forecast doesn't support (e.g. a snow mention on an
+    August forecast that only ever says "Rain").
+
+    Returns one of: "snow" | "mix" | "rain"
+    """
+    short = short_forecast.lower()
+    # "shower" alone is ambiguous (it qualifies both "Rain Showers" and "Snow
+    # Showers"), so only the explicit precipitation words decide the type.
+    has_snow = any(k in short for k in ("snow", "sleet", "flurr"))
+    has_rain = any(k in short for k in ("rain", "drizzle", "hail"))
+
+    if has_snow and has_rain:
+        return "mix"
+    if has_snow:
+        return "snow"
+    return "rain"
+
+
 def _worse_playability(a, b):
     """Return the more pessimistic of two playability values."""
     return a if _PLAYABILITY_ORDER[a] >= _PLAYABILITY_ORDER[b] else b
@@ -246,6 +268,11 @@ def _fetch_weather(api_key, game_times):
                     # Distinguish thunderstorm cancellations from plain rain so
                     # the template can show a more specific label.
                     "thunder": "thunder" in short.lower(),
+                    # What kind of precipitation the forecast text actually
+                    # names, so the warning label never claims a possibility
+                    # (e.g. snow) the forecast doesn't mention — see
+                    # _classify_precip_type.
+                    "precip_type": _classify_precip_type(short),
                     "precip_start": _find_precip_start(periods, game_date, game_time),
                 }
 

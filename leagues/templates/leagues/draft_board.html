@@ -1482,6 +1482,24 @@
     </div>
     <label>Email *</label>
     <input type="email" id="ls-email" placeholder="player@email.com">
+    <div class="late-signup-row">
+      <div>
+        <label>Cell phone</label>
+        <input type="tel" id="ls-phone" placeholder="(202) 555-0143">
+      </div>
+      <div>
+        <label>T-shirt size</label>
+        <select id="ls-tshirt">
+          <option value="">—</option>
+          <option value="S">Small</option>
+          <option value="M">Medium</option>
+          <option value="L">Large</option>
+          <option value="XL">X-Large</option>
+          <option value="XXL">2X-Large</option>
+          <option value="XXXL">3X-Large</option>
+        </select>
+      </div>
+    </div>
     <label>Primary position *</label>
     <select id="ls-primary">
       <option value="">— Select —</option>
@@ -2395,6 +2413,8 @@ function openLateSignupModal() {
   document.getElementById('ls-first').value = '';
   document.getElementById('ls-last').value = '';
   document.getElementById('ls-email').value = '';
+  document.getElementById('ls-phone').value = '';
+  document.getElementById('ls-tshirt').value = '';
   document.getElementById('ls-primary').value = '';
   document.getElementById('ls-secondary').value = '';
   const err = document.getElementById('ls-error');
@@ -2412,17 +2432,23 @@ function submitLateSignup() {
   const first = document.getElementById('ls-first').value.trim();
   const last  = document.getElementById('ls-last').value.trim();
   const email = document.getElementById('ls-email').value.trim();
+  const phone  = document.getElementById('ls-phone').value.trim();
+  const tshirt = document.getElementById('ls-tshirt').value;
   const primary   = document.getElementById('ls-primary').value;
   const secondary = document.getElementById('ls-secondary').value;
   const errEl = document.getElementById('ls-error');
 
   if (!first || !last || !email || !primary || !secondary) {
-    errEl.textContent = 'All fields are required.';
+    errEl.textContent = 'Name, email, and both positions are required.';
     errEl.style.display = 'block';
     return;
   }
 
-  const body = new URLSearchParams({ first_name: first, last_name: last, email, primary_position: primary, secondary_position: secondary });
+  const body = new URLSearchParams({
+    first_name: first, last_name: last, email,
+    cell_phone: phone, tshirt_size: tshirt,
+    primary_position: primary, secondary_position: secondary,
+  });
   fetch(`/draft/${SESSION_PK}/add-signup/${COMMISSIONER_TOKEN}/`, {
     method: 'POST',
     headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/x-www-form-urlencoded' },

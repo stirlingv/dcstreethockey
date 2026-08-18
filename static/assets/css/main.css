@@ -1449,11 +1449,28 @@
 					padding-right: 1em;
 					margin: 0 0 1em 0;
 				}
+
 				#banner .banner-logo-container {
 					flex: 0 0 auto;
 					display: flex;
 					justify-content: center;
 					align-items: center;
+				}
+
+				/*
+				 * Fixed cap, not a match to the text column's height: text
+				 * length varies (short vs. long announcements), so tying
+				 * the logo's size to it would make the logo balloon or
+				 * shrink with unrelated copy. A steady cap keeps a
+				 * consistent logo size and scales any upload's resolution
+				 * or aspect ratio to fit without JS.
+				 */
+				#banner .banner-logo {
+					display: block;
+					max-width: 100%;
+					max-height: 260px;
+					width: auto;
+					height: auto;
 				}
 
 		/* Features */
@@ -1707,6 +1724,14 @@
 					font-weight: 200;
 					line-height: 1.25em;
 					margin: 0 0 1em 0;
+				}
+
+				#banner .banner-logo-container {
+					margin-top: 20px;
+				}
+
+				#banner .banner-logo {
+					max-height: 200px;
 				}
 
 		/* Features */

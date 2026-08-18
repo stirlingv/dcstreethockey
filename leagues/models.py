@@ -1,11 +1,11 @@
 from __future__ import unicode_literals
 
+from django.core.cache import cache
 from django.db import models
 import datetime
 import uuid
 
 from django.db.models import indexes
-
 
 YEAR_CHOICES = []
 for r in range(2000, (datetime.datetime.now().year + 2)):
@@ -317,6 +317,26 @@ class Week(models.Model):
     def __str__(self):
         return self.__unicode__()
 
+    def save(self, *args, **kwargs):
+        cascade_cancellation = False
+        if self.pk:
+            previous_cancelled = (
+                Week.objects.filter(pk=self.pk)
+                .values_list("is_cancelled", flat=True)
+                .first()
+            )
+            cascade_cancellation = (
+                previous_cancelled is not None
+                and previous_cancelled != self.is_cancelled
+            )
+        super().save(*args, **kwargs)
+        if cascade_cancellation:
+            # Keep every game on this week/division in sync with a single
+            # cancel or restore, regardless of which admin screen changed
+            # it — no separate per-game step required.
+            self.matchup_set.update(is_cancelled=self.is_cancelled)
+            cache.delete("cancelled_games_ctx")
+
 
 class MatchUp(models.Model):
     GOALIE_STATUS_CHOICES = (
@@ -492,6 +512,15 @@ class SeasonSignup(models.Model):
         (POSITION_ONE_THING, "I only do one thing, period!"),
     )
 
+    TSHIRT_SIZE_CHOICES = (
+        ("S", "Small"),
+        ("M", "Medium"),
+        ("L", "Large"),
+        ("XL", "X-Large"),
+        ("XXL", "2X-Large"),
+        ("XXXL", "3X-Large"),
+    )
+
     CAPTAIN_YES = 1
     CAPTAIN_OVERDUE = 2
     CAPTAIN_LAST_RESORT = 3
@@ -508,6 +537,22 @@ class SeasonSignup(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     email = models.EmailField()
+    # Blank is allowed so signups collected before these fields existed stay
+    # valid; the public signup form requires both.
+    cell_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="Cell phone",
+        help_text="Used for game-day contact only.",
+    )
+    tshirt_size = models.CharField(
+        max_length=4,
+        choices=TSHIRT_SIZE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="T-shirt size",
+    )
     primary_position = models.PositiveIntegerField(
         choices=PRIMARY_POSITION_CHOICES,
     )
