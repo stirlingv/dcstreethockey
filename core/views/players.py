@@ -342,35 +342,38 @@ def get_division_ranks(division, gender_filter):
 
 
 def get_career_stats_for_player(player_id=0):
-    if get_goalie_games_played(player_id) > 0:
-        return Stat.objects.filter(player_id=player_id).aggregate(
+    seasons_played = get_seasons_played(player_id)
+    goalie_games_played = get_goalie_games_played(player_id)
+
+    if goalie_games_played > 0:
+        totals = Stat.objects.filter(player_id=player_id).aggregate(
             career_goals=Sum("goals"),
             career_assists=Sum("assists"),
-            average_goals_per_season=ExpressionWrapper(
-                Sum("goals") / get_seasons_played(player_id),
-                output_field=DecimalField(),
-            ),
-            average_assists_per_season=ExpressionWrapper(
-                Sum("assists") / get_seasons_played(player_id),
-                output_field=DecimalField(),
-            ),
             average_goals_against_per_game=ExpressionWrapper(
-                Sum("goals_against") / get_goalie_games_played(player_id),
+                Sum("goals_against") / goalie_games_played,
                 output_field=DecimalField(),
             ),
             first_season=Min("team__season__year"),
         )
-    return Stat.objects.filter(player_id=player_id).aggregate(
-        career_goals=Sum("goals"),
-        career_assists=Sum("assists"),
-        first_season=Min("team__season__year"),
-        average_goals_per_season=ExpressionWrapper(
-            Sum("goals") / get_seasons_played(player_id), output_field=DecimalField()
-        ),
-        average_assists_per_season=ExpressionWrapper(
-            Sum("assists") / get_seasons_played(player_id), output_field=DecimalField()
-        ),
-    )
+    else:
+        totals = Stat.objects.filter(player_id=player_id).aggregate(
+            career_goals=Sum("goals"),
+            career_assists=Sum("assists"),
+            first_season=Min("team__season__year"),
+        )
+
+    if seasons_played > 0:
+        totals["average_goals_per_season"] = (
+            totals["career_goals"] or 0
+        ) / seasons_played
+        totals["average_assists_per_season"] = (
+            totals["career_assists"] or 0
+        ) / seasons_played
+    else:
+        totals["average_goals_per_season"] = None
+        totals["average_assists_per_season"] = None
+
+    return totals
 
 
 def get_goalie_games_played(player):

@@ -31,6 +31,7 @@ from core.views import (
     get_average_stats_for_player,
     normalize_stat_scope,
 )
+from core.views.players import get_career_stats_for_player
 
 
 class PlayerStatsLogicTestCase(TestCase):
@@ -529,6 +530,98 @@ class StatScopeAveragesTestCase(TestCase):
         self.assertEqual(regular["average_assists_per_season"], 2)
         self.assertEqual(postseason["average_goals_per_season"], 1)
         self.assertEqual(postseason["average_assists_per_season"], 0.5)
+
+
+class CareerStatsForPlayerTestCase(TestCase):
+    """Regression tests for get_career_stats_for_player.
+
+    A player with Stat rows but no non-substitute Roster entries (e.g. they
+    only ever subbed in) has zero seasons played. Dividing the season
+    aggregates by that zero raised psycopg.errors.DivisionByZero in
+    production instead of Python's ZeroDivisionError, since the division
+    happens inside the SQL aggregate rather than in Python.
+    """
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=2024, season_type=1, is_current_season=False
+        )
+        self.division = Division.objects.create(division=1)
+        self.team = Team.objects.create(
+            team_name="Test Team",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.week = Week.objects.create(date="2024-01-01", season=self.season)
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time="18:00",
+            awayteam=self.team,
+            hometeam=self.team,
+        )
+
+    def test_substitute_only_player_returns_none_season_averages(self):
+        player = Player.objects.create(first_name="Sub", last_name="Only")
+        Roster.objects.create(
+            player=player,
+            team=self.team,
+            position1=1,
+            is_captain=False,
+            is_substitute=True,
+        )
+        Stat.objects.create(
+            player=player, team=self.team, matchup=self.matchup, goals=2, assists=1
+        )
+
+        stats = get_career_stats_for_player(player.id)
+
+        self.assertEqual(stats["career_goals"], 2)
+        self.assertEqual(stats["career_assists"], 1)
+        self.assertIsNone(stats["average_goals_per_season"])
+        self.assertIsNone(stats["average_assists_per_season"])
+
+    def test_substitute_only_goalie_returns_none_season_averages(self):
+        player = Player.objects.create(first_name="Sub", last_name="Goalie")
+        Roster.objects.create(
+            player=player,
+            team=self.team,
+            position1=4,
+            is_captain=False,
+            is_substitute=True,
+        )
+        Stat.objects.create(
+            player=player,
+            team=self.team,
+            matchup=self.matchup,
+            goals=0,
+            assists=0,
+            goals_against=3,
+        )
+
+        stats = get_career_stats_for_player(player.id)
+
+        self.assertIsNone(stats["average_goals_per_season"])
+        self.assertIsNone(stats["average_assists_per_season"])
+        self.assertEqual(stats["average_goals_against_per_game"], 3)
+
+    def test_player_with_seasons_played_computes_averages(self):
+        player = Player.objects.create(first_name="Regular", last_name="Player")
+        Roster.objects.create(
+            player=player,
+            team=self.team,
+            position1=1,
+            is_captain=False,
+            is_substitute=False,
+        )
+        Stat.objects.create(
+            player=player, team=self.team, matchup=self.matchup, goals=6, assists=4
+        )
+
+        stats = get_career_stats_for_player(player.id)
+
+        self.assertEqual(stats["average_goals_per_season"], 6)
+        self.assertEqual(stats["average_assists_per_season"], 4)
 
 
 class DivisionLeaderStatsTestCase(TestCase):
