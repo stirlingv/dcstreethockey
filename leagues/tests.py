@@ -1343,7 +1343,7 @@ class MatchUpAdminDefaultFilterTest(TestCase):
         )
 
         request = RequestFactory().get("/admin/leagues/matchup/?timeframe=past")
-        f = MatchupTimeframeFilter(request, {"timeframe": "past"}, MatchUp, MagicMock())
+        f = MatchupTimeframeFilter(request, request.GET.copy(), MatchUp, MagicMock())
         qs = f.queryset(request, MatchUp.objects.all())
         self.assertIn(past_game, qs)
         self.assertNotIn(future_game, qs)

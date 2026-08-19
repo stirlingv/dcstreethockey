@@ -114,7 +114,7 @@ class ProductionStaticStorageTest(SimpleTestCase):
 
     def test_production_uses_compressed_whitenoise_storage(self):
         production = importlib.import_module("dcstreethockey.settings.production")
-        self.assertEqual(production.STATICFILES_STORAGE, self.COMPRESSED)
+        self.assertEqual(production.STORAGES["staticfiles"]["BACKEND"], self.COMPRESSED)
 
     def test_base_not_debug_block_uses_compressed_whitenoise_storage(self):
         # The not-DEBUG branch of base.py (used by any non-debug deployment)

@@ -39,7 +39,12 @@ if not DEBUG:
     # Enable the WhiteNoise storage backend, which precompresses static files
     # (gzip + brotli) to reduce outbound bandwidth and renames them with
     # content-hashed names for long-term browser caching.
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        },
+    }
 
 ALLOWED_HOSTS = ["*"]
 
