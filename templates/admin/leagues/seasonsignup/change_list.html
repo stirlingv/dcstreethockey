@@ -99,10 +99,10 @@
       <span>{% trans "Signed up as goalie" %}</span>
       <span class="count">{{ signup_summary.primary_goalie_count }}</span>
     </a>
-    <div class="signup-summary-row">
+    <a class="signup-summary-row" href="{{ signup_summary.backup_goalie_url }}">
       <span>{% trans "Can fill in as backup" %}</span>
       <span class="count">{{ signup_summary.backup_goalie_count }}</span>
-    </div>
+    </a>
   </div>
 </div>
 {% endif %}

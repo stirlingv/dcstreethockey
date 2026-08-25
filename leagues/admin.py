@@ -16,7 +16,7 @@ from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 
 from dal import autocomplete
-from .filters import SignupSeasonFilter, _default_signup_season_id
+from .filters import SignupSeasonFilter, BackupGoalieFilter, _default_signup_season_id
 from .forms import MatchUpForm, TeamStatForm
 from .fields import TwelveHourTimeField
 from .widgets import Time12HourWidget
@@ -2148,6 +2148,7 @@ class SeasonSignupAdmin(admin.ModelAdmin):
     list_filter = (
         SignupSeasonFilter,
         "primary_position",
+        BackupGoalieFilter,
         "captain_interest",
         "is_returning",
         "tshirt_size",
@@ -2348,6 +2349,7 @@ class SeasonSignupAdmin(admin.ModelAdmin):
                 primary_position__exact=SeasonSignup.POSITION_GOALIE
             ),
             "backup_goalie_count": backup_goalie_count,
+            "backup_goalie_url": _filtered_url(backup_goalie="yes"),
         }
         return super().changelist_view(request, extra_context=extra_context)
 

@@ -1,5 +1,5 @@
 from django.contrib.admin import SimpleListFilter
-from leagues.models import DraftSession, Week, Season
+from leagues.models import DraftSession, Week, Season, SeasonSignup
 
 
 def _default_signup_season_id():
@@ -75,6 +75,28 @@ class SignupSeasonFilter(SimpleListFilter):
                 "query_string": changelist.get_query_string({self.parameter_name: pk}),
                 "display": title,
             }
+
+
+class BackupGoalieFilter(SimpleListFilter):
+    """
+    Signups who could fill in as a backup goalie: secondary position is
+    Goalie, but primary position isn't (those already show up under the
+    primary "signed up as goalie" count, so they're excluded here to
+    avoid double-counting the same person in both groups).
+    """
+
+    title = "backup goalie"
+    parameter_name = "backup_goalie"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Can fill in as backup"),)
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(
+                secondary_position=SeasonSignup.POSITION_GOALIE
+            ).exclude(primary_position=SeasonSignup.POSITION_GOALIE)
+        return queryset
 
 
 class RecentSeasonsFilter(SimpleListFilter):
