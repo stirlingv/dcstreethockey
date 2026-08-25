@@ -3988,3 +3988,102 @@ class SeasonSignupAdminDuplicateBannerTests(DraftTestBase):
         self._add_duplicate(self.season)
         resp = self.client.get(self.changelist_url, {"season__id__exact": other.pk})
         self.assertNotContains(resp, self.BANNER_TEXT)
+
+
+# ---------------------------------------------------------------------------
+# Admin: season signup summary panel
+# ---------------------------------------------------------------------------
+
+
+class SeasonSignupAdminSummaryPanelTests(DraftTestBase):
+    """
+    Base fixture for `self.season`: 3 captains (CAPTAIN_YES), 6 regular
+    players (CAPTAIN_NO), 2 goalies (CAPTAIN_NO, primary_position=GOALIE,
+    secondary_position=ONE_THING) → 11 signups total.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.changelist_url = reverse("admin:leagues_seasonsignup_changelist")
+
+    def test_total_signups_reflects_scoped_season(self):
+        resp = self.client.get(self.changelist_url)
+        self.assertEqual(resp.context["signup_summary"]["total"], 11)
+
+    def test_captain_interest_breakdown_counts(self):
+        resp = self.client.get(self.changelist_url)
+        breakdown = {
+            row["label"]: row["count"]
+            for row in resp.context["signup_summary"]["captain_breakdown"]
+        }
+        self.assertEqual(
+            breakdown[
+                dict(SeasonSignup.CAPTAIN_INTEREST_CHOICES)[SeasonSignup.CAPTAIN_YES]
+            ],
+            3,
+        )
+        self.assertEqual(
+            breakdown[
+                dict(SeasonSignup.CAPTAIN_INTEREST_CHOICES)[SeasonSignup.CAPTAIN_NO]
+            ],
+            8,
+        )
+        self.assertEqual(resp.context["signup_summary"]["not_answered"], 0)
+
+    def test_goalie_breakdown_counts_primary_and_backup_separately(self):
+        # A regular player who could fill in as a backup goalie, but isn't
+        # signed up as a primary goalie, should count as backup only.
+        SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Sammy",
+            last_name="Sub",
+            email="sammy@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_GOALIE,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        resp = self.client.get(self.changelist_url)
+        summary = resp.context["signup_summary"]
+        self.assertEqual(summary["primary_goalie_count"], 2)
+        self.assertEqual(summary["backup_goalie_count"], 1)
+        self.assertContains(resp, "Signed up as goalie")
+        self.assertContains(resp, "Can fill in as backup")
+
+    def test_summary_stays_season_wide_when_other_filters_applied(self):
+        # Filtering the table to just goalies must not shrink the "Total
+        # signups" or captain-interest tiles — they stay a fixed read of the
+        # whole season, like Google Forms' summary view.
+        resp = self.client.get(
+            self.changelist_url,
+            {"primary_position__exact": str(SeasonSignup.POSITION_GOALIE)},
+        )
+        self.assertEqual(resp.context["signup_summary"]["total"], 11)
+        self.assertEqual(resp.context["signup_summary"]["primary_goalie_count"], 2)
+
+    def test_summary_scoped_to_filtered_season_not_other_seasons(self):
+        other_season = Season.objects.create(
+            year=self.season.year - 1, season_type=1, is_current_season=False
+        )
+        SeasonSignup.objects.create(
+            season=other_season,
+            first_name="Other",
+            last_name="Season",
+            email="other@test.com",
+            primary_position=SeasonSignup.POSITION_GOALIE,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_YES,
+        )
+        resp = self.client.get(
+            self.changelist_url, {"season__id__exact": other_season.pk}
+        )
+        self.assertEqual(resp.context["signup_summary"]["total"], 1)
+        self.assertEqual(resp.context["signup_summary"]["primary_goalie_count"], 1)
+
+    def test_goalie_tile_links_to_position_filter(self):
+        resp = self.client.get(self.changelist_url)
+        url = resp.context["signup_summary"]["primary_goalie_url"]
+        self.assertIn(f"primary_position__exact={SeasonSignup.POSITION_GOALIE}", url)
