@@ -1,0 +1,110 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .signup-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .signup-summary-card {
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    padding: 14px 18px;
+    min-width: 200px;
+    flex: 1 1 220px;
+  }
+  .signup-summary-card h2 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #9ca3af;
+  }
+  .signup-summary-total {
+    display: block;
+    font-size: 30px;
+    font-weight: 700;
+    color: #e5e7eb;
+    text-decoration: none;
+    line-height: 1.2;
+  }
+  .signup-summary-total:hover {
+    color: #79aec8;
+  }
+  .signup-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 4px;
+    min-height: 28px;
+    color: #e5e7eb;
+    text-decoration: none;
+    font-size: 14px;
+    border-radius: 4px;
+  }
+  .signup-summary-row:hover {
+    background: #111827;
+    color: #79aec8;
+  }
+  .signup-summary-row .count {
+    font-weight: 700;
+    margin-left: 12px;
+  }
+  .signup-summary-note {
+    color: #9ca3af;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  @media (max-width: 767px) {
+    .signup-summary-card { flex: 1 1 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block result_list %}
+{% if signup_summary %}
+<div class="signup-summary">
+  <div class="signup-summary-card">
+    <h2>{% trans "Total signups" %}</h2>
+    <a class="signup-summary-total" href="{{ signup_summary.total_url }}">{{ signup_summary.total }}</a>
+  </div>
+
+  <div class="signup-summary-card">
+    <h2>{% trans "Captain interest" %}</h2>
+    {% for row in signup_summary.captain_breakdown %}
+      <a class="signup-summary-row" href="{{ row.url }}">
+        <span>{{ row.label }}</span>
+        <span class="count">{{ row.count }}</span>
+      </a>
+    {% endfor %}
+    {% if signup_summary.not_answered %}
+      <div class="signup-summary-note">
+        {% blocktrans count counter=signup_summary.not_answered %}
+          {{ counter }} signup hasn't answered this question
+        {% plural %}
+          {{ counter }} signups haven't answered this question
+        {% endblocktrans %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="signup-summary-card">
+    <h2>{% trans "Goalies" %}</h2>
+    <a class="signup-summary-row" href="{{ signup_summary.primary_goalie_url }}">
+      <span>{% trans "Signed up as goalie" %}</span>
+      <span class="count">{{ signup_summary.primary_goalie_count }}</span>
+    </a>
+    <div class="signup-summary-row">
+      <span>{% trans "Can fill in as backup" %}</span>
+      <span class="count">{{ signup_summary.backup_goalie_count }}</span>
+    </div>
+  </div>
+</div>
+{% endif %}
+{{ block.super }}
+{% endblock %}

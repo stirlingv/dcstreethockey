@@ -2302,6 +2302,53 @@ class SeasonSignupAdmin(admin.ModelAdmin):
                 f"Potential duplicate signups (same name, different email): {names}. "
                 "Review and merge before running the draw.",
             )
+
+        # Season-wide summary panel: always reflects the season scoped above
+        # (never the position/captain/t-shirt filters below it), so it reads
+        # like a fixed "responses so far" dashboard rather than a number that
+        # moves as the commissioner drills into the table.
+        season_qs = {"season__id__exact": season_filter} if season_filter else {}
+
+        def _filtered_url(**params):
+            query = {**season_qs, **params}
+            base = reverse("admin:leagues_seasonsignup_changelist")
+            return f"{base}?{urlencode(query)}" if query else base
+
+        captain_counts = {
+            row["captain_interest"]: row["count"]
+            for row in signups.values("captain_interest").annotate(count=Count("id"))
+        }
+        not_answered = captain_counts.pop(None, 0)
+        captain_breakdown = [
+            {
+                "label": label,
+                "count": captain_counts.get(value, 0),
+                "url": _filtered_url(captain_interest__exact=value),
+            }
+            for value, label in SeasonSignup.CAPTAIN_INTEREST_CHOICES
+        ]
+
+        primary_goalie_count = signups.filter(
+            primary_position=SeasonSignup.POSITION_GOALIE
+        ).count()
+        backup_goalie_count = (
+            signups.filter(secondary_position=SeasonSignup.POSITION_GOALIE)
+            .exclude(primary_position=SeasonSignup.POSITION_GOALIE)
+            .count()
+        )
+
+        extra_context = extra_context or {}
+        extra_context["signup_summary"] = {
+            "total": signups.count(),
+            "total_url": _filtered_url(),
+            "captain_breakdown": captain_breakdown,
+            "not_answered": not_answered,
+            "primary_goalie_count": primary_goalie_count,
+            "primary_goalie_url": _filtered_url(
+                primary_position__exact=SeasonSignup.POSITION_GOALIE
+            ),
+            "backup_goalie_count": backup_goalie_count,
+        }
         return super().changelist_view(request, extra_context=extra_context)
 
 
