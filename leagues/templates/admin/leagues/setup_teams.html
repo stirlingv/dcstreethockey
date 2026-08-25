@@ -1,7 +1,25 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block content_title %}<h1>{{ title }}</h1>{% endblock %}
+
+{% block extrahead %}{{ block.super }}
+<script src="{% static 'admin/js/copy_emails.js' %}"></script>
+<style>
+  .copy-emails-btn {
+    background: #4b5563;
+    color: #e5e7eb;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .copy-emails-btn:hover { background: #5b6472; }
+  .copy-emails-btn:disabled { opacity: 0.5; cursor: default; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div id="content-main">
@@ -17,6 +35,19 @@
       &middot; {{ existing_count }} team{{ existing_count|pluralize }} already set up
     {% endif %}
   </p>
+
+  {% if candidates %}
+  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;max-width:640px;">
+    <button type="button" class="copy-emails-btn js-copy-emails"
+            data-emails="{{ pending_emails }}" {% if not pending_emails %}disabled{% endif %}>
+      Copy emails — still deciding
+    </button>
+    <button type="button" class="copy-emails-btn js-copy-emails"
+            data-emails="{{ confirmed_emails }}" {% if not confirmed_emails %}disabled{% endif %}>
+      Copy emails — confirmed captains
+    </button>
+  </div>
+  {% endif %}
 
   {% if candidates %}
   <form method="post">

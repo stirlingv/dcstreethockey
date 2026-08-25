@@ -3718,6 +3718,29 @@ class SetupTeamsFromCaptainsTests(DraftTestBase):
         resp = self.client.get(change_url)
         self.assertNotContains(resp, "Set Up Teams from Captains")
 
+    def test_pending_emails_excludes_already_confirmed(self):
+        self.client.post(self.url, {"captains": [self.cap1.pk]})
+        resp = self.client.get(self.url)
+        self.assertIn(self.cap2.email, resp.context["pending_emails"])
+        self.assertIn(self.cap3.email, resp.context["pending_emails"])
+        self.assertNotIn(self.cap1.email, resp.context["pending_emails"])
+
+    def test_confirmed_emails_only_includes_already_confirmed(self):
+        self.client.post(self.url, {"captains": [self.cap1.pk]})
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.context["confirmed_emails"], self.cap1.email)
+
+    def test_before_any_confirmed_pending_has_all_candidates(self):
+        resp = self.client.get(self.url)
+        for cap in (self.cap1, self.cap2, self.cap3):
+            self.assertIn(cap.email, resp.context["pending_emails"])
+        self.assertEqual(resp.context["confirmed_emails"], "")
+
+    def test_copy_email_buttons_rendered_with_data_emails(self):
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "js-copy-emails")
+        self.assertContains(resp, self.cap1.email)
+
 
 # ---------------------------------------------------------------------------
 # Admin: signup CSV export
@@ -3809,6 +3832,79 @@ class SignupCsvExportTests(DraftTestBase):
             if line.startswith(last_name + ","):
                 return line
         self.fail(f"No CSV row found for {last_name}")
+
+
+# ---------------------------------------------------------------------------
+# Admin: copy email addresses / confirmed captain visibility
+# ---------------------------------------------------------------------------
+
+
+class SeasonSignupAdminCopyEmailsTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_seasonsignup_changelist")
+
+    def _copy(self, queryset):
+        return self.client.post(
+            self.url,
+            {
+                "action": "copy_emails",
+                "_selected_action": [str(s.pk) for s in queryset],
+            },
+        )
+
+    def test_copy_emails_lists_selected_addresses(self):
+        resp = self._copy([self.cap1, self.cap2])
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, self.cap1.email)
+        self.assertContains(resp, self.cap2.email)
+        self.assertNotContains(resp, self.players[0].email)
+
+    def test_copy_emails_button_carries_data_emails_attribute(self):
+        resp = self._copy([self.cap1])
+        self.assertContains(resp, "js-copy-emails")
+        self.assertContains(resp, f'data-emails="{self.cap1.email}"')
+
+    def test_copy_emails_excludes_blank_addresses(self):
+        self.cap1.email = ""
+        self.cap1.save(update_fields=["email"])
+        resp = self._copy([self.cap1, self.cap2])
+        self.assertEqual(resp.context["count"], 1)
+        self.assertEqual(resp.context["emails"], [self.cap2.email])
+
+    def test_copy_emails_empty_selection_shows_no_emails_message(self):
+        self.cap1.email = ""
+        self.cap1.save(update_fields=["email"])
+        resp = self._copy([self.cap1])
+        self.assertContains(resp, "None of the selected signups have an email")
+
+
+class SeasonSignupAdminConfirmedCaptainColumnTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_seasonsignup_changelist")
+
+    def test_captain_with_draft_team_shown_as_confirmed(self):
+        resp = self.client.get(self.url)
+        by_pk = {obj.pk: obj for obj in resp.context["cl"].result_list}
+        self.assertTrue(by_pk[self.cap1.pk].is_confirmed_captain)
+
+    def test_non_captain_signup_not_confirmed(self):
+        resp = self.client.get(self.url)
+        by_pk = {obj.pk: obj for obj in resp.context["cl"].result_list}
+        self.assertFalse(by_pk[self.players[0].pk].is_confirmed_captain)
+
+    def test_confirmed_column_renders_checkmark_for_captain(self):
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "Confirmed")
 
 
 # ---------------------------------------------------------------------------
