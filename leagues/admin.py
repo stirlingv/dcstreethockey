@@ -2204,44 +2204,6 @@ class SeasonSignupAdmin(admin.ModelAdmin):
 
     captain_interest_short.short_description = "Captain?"
 
-    def _removal_block_reason(self, signup):
-        """
-        Return a plain-language reason this signup can't be removed yet, or
-        None if it's safe to delete. A signup is protected once the draft has
-        actually used it (as a captain or a pick) — undoing that is a bigger
-        operation than deleting a row, so point the commissioner at the right
-        place instead of letting them hit a generic database error.
-        """
-        captain_team = signup.captained_teams.select_related("session").first()
-        if captain_team:
-            return (
-                f"{signup.full_name} is the captain of “{captain_team.team_name}” "
-                "in this draft. Reassign or remove them as captain in the draft "
-                "setup before deleting their signup."
-            )
-        pick = signup.draft_pick.select_related("team").first()
-        if pick:
-            return (
-                f"{signup.full_name} has already been drafted onto "
-                f"“{pick.team.team_name}” (Round {pick.round_number}, "
-                f"Pick {pick.pick_number + 1}). Undo that pick from the draft "
-                "board first, then delete their signup."
-            )
-        return None
-
-    def delete_view(self, request, object_id, extra_context=None):
-        signup = self.get_object(request, object_id)
-        if signup is not None:
-            reason = self._removal_block_reason(signup)
-            if reason:
-                self.message_user(
-                    request, f"Can't remove this signup yet. {reason}", messages.ERROR
-                )
-                return redirect(
-                    reverse("admin:leagues_seasonsignup_change", args=[object_id])
-                )
-        return super().delete_view(request, object_id, extra_context)
-
     actions = ["export_roster_csv"]
 
     @admin.action(description="Export selected to CSV (names & positions)")

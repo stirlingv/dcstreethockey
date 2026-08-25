@@ -4095,6 +4095,13 @@ class SeasonSignupAdminSummaryPanelTests(DraftTestBase):
 
 
 class SeasonSignupAdminRemovalTests(DraftTestBase):
+    """
+    Removing a signup who's backed out is the standard admin delete flow —
+    Wayne finalizes participants before the draft, so there's no supported
+    path for un-drafting a captain or a pick via this admin; that's what the
+    Roster workflow is for after the draft.
+    """
+
     def setUp(self):
         super().setUp()
         from django.contrib.auth.models import User
@@ -4105,43 +4112,8 @@ class SeasonSignupAdminRemovalTests(DraftTestBase):
     def _delete_url(self, signup):
         return reverse("admin:leagues_seasonsignup_delete", args=[signup.pk])
 
-    def _change_url(self, signup):
-        return reverse("admin:leagues_seasonsignup_change", args=[signup.pk])
-
     def test_unpicked_non_captain_signup_can_be_deleted(self):
         signup = self.players[0]
         resp = self.client.post(self._delete_url(signup), {"post": "yes"})
         self.assertRedirects(resp, reverse("admin:leagues_seasonsignup_changelist"))
         self.assertFalse(SeasonSignup.objects.filter(pk=signup.pk).exists())
-
-    def test_deleting_a_captain_is_blocked_with_friendly_message(self):
-        resp = self.client.get(self._delete_url(self.cap1), follow=True)
-        self.assertRedirects(resp, self._change_url(self.cap1))
-        messages_text = [str(m) for m in resp.context["messages"]]
-        self.assertTrue(
-            any("captain" in m and self.team1.team_name in m for m in messages_text)
-        )
-        self.assertTrue(SeasonSignup.objects.filter(pk=self.cap1.pk).exists())
-
-    def test_deleting_a_drafted_player_is_blocked_with_friendly_message(self):
-        pick = self._make_pick(
-            self.team1, self.players[0], round_number=1, pick_number=0
-        )
-        resp = self.client.get(self._delete_url(self.players[0]), follow=True)
-        self.assertRedirects(resp, self._change_url(self.players[0]))
-        messages_text = [str(m) for m in resp.context["messages"]]
-        self.assertTrue(
-            any(
-                "already been drafted" in m and self.team1.team_name in m
-                for m in messages_text
-            )
-        )
-        self.assertTrue(SeasonSignup.objects.filter(pk=self.players[0].pk).exists())
-        self.assertTrue(DraftPick.objects.filter(pk=pick.pk).exists())
-
-    def test_blocked_delete_does_not_remove_other_selected_signups(self):
-        # Sanity check: the friendly block only short-circuits the one
-        # protected object's delete view — it doesn't touch anyone else.
-        other = self.players[1]
-        self.client.get(self._delete_url(self.cap1))
-        self.assertTrue(SeasonSignup.objects.filter(pk=other.pk).exists())
