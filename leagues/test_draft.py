@@ -4088,6 +4088,39 @@ class SeasonSignupAdminSummaryPanelTests(DraftTestBase):
         url = resp.context["signup_summary"]["primary_goalie_url"]
         self.assertIn(f"primary_position__exact={SeasonSignup.POSITION_GOALIE}", url)
 
+    def test_backup_goalie_tile_links_to_backup_goalie_filter(self):
+        resp = self.client.get(self.changelist_url)
+        url = resp.context["signup_summary"]["backup_goalie_url"]
+        self.assertIn("backup_goalie=yes", url)
+
+    def test_backup_goalie_link_filters_to_backup_goalies_only(self):
+        backup = SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Sammy",
+            last_name="Sub",
+            email="sammy@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_GOALIE,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        # Primary goalie who also listed goalie as secondary (redundant, but
+        # not blocked by the form) shouldn't be double-counted as a backup.
+        both = SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Gail",
+            last_name="Bothways",
+            email="gail@test.com",
+            primary_position=SeasonSignup.POSITION_GOALIE,
+            secondary_position=SeasonSignup.POSITION_GOALIE,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        resp = self.client.get(self.changelist_url, {"backup_goalie": "yes"})
+        result_ids = {obj.pk for obj in resp.context["cl"].result_list}
+        self.assertEqual(result_ids, {backup.pk})
+        self.assertNotIn(both.pk, result_ids)
+        self.assertNotIn(self.goalie1.pk, result_ids)
+        self.assertNotIn(self.goalie2.pk, result_ids)
+
 
 # ---------------------------------------------------------------------------
 # Admin: withdrawing / removing a season signup
