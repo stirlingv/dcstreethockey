@@ -1,0 +1,53 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content_title %}<h1>{{ title }}</h1>{% endblock %}
+
+{% block extrahead %}{{ block.super }}
+<script src="{% static 'admin/js/copy_emails.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <p style="color:#9ca3af;margin-bottom:18px;font-size:13px;">
+    {{ count }} email address{{ count|pluralize }} selected.
+  </p>
+
+  {% if emails %}
+  <button type="button"
+          class="default js-copy-emails"
+          data-emails="{{ emails_joined }}"
+          style="padding:10px 20px;min-height:44px;margin-bottom:18px;">
+    Copy to Clipboard
+  </button>
+
+  <textarea readonly rows="6" style="
+    display:block;
+    width:100%;
+    max-width:680px;
+    background:#111827;
+    color:#e5e7eb;
+    border:1px solid #374151;
+    border-radius:6px;
+    padding:12px;
+    font-size:13px;
+    font-family:monospace;
+    box-sizing:border-box;
+  ">{{ emails_joined }}</textarea>
+  <p style="color:#9ca3af;font-size:12px;margin-top:8px;max-width:680px;">
+    If the Copy button doesn't work in your browser, click inside the box
+    above, select all (Ctrl/Cmd+A), and copy (Ctrl/Cmd+C).
+  </p>
+  {% else %}
+  <p style="color:#e5e7eb;">None of the selected signups have an email address on file.</p>
+  {% endif %}
+
+  <div style="margin-top:22px;">
+    <a href="{{ changelist_url }}" class="button" style="background:#4b5563;">
+      Back to Season Signups
+    </a>
+  </div>
+
+</div>
+{% endblock %}

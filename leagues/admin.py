@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.db import models
-from django.db.models import Q, Max, Prefetch, Sum
+from django.db.models import Q, Max, Prefetch, Sum, Exists, OuterRef
 from django.utils.http import urlencode
 from django.utils.html import format_html
 from django.utils import timezone
@@ -2141,6 +2141,7 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         "primary_position",
         "secondary_position",
         "captain_interest_short",
+        "confirmed_captain",
         "is_returning",
         "linked_player",
         "submitted_at",
@@ -2205,7 +2206,44 @@ class SeasonSignupAdmin(admin.ModelAdmin):
 
     captain_interest_short.short_description = "Captain?"
 
-    actions = ["export_roster_csv"]
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            is_confirmed_captain=Exists(
+                DraftTeam.objects.filter(captain_id=OuterRef("pk"))
+            )
+        )
+
+    def confirmed_captain(self, obj):
+        if obj.is_confirmed_captain:
+            return format_html('<span style="color:#6ee7b7;">✓ Confirmed</span>')
+        return "—"
+
+    confirmed_captain.short_description = "Confirmed captain?"
+    confirmed_captain.admin_order_field = "is_confirmed_captain"
+
+    actions = ["export_roster_csv", "copy_emails"]
+
+    @admin.action(description="Copy email addresses")
+    def copy_emails(self, request, queryset):
+        from django.template.response import TemplateResponse
+
+        emails = list(
+            queryset.exclude(email="")
+            .order_by("last_name", "first_name")
+            .values_list("email", flat=True)
+        )
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Copy Email Addresses",
+            "emails": emails,
+            "emails_joined": ", ".join(emails),
+            "count": len(emails),
+            "changelist_url": reverse("admin:leagues_seasonsignup_changelist"),
+        }
+        return TemplateResponse(
+            request, "admin/leagues/seasonsignup/copy_emails.html", context
+        )
 
     @admin.action(description="Export selected to CSV (names & positions)")
     def export_roster_csv(self, request, queryset):
@@ -2687,6 +2725,12 @@ class DraftSessionAdmin(admin.ModelAdmin):
             }
             for s in signups
         ]
+        pending_emails = ", ".join(
+            s.email for s in signups if s.pk not in existing_captain_ids if s.email
+        )
+        confirmed_emails = ", ".join(
+            s.email for s in signups if s.pk in existing_captain_ids if s.email
+        )
 
         context = {
             **self.admin_site.each_context(request),
@@ -2695,6 +2739,8 @@ class DraftSessionAdmin(admin.ModelAdmin):
             "candidates": candidates,
             "existing_count": len(existing_captain_ids),
             "total_signups": session.season.signups.count(),
+            "pending_emails": pending_emails,
+            "confirmed_emails": confirmed_emails,
         }
         return TemplateResponse(request, "admin/leagues/setup_teams.html", context)
 
