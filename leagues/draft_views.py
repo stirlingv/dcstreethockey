@@ -7,6 +7,7 @@ import io
 import json
 import random
 
+from django.conf import settings
 from django.db.models import Case, Count, Exists, OuterRef, Q, Sum, Value, When
 from django.http import HttpResponse, JsonResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -498,6 +499,7 @@ def _session_state_payload(session, stats_cache=None):
         "active_team_pk": active_team_pk,
         "finalized": session.finalized_at is not None,
         "completion_warnings": completion_warnings,
+        "signups_open": session.signups_open,
     }
 
 
@@ -634,6 +636,9 @@ def draft_signup(request, season_pk):
                     linked_player=linked_player,
                 )
                 submitted = True
+                # Keep anyone already watching the spectator board (linked
+                # from this page) live-updated as new signups come in.
+                _broadcast_state_change(draft_session)
 
     # Public tally — no names or contact details, just how full the season is
     signup_count = season.signups.count()
@@ -724,6 +729,7 @@ def draft_board_commissioner(request, session_pk, token):
         "advisory_json": advisory_json,
         "champion": champion,
         "champion_league_team_id": champion["team"].id if champion else None,
+        "dev_mode": settings.DEBUG,
     }
     return render(request, "leagues/draft_board.html", context)
 
@@ -798,10 +804,7 @@ def draw_positions(request, session_pk, token):
     """
     session = get_object_or_404(DraftSession, pk=session_pk, commissioner_token=token)
 
-    if session.state == DraftSession.STATE_SETUP:
-        session.state = DraftSession.STATE_DRAW
-        session.save(update_fields=["state"])
-    elif session.state != DraftSession.STATE_DRAW:
+    if session.state not in (DraftSession.STATE_SETUP, DraftSession.STATE_DRAW):
         return JsonResponse(
             {"error": "Positions can only be drawn in setup or draw phase."}, status=400
         )
@@ -809,6 +812,24 @@ def draw_positions(request, session_pk, token):
     teams = list(session.teams.select_related("captain").all())
     if not teams:
         return JsonResponse({"error": "No teams configured."}, status=400)
+
+    # Captain rounds must be locked in before the order is randomized, so
+    # the reveal can't be followed by decisions that might look like they
+    # were made with the draw order already in mind.
+    missing = [t for t in teams if t.captain_draft_round is None]
+    if missing:
+        names = ", ".join(t.captain.full_name for t in missing)
+        return JsonResponse(
+            {
+                "error": f"Set a draft round for every captain before drawing positions. "
+                f"Missing: {names}."
+            },
+            status=400,
+        )
+
+    if session.state == DraftSession.STATE_SETUP:
+        session.state = DraftSession.STATE_DRAW
+        session.save(update_fields=["state"])
 
     positions = list(range(1, len(teams) + 1))
     random.shuffle(positions)
@@ -921,6 +942,40 @@ def advance_state(request, session_pk, token):
     _broadcast_state_change(session)
 
     return JsonResponse({"state": _session_state_payload(session)})
+
+
+# ---------------------------------------------------------------------------
+# Commissioner: end the draft early
+# ---------------------------------------------------------------------------
+
+
+@require_POST
+def end_draft(request, session_pk, token):
+    """
+    Mark the draft COMPLETE without every slot being filled.
+
+    The normal completion check (in make_pick / _process_auto_captain_picks)
+    only fires once total picks reach num_teams * num_rounds — if the signup
+    pool runs out first (e.g. a signup count that doesn't divide evenly
+    across teams), that condition is never reached and the draft would
+    otherwise be stuck ACTIVE forever with no available players. This gives
+    the commissioner an explicit way out; _session_state_payload's
+    completion_warnings (undrafted players, missing goalies, roster
+    imbalance) surface immediately afterward so nothing is silently lost.
+    """
+    session = get_object_or_404(DraftSession, pk=session_pk, commissioner_token=token)
+
+    if session.state not in (DraftSession.STATE_ACTIVE, DraftSession.STATE_PAUSED):
+        return JsonResponse(
+            {"error": "Draft must be active or paused to end it."}, status=400
+        )
+
+    session.state = DraftSession.STATE_COMPLETE
+    session.save(update_fields=["state"])
+
+    _broadcast_state_change(session)
+
+    return JsonResponse({"success": True, "state": _session_state_payload(session)})
 
 
 # ---------------------------------------------------------------------------
@@ -1166,6 +1221,158 @@ def make_pick(request, session_pk):
     )
 
     return JsonResponse({"success": True, "state": _session_state_payload(session)})
+
+
+# ---------------------------------------------------------------------------
+# Dev-only: auto-fill the draft board with random valid picks
+#
+# Lets a commissioner testing locally skip clicking through dozens of picks
+# to exercise the live board / chat sync. Hard-gated on settings.DEBUG so it
+# 404s in production even if the URL is guessed.
+# ---------------------------------------------------------------------------
+
+
+@require_POST
+def dev_autofill_draft(request, session_pk, token):
+    """Randomly complete every remaining pick in an ACTIVE draft. Local dev only."""
+    if not settings.DEBUG:
+        raise Http404
+
+    session = get_object_or_404(DraftSession, pk=session_pk, commissioner_token=token)
+
+    if session.state != DraftSession.STATE_ACTIVE:
+        return JsonResponse(
+            {"error": "Draft must be active to auto-fill. Resume it first."}, status=400
+        )
+
+    captain_ids = set(session.teams.values_list("captain_id", flat=True))
+    pool = list(session.season.signups.exclude(pk__in=captain_ids))
+
+    max_iterations = session.num_teams * session.num_rounds + 20
+    picks_made = 0
+
+    for _ in range(max_iterations):
+        current = session.current_pick
+        if not current:
+            break
+
+        cur_round, cur_pick_idx = current
+        order = session.pick_order_for_round(cur_round)
+        active_team_pk = order[cur_pick_idx]
+        team = DraftTeam.objects.select_related("captain").get(pk=active_team_pk)
+
+        # Mirror make_pick's guard: fire any due captain auto-pick first.
+        if (
+            team.captain_draft_round == cur_round
+            and not DraftPick.objects.filter(
+                session=session, signup=team.captain
+            ).exists()
+        ):
+            _process_auto_captain_picks(session)
+            _broadcast_state_change(session, prev_round=cur_round)
+            continue
+
+        drafted_ids = set(
+            DraftPick.objects.filter(session=session).values_list(
+                "signup_id", flat=True
+            )
+        )
+        team_has_goalie = (
+            team.captain.is_goalie
+            or DraftPick.objects.filter(
+                session=session,
+                team=team,
+                signup__primary_position=SeasonSignup.POSITION_GOALIE,
+            ).exists()
+        )
+
+        # Never let a team pick a 2nd goalie — same rule make_pick enforces.
+        # There is deliberately no "if no candidates, allow anything" escape
+        # hatch here: that used to let a team double up on a goalie whenever
+        # the only signups left were goalies, which is exactly how one team
+        # ends up with two and another with none.
+        candidates = [
+            s
+            for s in pool
+            if s.pk not in drafted_ids
+            and not (
+                s.primary_position == SeasonSignup.POSITION_GOALIE and team_has_goalie
+            )
+        ]
+        if not candidates:
+            break
+
+        if not team_has_goalie:
+            goalie_candidates = [
+                s
+                for s in candidates
+                if s.primary_position == SeasonSignup.POSITION_GOALIE
+            ]
+            if goalie_candidates:
+                # Reserve goalies for teams that still need one once supply
+                # is at (or below) the number of teams still waiting on one —
+                # otherwise a run of bad luck on other picks can leave a
+                # later team with no goalie left to take at all.
+                needy_teams = sum(
+                    1
+                    for t in session.teams.select_related("captain")
+                    if not (
+                        t.captain.is_goalie
+                        or DraftPick.objects.filter(
+                            session=session,
+                            team=t,
+                            signup__primary_position=SeasonSignup.POSITION_GOALIE,
+                        ).exists()
+                    )
+                )
+                goalies_left = sum(
+                    1
+                    for s in pool
+                    if s.pk not in drafted_ids
+                    and s.primary_position == SeasonSignup.POSITION_GOALIE
+                )
+                if goalies_left <= needy_teams:
+                    candidates = goalie_candidates
+
+        signup = random.choice(candidates)
+        DraftPick.objects.create(
+            session=session,
+            team=team,
+            signup=signup,
+            round_number=cur_round,
+            pick_number=cur_pick_idx,
+        )
+        picks_made += 1
+
+        total_picks = session.picks.count()
+        expected = session.num_teams * session.num_rounds
+        if total_picks >= expected:
+            session.state = DraftSession.STATE_COMPLETE
+            session.save(update_fields=["state"])
+        else:
+            _process_auto_captain_picks(session)
+
+        _broadcast_state_change(
+            session,
+            extra={
+                "pick": {
+                    "team_pk": team.pk,
+                    "team_name": team.team_name,
+                    "player": _signup_payload(signup),
+                    "round": cur_round,
+                    "pick_number": cur_pick_idx + 1,
+                }
+            },
+            prev_round=cur_round,
+        )
+
+    return JsonResponse(
+        {
+            "success": True,
+            "picks_made": picks_made,
+            "state": _session_state_payload(session),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1797,12 +2004,15 @@ def draft_results_download(request, session_pk):
     """
     Public download of the draft results as CSV or XLSX.
     Query param: ?format=xlsx  (default: csv)
-    Only available once picks exist.
+    Only available once the draft is complete — partial results mid-draft
+    would be confusing to hand around as if they were final.
     """
     session = get_object_or_404(DraftSession, pk=session_pk)
 
-    if not DraftPick.objects.filter(session=session).exists():
-        return HttpResponse("No picks have been made yet.", status=404)
+    if session.state != DraftSession.STATE_COMPLETE:
+        return HttpResponse(
+            "Draft results aren't available until the draft is complete.", status=404
+        )
 
     fmt = request.GET.get("format", "csv").lower()
     rows = _draft_results_rows(session)

@@ -1,19 +1,57 @@
-{% extends 'core/base.html' %}
-{% load static %}
-
-{% block title %}
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>
   {% if is_commissioner %}Commissioner –{% elif is_captain %}Captain –{% endif %}
   {{ session.season }} Draft Board – DC Street Hockey
-{% endblock %}
-
-{% block extra_head %}
+</title>
+<link rel="icon" type="image/x-icon" href="{% static 'img/favicon_io/favicon.ico' %}">
 {% csrf_token %}
 <meta name="csrf-token" content="{{ csrf_token }}">
 <style>
-  /* ---- Layout ---- */
+  /* No site header/footer on this page — it's a full-viewport live tool,
+     so reset the default body margin that main.css would otherwise supply. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  /* Fixed so it never adds to the page's layout height — there's no
+     header on this page to navigate back from otherwise. */
+  .home-link {
+    position: fixed;
+    bottom: 8px;
+    left: 8px;
+    z-index: 900;
+    background: rgba(0,0,0,0.72);
+    color: #fff;
+    font-size: 0.72rem;
+    padding: 4px 9px;
+    border-radius: 4px;
+    text-decoration: none;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+  }
+  .home-link:hover { opacity: 1; }
+
+  /* ---- Layout ----
+     One 100vh flex column: the commissioner/captain-complete bar (if any)
+     takes its natural height, .draft-shell flexes to fill what's left —
+     so the whole board fits in the viewport with no page-level scrolling. */
+  .draft-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
   .draft-shell {
     display: flex;
-    height: calc(100vh - 60px);
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: hidden;
     font-size: 0.88rem;
   }
@@ -225,6 +263,7 @@
     border-bottom: 1px solid #ffc107;
     padding: 8px 20px;
     display: flex;
+    flex: 0 0 auto;
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
@@ -240,6 +279,7 @@
     border-bottom: 1px solid #28a745;
     padding: 8px 20px;
     display: none;
+    flex: 0 0 auto;
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
@@ -315,13 +355,15 @@
     line-height: 1;
   }
   .pool-info-tooltip {
+    /* position: fixed (not absolute) so it escapes .player-pool's
+       overflow: hidden instead of getting clipped — its top/left are
+       computed in JS from the info icon's position each time it opens. */
     visibility: hidden;
     opacity: 0;
-    position: absolute;
+    position: fixed;
     z-index: 1000;
-    top: 125%;
-    right: 0;
     width: 300px;
+    max-width: calc(100vw - 24px);
     background: #333;
     color: #fff;
     text-align: left;
@@ -332,18 +374,7 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
     transition: opacity 0.2s, visibility 0.2s;
   }
-  .pool-info-tooltip::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    right: 8px;
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-bottom: 5px solid #333;
-  }
-  .pool-info-icon:hover .pool-info-tooltip {
+  .pool-info-tooltip.visible {
     visibility: visible;
     opacity: 1;
   }
@@ -720,6 +751,22 @@
   #chat-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
   #chat-panel.visible { display: flex; }
 
+  .chat-toolbar {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+  }
+  .chat-history-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: #666;
+    cursor: pointer;
+  }
+  .chat-history-toggle input { cursor: pointer; }
+
   .chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -1065,6 +1112,13 @@
     /* Show the board/players toggle tabs */
     .mobile-tabs { display: flex; }
 
+    /* Let the page scroll on mobile instead of confining everything to
+       one viewport-height column. */
+    .draft-page {
+      height: auto;
+      overflow: visible;
+    }
+
     /* Stack draft shell panels vertically; let page scroll */
     .draft-shell {
       height: auto;
@@ -1242,24 +1296,30 @@
     background-color: #fdf9e8;
   }
 </style>
-{% endblock %}
-
-{% block content %}
+</head>
+<body>
+<a href="{% url 'home' %}" class="home-link" title="Back to DC Street Hockey">&larr; DC Street Hockey</a>
+<div class="draft-page">
 
 {% if is_commissioner %}
 <div class="commissioner-bar">
   <span class="bar-label">COMMISSIONER</span>
   <div id="commissioner-controls">
     {% if session.state == 'setup' %}
-      <button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>
+      <span style="color:#aaa;font-size:0.9rem;">Loading captain rounds…</span>
     {% elif session.state == 'draw' %}
       <span style="color:#aaa;font-size:0.9rem;">Loading captain rounds…</span>
     {% elif session.state == 'active' %}
       <button class="btn btn-warning" onclick="advanceState()">Pause Draft</button>
       <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+      <button class="btn btn-success" onclick="endDraft()">End Draft Now</button>
+      {% if dev_mode %}
+      <button class="btn" style="background:#6f42c1;color:#fff;" onclick="autofillDraft()">Auto-Fill Draft (Dev Only)</button>
+      {% endif %}
     {% elif session.state == 'paused' %}
       <button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
       <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+      <button class="btn btn-success" onclick="endDraft()">End Draft Now</button>
     {% endif %}
   </div>
   <span style="margin-left:auto;font-size:0.78rem;color:#856404;">
@@ -1337,22 +1397,22 @@
     <!-- Pool view -->
     <div id="pool-view">
       <div class="pool-header">
-        <h3>Available Players <span id="pool-count" style="color:#888;font-weight:400;font-size:0.85rem;"></span><span class="pool-info-icon" id="pool-info-icon">
+        <h3>Available Players <span id="pool-count" style="color:#888;font-weight:400;font-size:0.85rem;"></span><span class="pool-info-icon" id="pool-info-icon" onmouseenter="showPoolInfoTooltip()" onmouseleave="hidePoolInfoTooltip()">
           <i>?</i>
-          <div class="pool-info-tooltip">
-            <strong>Reading the Player List</strong>
-            <div class="tip-section">
-              <span class="tip-label">Stats</span> are per-season averages from Wednesday Draft League history only &mdash; other leagues are not included.<br>
-              Players show <span class="tip-label">G</span> (goals), <span class="tip-label">A</span> (assists), and <span class="tip-label">Pts</span> per season.<br>
-              Goalies show <span class="tip-label">GAA</span> (goals allowed per game).<br>
-              <em style="color:#ccc;">New to league</em> means no recorded Wednesday Draft history.
-            </div>
-            <div class="tip-section">
-              <span class="tip-label">ADP</span> (Average Draft Round) is the average round this player was selected in past Wednesday drafts. Lower = picked earlier = higher demand. <em style="color:#ccc;">&ndash;&ndash;</em> means no draft history yet.
-            </div>
-            <div class="tip-note">Use the Sort buttons below to order players by ADP, points, goals, assists, or alphabetically. GAA applies only when viewing goalies.</div>
-          </div>
         </span></h3>
+        <div class="pool-info-tooltip" id="pool-info-tooltip">
+          <strong>Reading the Player List</strong>
+          <div class="tip-section">
+            <span class="tip-label">Stats</span> are per-season averages from Wednesday Draft League history only &mdash; other leagues are not included.<br>
+            Players show <span class="tip-label">G</span> (goals), <span class="tip-label">A</span> (assists), and <span class="tip-label">Pts</span> per season.<br>
+            Goalies show <span class="tip-label">GAA</span> (goals allowed per game).<br>
+            <em style="color:#ccc;">New to league</em> means no recorded Wednesday Draft history.
+          </div>
+          <div class="tip-section">
+            <span class="tip-label">ADP</span> (Average Draft Round) is the average round this player was selected in past Wednesday drafts. Lower = picked earlier = higher demand. <em style="color:#ccc;">&ndash;&ndash;</em> means no draft history yet.
+          </div>
+          <div class="tip-note">Use the Sort buttons below to order players by ADP, points, goals, or assists. GAA applies only when viewing goalies.</div>
+        </div>
         <input class="pool-search" type="text" id="pool-search" placeholder="Search players…" oninput="renderPool()">
         <div class="pool-filters">
           <span class="sort-label">Players:</span>
@@ -1364,7 +1424,6 @@
         </div>
         <div class="pool-sort-row">
           <span class="sort-label">Sort:</span>
-          <button class="sort-btn" id="sort-alpha" onclick="setSort('alpha')">A &rarr; Z</button>
           <button class="sort-btn active" id="sort-adp" onclick="setSort('adp')">ADP</button>
           <button class="sort-btn" id="sort-pts" onclick="setSort('pts')">Pts</button>
           <button class="sort-btn" id="sort-goals" onclick="setSort('goals')">G</button>
@@ -1400,6 +1459,13 @@
                placeholder="Your name…" autocomplete="off"
                onkeydown="if(event.key==='Enter'){submitChatName();}">
         <button class="chat-name-submit" onclick="submitChatName()">Join Chat</button>
+      </div>
+
+      <div class="chat-toolbar">
+        <label class="chat-history-toggle">
+          <input type="checkbox" id="chat-history-toggle" onchange="toggleDraftHistory(this.checked)">
+          Show draft picks in chat
+        </label>
       </div>
 
       <div class="chat-messages" id="chat-messages"></div>
@@ -1533,6 +1599,7 @@
 const SESSION_PK   = {{ session.pk }};
 const IS_CAPTAIN   = {{ is_captain|yesno:"true,false" }};
 const IS_COMMISSIONER = {{ is_commissioner|yesno:"true,false" }};
+const DEV_MODE = {{ dev_mode|yesno:"true,false" }};
 const CAPTAIN_TEAM_PK = {% if captain_team_pk %}{{ captain_team_pk }}{% else %}null{% endif %};
 const CAPTAIN_TOKEN   = "{% if captain_token %}{{ captain_token }}{% endif %}";
 const COMMISSIONER_TOKEN = "{% if commissioner_token %}{{ commissioner_token }}{% endif %}";
@@ -1638,7 +1705,9 @@ function handleWsMessage(e) {
   } else if (msg.type === 'chat_message') {
     chatMessages.push(msg.message);
     renderChat();
-    if (sidebarView !== 'chat' && mobilePanelView !== 'chat') {
+    // Pick/swap announcements are already visible live on the board itself,
+    // so they shouldn't bump the unread badge like an actual chat message.
+    if (sidebarView !== 'chat' && mobilePanelView !== 'chat' && msg.message.sender_type !== 'system') {
       chatUnread++;
       updateChatUnreadBadge();
     }
@@ -1674,6 +1743,16 @@ connectWs();
 let chatMessages = [];
 let chatUnread = 0;
 const CHAT_EMOJIS = ['👍', '👎', '😂', '🔥', '😤', '🎯', '👏', '🤙'];
+
+// Draft-pick announcements are hidden in chat by default; remembered per
+// browser so it doesn't reset every time the page reloads.
+let showDraftHistory = sessionStorage.getItem('draft_chat_history_{{ session.pk }}') === 'on';
+
+function toggleDraftHistory(checked) {
+  showDraftHistory = checked;
+  sessionStorage.setItem('draft_chat_history_{{ session.pk }}', checked ? 'on' : 'off');
+  renderChat();
+}
 
 // My display name — set at connect time for commissioner/captain,
 // or from sessionStorage / name prompt for spectators.
@@ -1779,10 +1858,13 @@ function renderChat() {
   if (!container) return;
   const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
 
+  const toggle = document.getElementById('chat-history-toggle');
+  if (toggle) toggle.checked = showDraftHistory;
+
   let html = '';
   for (const m of chatMessages) {
     if (m.sender_type === 'system') {
-      html += `<div class="chat-msg system">${escHtmlChat(m.body)}</div>`;
+      if (showDraftHistory) html += `<div class="chat-msg system">${escHtmlChat(m.body)}</div>`;
       continue;
     }
     const isMe = m.sender_name === CHAT_MY_NAME;
@@ -1900,18 +1982,20 @@ function updateStatusBadge() {
   }[state.state] || state.state;
   badge.className = `state-badge ${state.state}`;
 
-  // Show download buttons once any picks have been made
-  const hasPicksSomewhere = state.teams && state.teams.some(
-    t => t.picks && Object.keys(t.picks).length > 0
-  );
+  // Download only makes sense once the draft has actually finished
   const dlBtns = document.getElementById('download-btns');
-  if (dlBtns) dlBtns.style.display = hasPicksSomewhere ? 'inline-flex' : 'none';
+  if (dlBtns) dlBtns.style.display = state.state === 'complete' ? 'inline-flex' : 'none';
 }
 
 function renderBoard() {
   const teams = [...state.teams].sort((a, b) => (a.draft_position || 999) - (b.draft_position || 999));
   if (!teams.length) {
-    document.getElementById('board-container').innerHTML = '<p style="color:#999;">No teams configured yet.</p>';
+    const count = (state.available_players || []).length;
+    const msg = state.signups_open
+      ? `<p style="color:#666;">Signups are still open — ${count} player${count === 1 ? '' : 's'} registered so far. ` +
+        `The board fills in once the draft begins. Browse the <strong>Available</strong> list to see who's signed up.</p>`
+      : '<p style="color:#999;">No teams configured yet.</p>';
+    document.getElementById('board-container').innerHTML = msg;
     return;
   }
 
@@ -1946,8 +2030,11 @@ function renderBoard() {
       const isMyTurn = IS_CAPTAIN && isActiveSlot && team.id === CAPTAIN_TEAM_PK;
       const isGoaliePick = pick && pick.is_goalie;
       const isCaptainPick = pick && pick.is_captain_pick;
-      // A "pending captain slot" is an unfilled round designated as this team's captain round
-      const isCaptainSlotPending = !pick && team.captain_draft_round === r;
+      // A "pending captain slot" is an unfilled round designated as this team's captain round.
+      // Only meaningful once positions are drawn — before that, columns are unordered
+      // placeholders that are about to be reshuffled, so labeling one "Captain pick"
+      // would tie real information to a layout that's not final yet.
+      const isCaptainSlotPending = !pick && positionsDrawn && team.captain_draft_round === r;
 
       const isChampCol = CHAMPION_LEAGUE_TEAM_ID !== null && team.league_team_id === CHAMPION_LEAGUE_TEAM_ID;
       const cellClass = [
@@ -2023,9 +2110,7 @@ function renderPool() {
     return true;
   });
 
-  // Sort: goalies always first (they're scarce and high-priority), then by chosen sort order
   filtered.sort((a, b) => {
-    if (a.is_goalie !== b.is_goalie) return a.is_goalie ? -1 : 1;
     if (poolSort === 'adp') {
       const adpA = a.stats && a.stats.adp !== null ? a.stats.adp : 9999;
       const adpB = b.stats && b.stats.adp !== null ? b.stats.adp : 9999;
@@ -2150,10 +2235,35 @@ function renderPool() {
   document.getElementById('pool-list').innerHTML = html || '<li style="padding:16px;color:#999;text-align:center;">No players available</li>';
 }
 
+function showPoolInfoTooltip() {
+  const icon = document.getElementById('pool-info-icon');
+  const tip = document.getElementById('pool-info-tooltip');
+  if (!icon || !tip) return;
+  const rect = icon.getBoundingClientRect();
+  tip.style.top = `${rect.bottom + 8}px`;
+  // Keep it fully on-screen: right-align to the icon by default, but never
+  // let the left edge go past the viewport.
+  const left = Math.max(8, rect.right - tip.offsetWidth);
+  tip.style.left = `${left}px`;
+  tip.classList.add('visible');
+}
+
+function hidePoolInfoTooltip() {
+  const tip = document.getElementById('pool-info-tooltip');
+  if (tip) tip.classList.remove('visible');
+}
+
 function setFilter(f) {
   poolFilter = f;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`filter-${f}`).classList.add('active');
+  // GAA sort only makes sense for goalies — drop back to ADP if the user
+  // switches to a filter that isn't goalies-only while it's active.
+  if (poolSort === 'gaa' && f !== 'goalies') {
+    poolSort = 'adp';
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('sort-adp').classList.add('active');
+  }
   renderPool();
 }
 
@@ -2161,6 +2271,13 @@ function setSort(s) {
   poolSort = s;
   document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`sort-${s}`).classList.add('active');
+  // GAA only means anything for goalies — sorting by it while viewing a
+  // mixed list interleaves goalies and non-goalies with no real ordering.
+  if (s === 'gaa') {
+    poolFilter = 'goalies';
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('filter-goalies').classList.add('active');
+  }
   renderPool();
 }
 
@@ -2283,6 +2400,37 @@ function undoPick() {
   });
 }
 
+function endDraft() {
+  const remaining = (state.available_players || []).length;
+  const warning = remaining
+    ? `${remaining} player${remaining === 1 ? '' : 's'} will be left undrafted. `
+    : '';
+  if (!confirm(
+    `End the draft now?\n\n${warning}Rosters will be finalized as-is — this can't be resumed, ` +
+    'only undone entirely with Reset Draft.'
+  )) return;
+  fetch(`/draft/${SESSION_PK}/end/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showToast(d.error, true); return; }
+    applyResponseState(d);
+  }).catch(() => showToast('Network error — could not end the draft.', true));
+}
+
+function autofillDraft() {
+  if (!DEV_MODE) return;
+  if (!confirm('Auto-fill all remaining picks with random players?\n\nThis is for local testing only and cannot be undone pick-by-pick (Reset Draft will still wipe everything).')) return;
+  fetch(`/draft/${SESSION_PK}/dev-autofill/${COMMISSIONER_TOKEN}/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrf() },
+  }).then(r => r.json()).then(d => {
+    if (d.error) { showToast(d.error, true); return; }
+    showToast(`Auto-filled ${d.picks_made} pick${d.picks_made === 1 ? '' : 's'}.`);
+    applyResponseState(d);
+  }).catch(() => showToast('Network error — auto-fill failed.', true));
+}
+
 function _advisoryHtml() {
   if (typeof ADVISORY === 'undefined') return '';
   const a = ADVISORY;
@@ -2316,6 +2464,39 @@ function _lateSignupBtn(states) {
   </button>`;
 }
 
+function _captainRoundsTableHtml(showPickOrder) {
+  const sorted = [...state.teams].sort((a, b) => (a.draft_position || 99) - (b.draft_position || 99));
+  const rows = sorted.map(t => {
+    const cur = t.captain_draft_round || '';
+    const pickCell = showPickOrder
+      ? `<td style="padding:3px 8px;text-align:center;font-weight:600;">${t.draft_position || '?'}</td>`
+      : '';
+    return `<tr>
+      ${pickCell}
+      <td style="padding:3px 8px;">${t.captain_name}</td>
+      <td style="padding:3px 8px;">${t.team_name}</td>
+      <td style="padding:3px 8px;text-align:center;">
+        <input type="number" min="1" max="{{ session.num_rounds }}"
+          data-team-pk="${t.id}"
+          class="captain-round-input"
+          value="${cur}"
+          style="width:54px;padding:2px 4px;border:1px solid #555;border-radius:3px;background:#1a1a1a;color:#eee;text-align:center;">
+      </td>
+    </tr>`;
+  }).join('');
+  const pickHeader = showPickOrder
+    ? '<th style="padding:2px 8px;color:#aaa;font-weight:400;">Pick #</th>' : '';
+  return `<table style="border-collapse:collapse;font-size:0.82rem;color:#ccc;">
+    <thead><tr>
+      ${pickHeader}
+      <th style="padding:2px 8px;color:#aaa;font-weight:400;">Captain</th>
+      <th style="padding:2px 8px;color:#aaa;font-weight:400;">Team</th>
+      <th style="padding:2px 8px;color:#aaa;font-weight:400;">Captain Round</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
 function updateCommissionerButtons() {
   const ctrl = document.getElementById('commissioner-controls');
   if (!ctrl) return;
@@ -2323,49 +2504,38 @@ function updateCommissionerButtons() {
   const s = state.state;
   let html = '';
   if (s === 'setup') {
-    html = `<button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>`;
-    html += _advisoryHtml();
-  } else if (s === 'draw') {
-    const sorted = [...state.teams].sort((a, b) => (a.draft_position || 99) - (b.draft_position || 99));
-    const rows = sorted.map(t => {
-      const cur = t.captain_draft_round || '';
-      return `<tr>
-        <td style="padding:3px 8px;text-align:center;font-weight:600;">${t.draft_position || '?'}</td>
-        <td style="padding:3px 8px;">${t.captain_name}</td>
-        <td style="padding:3px 8px;">${t.team_name}</td>
-        <td style="padding:3px 8px;text-align:center;">
-          <input type="number" min="1" max="{{ session.num_rounds }}"
-            data-team-pk="${t.id}"
-            class="captain-round-input"
-            value="${cur}"
-            style="width:54px;padding:2px 4px;border:1px solid #555;border-radius:3px;background:#1a1a1a;color:#eee;text-align:center;">
-        </td>
-      </tr>`;
-    }).join('');
     html = `
       <div id="captain-rounds-panel" style="display:flex;flex-direction:column;gap:6px;width:100%;">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <span style="font-weight:600;color:#eee;">Set Captain Draft Rounds</span>
-          <span style="font-size:0.78rem;color:#aaa;">Enter the round each captain is auto-drafted onto their team (leave blank to skip).</span>
+          <span style="font-size:0.78rem;color:#aaa;">Enter the round each captain is auto-drafted onto their team (leave blank to skip) — required for every captain before positions can be drawn.</span>
+          <button class="btn btn-primary" onclick="saveCaptainRounds()" style="padding:4px 14px;">Save Rounds</button>
+          <button class="btn btn-draw" onclick="triggerDraw()" style="padding:4px 14px;">Draw Positions Now</button>
+        </div>
+        ${_advisoryHtml()}
+        ${_captainRoundsTableHtml(false)}
+      </div>`;
+  } else if (s === 'draw') {
+    html = `
+      <div id="captain-rounds-panel" style="display:flex;flex-direction:column;gap:6px;width:100%;">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-weight:600;color:#eee;">Captain Draft Rounds</span>
+          <span style="font-size:0.78rem;color:#aaa;">Positions are drawn — double-check rounds below, then start the draft.</span>
           <button class="btn btn-primary" onclick="saveCaptainRounds()" style="padding:4px 14px;">Save Rounds</button>
           <button class="btn btn-success" onclick="advanceState()" style="padding:4px 14px;">Start Draft</button>
           ${_lateSignupBtn(['draw'])}
         </div>
         ${_advisoryHtml()}
-        <table style="border-collapse:collapse;font-size:0.82rem;color:#ccc;">
-          <thead><tr>
-            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Pick #</th>
-            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Captain</th>
-            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Team</th>
-            <th style="padding:2px 8px;color:#aaa;font-weight:400;">Captain Round</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        ${_captainRoundsTableHtml(true)}
       </div>`;
   } else if (s === 'active') {
     html = `<button class="btn btn-warning" onclick="advanceState()">Pause Draft</button>
             <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+            <button class="btn btn-success" onclick="endDraft()" style="margin-left:8px;">End Draft Now</button>
             ${_lateSignupBtn(['active'])}`;
+    if (DEV_MODE) {
+      html += `<button class="btn" style="background:#6f42c1;color:#fff;margin-left:8px;" onclick="autofillDraft()">Auto-Fill Draft (Dev Only)</button>`;
+    }
   } else if (s === 'paused') {
     if (editMode) {
       html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
@@ -2374,6 +2544,7 @@ function updateCommissionerButtons() {
     } else {
       html = `<button class="btn btn-primary" onclick="advanceState()">Resume Draft</button>
               <button class="btn btn-danger" onclick="undoPick()">Undo Last Pick</button>
+              <button class="btn btn-success" onclick="endDraft()" style="margin-left:8px;">End Draft Now</button>
               <button class="btn" onclick="toggleEditMode()" style="margin-left:8px;background:#555;color:#fff;">Edit Picks</button>
               ${_lateSignupBtn(['paused'])}`;
     }
@@ -2676,8 +2847,13 @@ function closeDraw() {
   drawMode = 'draw';
   document.getElementById('draw-overlay-title').textContent = 'Draft Position Draw';
   document.getElementById('draw-done-btn').textContent = 'Start Draft';
-  // Do not auto-advance — commissioner sets captain rounds first, then clicks Start Draft.
-  if (wasDrawMode && IS_COMMISSIONER) updateCommissionerButtons();
+  if (wasDrawMode && IS_COMMISSIONER) {
+    // Captain rounds are now required before positions can even be drawn,
+    // so there's nothing left to confirm here — go straight to Active
+    // instead of making the commissioner click Start Draft separately.
+    updateCommissionerButtons();
+    advanceState();
+  }
 }
 
 function showRoundRevealOverlay(data) {
@@ -2911,4 +3087,6 @@ function buildPositionSection(label, players, isGoalie, captainSignupId) {
 // ============================================================
 render();
 </script>
-{% endblock %}
+</div>
+</body>
+</html>

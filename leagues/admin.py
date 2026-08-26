@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.db import models
-from django.db.models import Q, Max, Prefetch, Sum, Exists, OuterRef
+from django.db.models import Q, Max, Prefetch, Sum
 from django.utils.http import urlencode
 from django.utils.html import format_html
 from django.utils import timezone
@@ -2162,7 +2162,7 @@ class SeasonSignupAdmin(admin.ModelAdmin):
     search_fields = ("first_name", "last_name", "email", "cell_phone")
     autocomplete_fields = ("linked_player",)
     readonly_fields = ("submitted_at",)
-    list_editable = ("is_returning", "linked_player")
+    list_editable = ("is_returning", "linked_player", "confirmed_captain")
     ordering = ("season", "last_name", "first_name")
 
     fieldsets = (
@@ -2194,7 +2194,12 @@ class SeasonSignupAdmin(admin.ModelAdmin):
         (
             "Commissioner",
             {
-                "fields": ("is_returning", "linked_player", "submitted_at"),
+                "fields": (
+                    "is_returning",
+                    "linked_player",
+                    "confirmed_captain",
+                    "submitted_at",
+                ),
                 "description": "These fields are set by the commissioner, not the player.",
             },
         ),
@@ -2211,21 +2216,47 @@ class SeasonSignupAdmin(admin.ModelAdmin):
 
     captain_interest_short.short_description = "Captain?"
 
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.annotate(
-            is_confirmed_captain=Exists(
-                DraftTeam.objects.filter(captain_id=OuterRef("pk"))
+    def save_model(self, request, obj, form, change):
+        if change and "confirmed_captain" in form.changed_data:
+            self._sync_confirmed_captain(request, obj)
+        super().save_model(request, obj, form, change)
+
+    def _sync_confirmed_captain(self, request, obj):
+        """
+        Translate a toggle of the confirmed_captain checkbox into a DraftTeam
+        create/delete, right from the signup list — the alternative is the
+        Draft Session's separate "Set Up Teams" page.
+
+        DraftTeam stays the source of truth: this reverts `obj.confirmed_captain`
+        back to reality (rather than trusting the submitted value) whenever the
+        toggle can't be honored, e.g. positions already drawn.
+        """
+        session = DraftSession.objects.filter(season_id=obj.season_id).first()
+
+        if not session:
+            obj.confirmed_captain = False
+            self.message_user(
+                request,
+                f"{obj.full_name}: no draft session yet for {obj.season} — "
+                "captain not set.",
+                messages.WARNING,
             )
-        )
+            return
 
-    def confirmed_captain(self, obj):
-        if obj.is_confirmed_captain:
-            return format_html('<span style="color:#6ee7b7;">✓ Confirmed</span>')
-        return "—"
+        if session.state != DraftSession.STATE_SETUP:
+            obj.confirmed_captain = session.teams.filter(captain=obj).exists()
+            self.message_user(
+                request,
+                f"{obj.full_name}: positions already drawn for {session.season} — "
+                "edit teams directly on the draft session instead.",
+                messages.WARNING,
+            )
+            return
 
-    confirmed_captain.short_description = "Confirmed captain?"
-    confirmed_captain.admin_order_field = "is_confirmed_captain"
+        if obj.confirmed_captain:
+            _create_draft_teams_for_captains(session, [obj])
+        else:
+            session.teams.filter(captain=obj).delete()
 
     actions = ["export_roster_csv", "copy_emails"]
 
@@ -2522,6 +2553,38 @@ def _next_draft_season():
     return candidate
 
 
+def _create_draft_teams_for_captains(session, signups):
+    """
+    Create a DraftTeam for each signup not already a captain of `session`,
+    then resize num_teams/num_rounds to match the new team count.
+
+    Shared by DraftSessionAdmin's "Set Up Teams" page and SeasonSignupAdmin's
+    checkbox so the two entry points stay in sync. Returns
+    (created_count, advisory_or_None) — advisory is None when the session
+    still has zero teams (nothing to resize against).
+    """
+    from leagues.draft_views import _draft_advisory
+
+    created = 0
+    for signup in signups:
+        _, was_created = DraftTeam.objects.get_or_create(
+            session=session, captain=signup
+        )
+        if was_created:
+            created += 1
+            SeasonSignup.objects.filter(pk=signup.pk).update(confirmed_captain=True)
+
+    advisory = None
+    if session.teams.count():
+        session.num_teams = session.teams.count()
+        session.save(update_fields=["num_teams"])
+        advisory = _draft_advisory(session)
+        session.num_rounds = advisory["recommended_rounds"]
+        session.save(update_fields=["num_rounds"])
+
+    return created, advisory
+
+
 @admin.register(DraftSession)
 class DraftSessionAdmin(admin.ModelAdmin):
     actions = ["create_rosters_from_draft"]
@@ -2651,8 +2714,6 @@ class DraftSessionAdmin(admin.ModelAdmin):
         """
         from django.template.response import TemplateResponse
 
-        from leagues.draft_views import _draft_advisory
-
         session = get_object_or_404(DraftSession, pk=pk)
 
         if session.state != DraftSession.STATE_SETUP:
@@ -2674,16 +2735,9 @@ class DraftSessionAdmin(admin.ModelAdmin):
                 pk__in=existing_captain_ids
             )
 
-            created = 0
-            for signup in chosen:
-                _, was_created = DraftTeam.objects.get_or_create(
-                    session=session, captain=signup
-                )
-                if was_created:
-                    created += 1
+            created, advisory = _create_draft_teams_for_captains(session, chosen)
 
-            team_total = session.teams.count()
-            if not team_total:
+            if advisory is None:
                 self.message_user(
                     request,
                     "No captains selected — nothing to set up.",
@@ -2692,15 +2746,6 @@ class DraftSessionAdmin(admin.ModelAdmin):
                 return redirect(
                     reverse("admin:leagues_draftsession_setup_teams", args=[session.pk])
                 )
-
-            session.num_teams = team_total
-            session.save(update_fields=["num_teams"])
-
-            # Recompute against the saved team count so the recommended
-            # round count matches what the draft board will advise.
-            advisory = _draft_advisory(session)
-            session.num_rounds = advisory["recommended_rounds"]
-            session.save(update_fields=["num_rounds"])
 
             self.message_user(
                 request,
@@ -3026,6 +3071,23 @@ class DraftSessionAdmin(admin.ModelAdmin):
                     )
             # Remove rounds beyond num_rounds if reduced
             obj.rounds.filter(round_number__gt=obj.num_rounds).delete()
+
+    def save_formset(self, request, form, formset, change):
+        super().save_formset(request, form, formset, change)
+        if formset.model is not DraftTeam:
+            return
+
+        # Mirror SeasonSignupAdmin's checkbox: whichever screen last touched
+        # DraftTeam (add/remove/reassign a captain here, or the checkbox
+        # there) is reconciled into the other so neither goes stale.
+        session = form.instance
+        captain_ids = set(session.teams.values_list("captain_id", flat=True))
+        SeasonSignup.objects.filter(season=session.season, pk__in=captain_ids).update(
+            confirmed_captain=True
+        )
+        SeasonSignup.objects.filter(season=session.season).exclude(
+            pk__in=captain_ids
+        ).update(confirmed_captain=False)
 
 
 @admin.register(DraftPick)

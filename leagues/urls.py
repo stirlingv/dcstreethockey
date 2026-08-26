@@ -15,6 +15,7 @@ from .draft_views import (
     draft_captain_portal,
     draw_positions,
     advance_state,
+    end_draft,
     undo_last_pick,
     make_pick,
     finalize_draft,
@@ -25,6 +26,7 @@ from .draft_views import (
     draft_results_download,
     draft_sessions_list,
     add_late_signup,
+    dev_autofill_draft,
 )
 
 urlpatterns = [
@@ -104,6 +106,11 @@ urlpatterns = [
         name="draft_advance_state",
     ),
     path(
+        "draft/<int:session_pk>/end/<uuid:token>/",
+        end_draft,
+        name="draft_end",
+    ),
+    path(
         "draft/<int:session_pk>/undo/<uuid:token>/",
         undo_last_pick,
         name="draft_undo_pick",
@@ -147,6 +154,11 @@ urlpatterns = [
         "draft/<int:session_pk>/download/",
         draft_results_download,
         name="draft_results_download",
+    ),
+    path(
+        "draft/<int:session_pk>/dev-autofill/<uuid:token>/",
+        dev_autofill_draft,
+        name="draft_dev_autofill",
     ),
     # -----------------------------------------------------------------------
     # Wednesday Draft League – Public archive

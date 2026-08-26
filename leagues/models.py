@@ -577,6 +577,15 @@ class SeasonSignup(models.Model):
         verbose_name="Returning player?",
         help_text="Set by commissioner. Has this player played in the Wednesday Draft League before?",
     )
+    # Admin-only: toggled from the SeasonSignupAdmin checklist. DraftTeam
+    # remains the source of truth for who captains what — this field is the
+    # editable trigger that creates/removes the DraftTeam, kept in sync with
+    # it by SeasonSignupAdmin.save_model.
+    confirmed_captain = models.BooleanField(
+        default=False,
+        verbose_name="Confirmed captain?",
+        help_text="Set by commissioner. Creates or removes this signup's draft team.",
+    )
     # Optionally linked to an existing Player for historical stats lookup
     linked_player = models.ForeignKey(
         Player,

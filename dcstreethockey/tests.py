@@ -5,7 +5,7 @@ from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from core.views import PlayerStatDetailView
-from dcstreethockey.context_processors import draft_signup_url
+from dcstreethockey.context_processors import current_draft_board_url, draft_signup_url
 from leagues.models import (
     Division,
     DraftSession,
@@ -99,6 +99,115 @@ class DraftSignupUrlContextProcessorTest(TestCase):
         DraftSession.objects.create(season=self.season, signups_open=False)
         ctx = draft_signup_url(self._make_request())
         self.assertIsNone(ctx["draft_signup_url"])
+
+
+class CurrentDraftBoardUrlContextProcessorTest(TestCase):
+    """
+    Priority order: open signups > in-progress draft > latest completed
+    draft. Tier 1 must always match draft_signup_url's own season, since the
+    "Draft Board" and "Sign Up" nav links must never point at different
+    seasons for a captain/spectator to notice and be confused by.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+
+    def _make_request(self):
+        return self.factory.get("/")
+
+    def test_returns_none_when_no_draft_sessions_exist(self):
+        ctx = current_draft_board_url(self._make_request())
+        self.assertIsNone(ctx["current_draft_board_url"])
+
+    def test_open_signups_win_even_over_a_newer_completed_season(self):
+        # A newer, already-complete season must not outrank an older season
+        # whose signups are still open — signups-open is tier 1 regardless
+        # of chronology.
+        older_open = Season.objects.create(
+            year=2025, season_type=3, is_current_season=False
+        )
+        newer_complete = Season.objects.create(
+            year=2026, season_type=3, is_current_season=True
+        )
+        open_session = DraftSession.objects.create(
+            season=older_open, state=DraftSession.STATE_SETUP, signups_open=True
+        )
+        DraftSession.objects.create(
+            season=newer_complete, state=DraftSession.STATE_COMPLETE, signups_open=False
+        )
+
+        ctx = current_draft_board_url(self._make_request())
+
+        self.assertIn(str(open_session.pk), ctx["current_draft_board_url"])
+
+    def test_matches_the_same_season_as_draft_signup_url(self):
+        season = Season.objects.create(year=2026, season_type=3, is_current_season=True)
+        session = DraftSession.objects.create(
+            season=season, state=DraftSession.STATE_SETUP, signups_open=True
+        )
+
+        board_ctx = current_draft_board_url(self._make_request())
+        cache.clear()
+        signup_ctx = draft_signup_url(self._make_request())
+
+        self.assertIn(str(session.pk), board_ctx["current_draft_board_url"])
+        self.assertIn(str(season.pk), signup_ctx["draft_signup_url"])
+
+    def test_falls_back_to_most_recent_in_progress_draft_when_no_signups_open(self):
+        older_complete = Season.objects.create(
+            year=2025, season_type=3, is_current_season=False
+        )
+        newer_in_progress = Season.objects.create(
+            year=2026, season_type=3, is_current_season=True
+        )
+        DraftSession.objects.create(
+            season=older_complete, state=DraftSession.STATE_COMPLETE, signups_open=False
+        )
+        in_progress_session = DraftSession.objects.create(
+            season=newer_in_progress,
+            state=DraftSession.STATE_ACTIVE,
+            signups_open=False,
+        )
+
+        ctx = current_draft_board_url(self._make_request())
+
+        self.assertIn(str(in_progress_session.pk), ctx["current_draft_board_url"])
+
+    def test_falls_back_to_latest_completed_draft_when_nothing_else_pending(self):
+        older = Season.objects.create(year=2025, season_type=3, is_current_season=False)
+        newer = Season.objects.create(year=2026, season_type=3, is_current_season=True)
+        DraftSession.objects.create(
+            season=older, state=DraftSession.STATE_COMPLETE, signups_open=False
+        )
+        latest_complete = DraftSession.objects.create(
+            season=newer, state=DraftSession.STATE_COMPLETE, signups_open=False
+        )
+
+        ctx = current_draft_board_url(self._make_request())
+
+        self.assertIn(str(latest_complete.pk), ctx["current_draft_board_url"])
+
+    def test_flips_over_once_a_newer_season_draft_session_is_created(self):
+        season_2026 = Season.objects.create(
+            year=2026, season_type=3, is_current_season=True
+        )
+        session_2026 = DraftSession.objects.create(
+            season=season_2026, state=DraftSession.STATE_COMPLETE
+        )
+        ctx = current_draft_board_url(self._make_request())
+        self.assertIn(str(session_2026.pk), ctx["current_draft_board_url"])
+
+        cache.clear()
+        season_2027 = Season.objects.create(
+            year=2027, season_type=1, is_current_season=False
+        )
+        session_2027 = DraftSession.objects.create(
+            season=season_2027, state=DraftSession.STATE_SETUP, signups_open=True
+        )
+
+        ctx = current_draft_board_url(self._make_request())
+        self.assertIn(str(session_2027.pk), ctx["current_draft_board_url"])
 
 
 class ProductionStaticStorageTest(SimpleTestCase):

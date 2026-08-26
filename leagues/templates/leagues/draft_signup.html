@@ -193,6 +193,8 @@
             <span class="tally-sep">&middot;</span>
             <span class="tally-need">still need goalies</span>
           {% endif %}
+          <span class="tally-sep">&middot;</span>
+          <a href="{% url 'draft_board_spectator' season.draft_session.pk %}" target="_blank">See who's signed up</a>
         {% else %}
           Be the first to sign up for the season!
         {% endif %}

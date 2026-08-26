@@ -25,7 +25,7 @@ Once you open your captain link you'll see two panels side by side:
 | Panel | What it is |
 |---|---|
 | **Left — Draft Grid** | One column per team, one row per round. Fills in as picks are made. |
-| **Right — Player Pool** | Every undrafted player. This is where you browse and pick from. |
+| **Right — sidebar** | Three tabs: **Available** (undrafted players — where you pick from), **My Team** (rosters, yours and every other team's), and **Chat** (live messages with everyone on the draft, including automatic pick announcements). |
 
 At the top left you'll see your **role badge** ("Captain: Your Name"), the **draft state** (Setup / Draw / Active / Paused / Complete), and a **Live** connection indicator.
 
@@ -38,7 +38,7 @@ At the top left you'll see your **role badge** ("Captain: Your Name"), the **dra
 - Each **column** is a team. Your column is highlighted in green when it's your turn.
 - Each **row** is a round of the snake draft.
 - The active cell shows **"On the clock…"** for whoever is currently picking.
-- **Round 11** has a tinted background — pick order is re-randomized for that round (see [Round 11](#8-round-11-re-draw) below).
+- Some drafts include a **re-randomized round** — the commissioner chooses whether to use one, and for which round. That row gets a tinted background and a small **↺** icon next to the round number (see [Re-Randomized Round](#9-re-randomized-round) below).
 
 ---
 
@@ -53,7 +53,9 @@ The right panel is your workspace for browsing and picking players.
 | Tab | Shows |
 |---|---|
 | **Available** | Every player not yet drafted |
-| **My Team** | Players you've already picked |
+| **My Team** | Rosters — yours or any other team's (see [§10](#10-tracking-your-team)) |
+
+> There's a third tab, **Chat**, for messaging everyone on the draft live — see [§11](#11-draft-chat).
 
 ### Search
 
@@ -72,11 +74,10 @@ Type any part of a name in the search box to filter the list instantly.
 | Button | Sorts by |
 |---|---|
 | **ADP** *(default)* | Average Draft Round — lower = historically picked earlier |
-| **A → Z** | Alphabetical by last name |
 | **Pts** | Points per season (Wednesday Draft history only) |
 | **G** | Goals per season |
 | **Ast** | Assists per season |
-| **GAA** | Goals Against Average (goalies only) |
+| **GAA** | Goals Against Average (goalies only) — selecting it switches the position filter to Goalies automatically |
 
 ### Reading a Player Card
 
@@ -143,11 +144,13 @@ The commissioner will confirm your captain round before the draft starts.
 
 ---
 
-## 9. Round 11 Re-Draw
+## 9. Re-Randomized Round
 
-Round 11 is special: pick order for that round is **re-randomized**, independent of draft position. When the draft enters round 11, a full-screen reveal overlay shows the new order. After the reveal, the snake format resumes from round 12 based on regular draft position.
+Some drafts include one round where the pick order is **re-randomized**, independent of draft position — the commissioner sets this up ahead of time (it's not automatic, and not every draft has one). That round is marked on the grid with a tinted background and a ↺ icon next to the round number.
 
-You don't need to do anything — just watch the overlay and wait for your cell to be highlighted.
+When the draft reaches that round, a full-screen reveal overlay shows the new order. After the reveal, the snake format resumes on the next round based on regular draft position.
+
+You don't need to do anything — just watch the overlay and wait for your cell to be highlighted. Ask your commissioner beforehand whether this draft has a re-randomized round, and which one.
 
 ---
 
@@ -157,11 +160,27 @@ Click the **My Team** tab at any point to see all the players you've drafted so 
 
 ![My Team tab — shows your picked players](screenshots/my_team.png)
 
+Use the dropdown at the top of the panel to switch teams — you can check any team's roster this way, not just your own. It's a quick way to scout who still needs a goalie or which positions another team is stacking.
+
 You can switch back to **Available** at any time without losing your place.
 
 ---
 
-## 11. Staying Connected
+## 11. Draft Chat
+
+Every draft board has a live chat with everyone connected — captains, spectators, and the commissioner. Click the **Chat** tab in the sidebar to open it.
+
+- Every pick is announced automatically as a system message (e.g. "🏒 Tyler's Team drafted Michael Bender — Round 1, Pick 1") — you don't have to explain what just happened, it's already in the log.
+- Type in the box at the bottom and hit **Enter** to send. Spectators are asked to pick a display name the first time they post.
+- Hover a message to react with an emoji.
+- Unread messages show a small badge on the **Chat** tab so you don't miss anything while you're browsing the player pool.
+- The commissioner can delete a message if needed; nobody else can.
+
+It's a good place to coordinate trades, call out a run on a position, or just talk trash while you wait for your turn.
+
+---
+
+## 12. Staying Connected
 
 The board uses a live WebSocket connection. The **Live** dot in the status bar stays green as long as you're connected.
 
@@ -182,6 +201,8 @@ If you do reload, just re-open your original captain link. The full board state 
 | Lost connection | Wait — reconnects automatically in seconds |
 | Reloaded the page | Re-open your original captain link |
 | Lost your link | Contact the commissioner |
+| Want to check another team's roster | **My Team** tab → switch teams in the dropdown |
+| Want to talk to everyone | **Chat** tab |
 
 ---
 
