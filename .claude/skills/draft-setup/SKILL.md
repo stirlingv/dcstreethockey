@@ -67,8 +67,8 @@ Creates fake signups, players, and a ready-to-draw session. Useful for testing t
 ### 6. Run the draft
 
 1. Commissioner opens `/draft/<session_pk>/commissioner/<token>/`
-2. While still in **SETUP**: set every captain's draft round (the round each captain is auto-drafted onto their own team) — this is now required before positions can be drawn, so the order isn't randomized until every captain's round is locked in
-3. Click **Draw Positions Now** → advances to **DRAW** phase, captain rounds are still editable here if a correction is needed
+2. Click **Draw Positions Now** → advances to **DRAW** phase and randomizes each captain's draft position
+3. Now that draft position is known: set every captain's draft round (the round each captain is auto-drafted onto their own team) — required before advancing to ACTIVE, since it affects which round makes sense for a captain given where they landed in the draw
 4. Advance to **ACTIVE** → live draft begins
 5. Captains pick on their boards; commissioner can `undo` last pick or `swap` two picks
 6. Auto-captain: if a captain's turn is skipped (they don't pick in time), the system can auto-draft them in — controlled in admin
