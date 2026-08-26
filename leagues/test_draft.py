@@ -604,13 +604,11 @@ class BoardViewTests(DraftTestBase):
 class DrawPositionsViewTests(DraftTestBase):
     def setUp(self):
         super().setUp()
-        # Reset positions so draw tests start clean
+        # Reset positions so draw tests start clean. Captain rounds are
+        # deliberately left unset here — which round makes sense for a
+        # captain depends on the draft position they draw, so rounds aren't
+        # required until DRAW -> ACTIVE (see AdvanceStateViewTests).
         self.session.teams.update(draft_position=None)
-        # Captain rounds must be set before positions can be drawn; give
-        # every team one so the happy-path tests aren't blocked by it.
-        for i, team in enumerate(self.session.teams.all(), start=1):
-            team.captain_draft_round = i
-            team.save(update_fields=["captain_draft_round"])
 
     def _draw_url(self):
         return reverse(
@@ -641,27 +639,28 @@ class DrawPositionsViewTests(DraftTestBase):
         response = self.client.post(self._draw_url())
         self.assertEqual(response.status_code, 400)
 
-    def test_draw_blocked_when_a_captain_round_is_missing(self):
+    def test_draw_succeeds_with_no_captain_rounds_set(self):
+        # Rounds are chosen once draft position is known, so the draw must
+        # not require them up front — only DRAW -> ACTIVE does.
+        self.session.teams.update(captain_draft_round=None)
+
+        response = self.client.post(self._draw_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_DRAW)
+        positions = list(self.session.teams.values_list("draft_position", flat=True))
+        self.assertFalse(any(p is None for p in positions))
+
+    def test_draw_succeeds_with_some_captain_rounds_set(self):
+        self.team1.captain_draft_round = 1
+        self.team1.save(update_fields=["captain_draft_round"])
         self.team2.captain_draft_round = None
         self.team2.save(update_fields=["captain_draft_round"])
 
         response = self.client.post(self._draw_url())
 
-        self.assertEqual(response.status_code, 400)
-        data = json.loads(response.content)
-        self.assertIn(self.cap2.full_name, data["error"])
-        self.session.refresh_from_db()
-        self.assertEqual(self.session.state, DraftSession.STATE_SETUP)
-        self.assertIsNone(self.session.teams.get(pk=self.team1.pk).draft_position)
-
-    def test_draw_blocked_when_all_captain_rounds_missing(self):
-        self.session.teams.update(captain_draft_round=None)
-
-        response = self.client.post(self._draw_url())
-
-        self.assertEqual(response.status_code, 400)
-        self.session.refresh_from_db()
-        self.assertEqual(self.session.state, DraftSession.STATE_SETUP)
+        self.assertEqual(response.status_code, 200)
 
     def test_draw_wrong_token_returns_404(self):
         import uuid

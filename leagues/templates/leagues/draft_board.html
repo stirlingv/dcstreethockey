@@ -2504,23 +2504,14 @@ function updateCommissionerButtons() {
   const s = state.state;
   let html = '';
   if (s === 'setup') {
-    html = `
-      <div id="captain-rounds-panel" style="display:flex;flex-direction:column;gap:6px;width:100%;">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span style="font-weight:600;color:#eee;">Set Captain Draft Rounds</span>
-          <span style="font-size:0.78rem;color:#aaa;">Enter the round each captain is auto-drafted onto their team (leave blank to skip) — required for every captain before positions can be drawn.</span>
-          <button class="btn btn-primary" onclick="saveCaptainRounds()" style="padding:4px 14px;">Save Rounds</button>
-          <button class="btn btn-draw" onclick="triggerDraw()" style="padding:4px 14px;">Draw Positions Now</button>
-        </div>
-        ${_advisoryHtml()}
-        ${_captainRoundsTableHtml(false)}
-      </div>`;
+    html = `<button class="btn btn-draw" onclick="triggerDraw()">Draw Positions Now</button>`;
+    html += _advisoryHtml();
   } else if (s === 'draw') {
     html = `
       <div id="captain-rounds-panel" style="display:flex;flex-direction:column;gap:6px;width:100%;">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span style="font-weight:600;color:#eee;">Captain Draft Rounds</span>
-          <span style="font-size:0.78rem;color:#aaa;">Positions are drawn — double-check rounds below, then start the draft.</span>
+          <span style="font-weight:600;color:#eee;">Set Captain Draft Rounds</span>
+          <span style="font-size:0.78rem;color:#aaa;">Positions are drawn — enter the round each captain is auto-drafted onto their team (leave blank to skip), then start the draft.</span>
           <button class="btn btn-primary" onclick="saveCaptainRounds()" style="padding:4px 14px;">Save Rounds</button>
           <button class="btn btn-success" onclick="advanceState()" style="padding:4px 14px;">Start Draft</button>
           ${_lateSignupBtn(['draw'])}
@@ -2847,13 +2838,10 @@ function closeDraw() {
   drawMode = 'draw';
   document.getElementById('draw-overlay-title').textContent = 'Draft Position Draw';
   document.getElementById('draw-done-btn').textContent = 'Start Draft';
-  if (wasDrawMode && IS_COMMISSIONER) {
-    // Captain rounds are now required before positions can even be drawn,
-    // so there's nothing left to confirm here — go straight to Active
-    // instead of making the commissioner click Start Draft separately.
-    updateCommissionerButtons();
-    advanceState();
-  }
+  // Do not auto-advance — commissioner sets captain rounds first, now that
+  // draft position (which round makes sense for each captain) is known,
+  // then clicks Start Draft.
+  if (wasDrawMode && IS_COMMISSIONER) updateCommissionerButtons();
 }
 
 function showRoundRevealOverlay(data) {

@@ -813,20 +813,6 @@ def draw_positions(request, session_pk, token):
     if not teams:
         return JsonResponse({"error": "No teams configured."}, status=400)
 
-    # Captain rounds must be locked in before the order is randomized, so
-    # the reveal can't be followed by decisions that might look like they
-    # were made with the draw order already in mind.
-    missing = [t for t in teams if t.captain_draft_round is None]
-    if missing:
-        names = ", ".join(t.captain.full_name for t in missing)
-        return JsonResponse(
-            {
-                "error": f"Set a draft round for every captain before drawing positions. "
-                f"Missing: {names}."
-            },
-            status=400,
-        )
-
     if session.state == DraftSession.STATE_SETUP:
         session.state = DraftSession.STATE_DRAW
         session.save(update_fields=["state"])
