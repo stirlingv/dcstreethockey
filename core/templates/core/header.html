@@ -38,8 +38,9 @@
                     <div class="nav-item nav-dropdown">
                         <a href="{% url 'draft_sessions_list' %}"{% if url_name == 'draft_sessions_list' or url_name == 'draft_board_spectator' or url_name == 'draft_signup' %} class="nav-active"{% endif %}>Draft</a>
                         <ul class="dropdown">
-                            <li><a href="{% url 'draft_sessions_list' %}">Draft Boards</a></li>
+                            {% if current_draft_board_url %}<li><a href="{{ current_draft_board_url }}">Draft Board</a></li>{% endif %}
                             {% if draft_signup_url %}<li><a href="{{ draft_signup_url }}">Sign Up</a></li>{% endif %}
+                            <li><a href="{% url 'draft_sessions_list' %}">Past Drafts</a></li>
                         </ul>
                     </div>
                     <div class="nav-item nav-dropdown">

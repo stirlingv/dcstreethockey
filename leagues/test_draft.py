@@ -13,9 +13,10 @@ Coverage:
 
 import datetime
 import json
+import re
 from unittest.mock import patch
 
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
 from leagues.models import (
@@ -76,7 +77,8 @@ class DraftTestBase(TestCase):
             signups_open=True,
         )
 
-        # Captain signups
+        # Captain signups — confirmed_captain=True since team1/2/3 below give
+        # each one a DraftTeam; that field mirrors DraftTeam existence.
         self.cap1 = SeasonSignup.objects.create(
             season=self.season,
             first_name="Alice",
@@ -85,6 +87,7 @@ class DraftTestBase(TestCase):
             primary_position=SeasonSignup.POSITION_CENTER,
             secondary_position=SeasonSignup.POSITION_WING,
             captain_interest=SeasonSignup.CAPTAIN_YES,
+            confirmed_captain=True,
         )
         self.cap2 = SeasonSignup.objects.create(
             season=self.season,
@@ -94,6 +97,7 @@ class DraftTestBase(TestCase):
             primary_position=SeasonSignup.POSITION_WING,
             secondary_position=SeasonSignup.POSITION_CENTER,
             captain_interest=SeasonSignup.CAPTAIN_YES,
+            confirmed_captain=True,
         )
         self.cap3 = SeasonSignup.objects.create(
             season=self.season,
@@ -103,6 +107,7 @@ class DraftTestBase(TestCase):
             primary_position=SeasonSignup.POSITION_DEFENSE,
             secondary_position=SeasonSignup.POSITION_ONE_THING,
             captain_interest=SeasonSignup.CAPTAIN_YES,
+            confirmed_captain=True,
         )
 
         # Teams — positions already drawn (1, 2, 3)
@@ -494,6 +499,33 @@ class DraftSignupViewTests(DraftTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "leagues/draft_signup_closed.html")
 
+    def test_shows_spectator_board_link_when_signups_exist(self):
+        # Base fixture already has signups (captains, players, goalies).
+        response = self.client.get(self._signup_url())
+        spectator_url = reverse("draft_board_spectator", args=[self.session.pk])
+        self.assertContains(response, "See who's signed up")
+        self.assertContains(response, spectator_url)
+
+    def test_hides_spectator_board_link_when_no_signups_yet(self):
+        empty_season = Season.objects.create(
+            year=self.season.year + 1, season_type=1, is_current_season=False
+        )
+        DraftSession.objects.create(
+            season=empty_season,
+            num_teams=0,
+            num_rounds=0,
+            state=DraftSession.STATE_SETUP,
+            signups_open=True,
+        )
+        response = self.client.get(reverse("draft_signup", args=[empty_season.pk]))
+        self.assertNotContains(response, "See who's signed up")
+
+    def test_valid_post_broadcasts_state_change_to_spectators(self):
+        import leagues.draft_views as draft_views_module
+
+        self.client.post(self._signup_url(), self._valid_post_data())
+        draft_views_module._broadcast_state_change.assert_called_with(self.session)
+
 
 # ---------------------------------------------------------------------------
 # Views: board pages render
@@ -574,6 +606,11 @@ class DrawPositionsViewTests(DraftTestBase):
         super().setUp()
         # Reset positions so draw tests start clean
         self.session.teams.update(draft_position=None)
+        # Captain rounds must be set before positions can be drawn; give
+        # every team one so the happy-path tests aren't blocked by it.
+        for i, team in enumerate(self.session.teams.all(), start=1):
+            team.captain_draft_round = i
+            team.save(update_fields=["captain_draft_round"])
 
     def _draw_url(self):
         return reverse(
@@ -603,6 +640,28 @@ class DrawPositionsViewTests(DraftTestBase):
         self._activate()
         response = self.client.post(self._draw_url())
         self.assertEqual(response.status_code, 400)
+
+    def test_draw_blocked_when_a_captain_round_is_missing(self):
+        self.team2.captain_draft_round = None
+        self.team2.save(update_fields=["captain_draft_round"])
+
+        response = self.client.post(self._draw_url())
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn(self.cap2.full_name, data["error"])
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_SETUP)
+        self.assertIsNone(self.session.teams.get(pk=self.team1.pk).draft_position)
+
+    def test_draw_blocked_when_all_captain_rounds_missing(self):
+        self.session.teams.update(captain_draft_round=None)
+
+        response = self.client.post(self._draw_url())
+
+        self.assertEqual(response.status_code, 400)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_SETUP)
 
     def test_draw_wrong_token_returns_404(self):
         import uuid
@@ -706,6 +765,85 @@ class AdvanceStateViewTests(DraftTestBase):
         url = reverse("draft_advance_state", args=[self.session.pk, uuid.uuid4()])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# View: end_draft — commissioner override when the signup pool runs dry
+# before every team's rounds are filled
+# ---------------------------------------------------------------------------
+
+
+class EndDraftViewTests(DraftTestBase):
+    def _end_url(self):
+        return reverse(
+            "draft_end", args=[self.session.pk, self.session.commissioner_token]
+        )
+
+    def test_ends_draft_from_active(self):
+        self._activate()
+        response = self.client.post(self._end_url())
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+
+    def test_ends_draft_from_paused(self):
+        self.session.state = DraftSession.STATE_PAUSED
+        self.session.save(update_fields=["state"])
+        response = self.client.post(self._end_url())
+        self.assertEqual(response.status_code, 200)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+
+    def test_rejects_setup_state(self):
+        response = self.client.post(self._end_url())
+        self.assertEqual(response.status_code, 400)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_SETUP)
+
+    def test_rejects_already_complete(self):
+        self._complete()
+        response = self.client.post(self._end_url())
+        self.assertEqual(response.status_code, 400)
+
+    def test_wrong_token_returns_404(self):
+        import uuid
+
+        self._activate()
+        url = reverse("draft_end", args=[self.session.pk, uuid.uuid4()])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_request_returns_405(self):
+        self._activate()
+        response = self.client.get(self._end_url())
+        self.assertEqual(response.status_code, 405)
+
+    def test_undrafted_players_reported_in_completion_warnings(self):
+        # Base fixture: 3 teams, only cap1's pick is made; ending now leaves
+        # everyone else — including the other two captains — undrafted.
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+
+        response = self.client.post(self._end_url())
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        undrafted = next(
+            w
+            for w in data["state"]["completion_warnings"]
+            if w["type"] == "undrafted_players"
+        )
+        self.assertGreater(undrafted["count"], 0)
+
+    def test_finalize_draft_now_available_after_early_end(self):
+        self._activate()
+        self.client.post(self._end_url())
+
+        finalize_url = reverse(
+            "draft_finalize", args=[self.session.pk, self.session.commissioner_token]
+        )
+        response = self.client.post(finalize_url)
+        self.assertEqual(response.status_code, 200)
 
 
 # ---------------------------------------------------------------------------
@@ -917,6 +1055,239 @@ class AutoCaptainPickTests(DraftTestBase):
         drafted_signups = {p.signup for p in auto_picks}
         self.assertIn(self.cap1, drafted_signups)
         self.assertIn(self.cap2, drafted_signups)
+
+
+# ---------------------------------------------------------------------------
+# View: dev_autofill_draft (local/dev testing only)
+# ---------------------------------------------------------------------------
+
+
+@override_settings(DEBUG=True)  # DiscoverRunner forces DEBUG=False otherwise
+class DevAutofillDraftViewTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        # Spread captain auto-picks across all 3 rounds so every signup
+        # (3 captains + 6 players + 2 goalies, minus 1 unused goalie slot)
+        # can be exhausted by the 3x3 = 9 total picks.
+        self.team1.captain_draft_round = 1
+        self.team1.save(update_fields=["captain_draft_round"])
+        self.team2.captain_draft_round = 2
+        self.team2.save(update_fields=["captain_draft_round"])
+        self.team3.captain_draft_round = 3
+        self.team3.save(update_fields=["captain_draft_round"])
+        self._activate()
+
+    def _autofill(self):
+        return self.client.post(
+            reverse(
+                "draft_dev_autofill",
+                args=[self.session.pk, self.session.commissioner_token],
+            )
+        )
+
+    def test_get_request_returns_405(self):
+        response = self.client.get(
+            reverse(
+                "draft_dev_autofill",
+                args=[self.session.pk, self.session.commissioner_token],
+            )
+        )
+        self.assertEqual(response.status_code, 405)
+
+    def test_wrong_commissioner_token_returns_404(self):
+        response = self.client.post(
+            reverse(
+                "draft_dev_autofill",
+                args=[self.session.pk, "00000000-0000-0000-0000-000000000000"],
+            )
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_requires_active_state(self):
+        self.session.state = DraftSession.STATE_PAUSED
+        self.session.save(update_fields=["state"])
+
+        response = self._autofill()
+
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn("error", data)
+        self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 0)
+
+    def test_autofill_completes_the_draft(self):
+        response = self._autofill()
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data["success"])
+        # 6 manual picks (players + goalies) — the 3 captains are auto-picked
+        # and not counted in picks_made.
+        self.assertEqual(data["picks_made"], 6)
+
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_COMPLETE)
+        self.assertEqual(
+            DraftPick.objects.filter(session=self.session).count(),
+            self.session.num_teams * self.session.num_rounds,
+        )
+        # Every captain was auto-drafted onto their own team.
+        for team, captain in [
+            (self.team1, self.cap1),
+            (self.team2, self.cap2),
+            (self.team3, self.cap3),
+        ]:
+            pick = DraftPick.objects.get(session=self.session, signup=captain)
+            self.assertEqual(pick.team, team)
+            self.assertTrue(pick.is_auto_captain)
+
+    def test_autofill_respects_one_goalie_per_team_limit(self):
+        self._autofill()
+
+        for team in [self.team1, self.team2, self.team3]:
+            goalie_count = DraftPick.objects.filter(
+                session=self.session,
+                team=team,
+                signup__primary_position=SeasonSignup.POSITION_GOALIE,
+            ).count()
+            self.assertLessEqual(goalie_count, 1)
+
+    def test_autofill_never_drafts_a_captain_onto_another_team(self):
+        self._autofill()
+
+        for pick in DraftPick.objects.filter(
+            session=self.session, is_auto_captain=False
+        ):
+            other_team_captain_ids = {
+                t.captain_id
+                for t in [self.team1, self.team2, self.team3]
+                if t.pk != pick.team_id
+            }
+            self.assertNotIn(pick.signup_id, other_team_captain_ids)
+
+    @override_settings(DEBUG=False)
+    def test_autofill_404s_when_debug_is_off(self):
+        response = self._autofill()
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(DraftPick.objects.filter(session=self.session).count(), 0)
+
+    def test_autofill_never_gives_a_team_a_second_goalie(self):
+        """
+        Regression test: with a goalie-heavy pool, the autofill loop used to
+        fall back to "pick anything, rule or no rule" whenever the only
+        signups left were goalies — letting a team that already had one pick
+        a second, while another team ended up short. That fallback is gone;
+        the loop must now stop rather than break the one-goalie-per-team
+        rule. Deterministic via a mocked random.choice (always take the
+        first candidate offered) so the reproduction doesn't depend on luck.
+        """
+        # Clear the base fixture's captain rounds/players so this test
+        # controls the exact pool: 1 non-goalie + 5 goalies for 3 teams x 2
+        # rounds (6 slots), no auto-captain picks to keep the trace simple.
+        for team in [self.team1, self.team2, self.team3]:
+            team.captain_draft_round = None
+            team.save(update_fields=["captain_draft_round"])
+        SeasonSignup.objects.filter(season=self.season).exclude(
+            pk__in=[self.cap1.pk, self.cap2.pk, self.cap3.pk]
+        ).delete()
+
+        SeasonSignup.objects.create(
+            season=self.season,
+            first_name="Nonna",
+            last_name="AAAGoalie",
+            email="nonna@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_NO,
+        )
+        for i in range(5):
+            SeasonSignup.objects.create(
+                season=self.season,
+                first_name=f"G{i}",
+                last_name="Keeper",
+                email=f"g{i}@test.com",
+                primary_position=SeasonSignup.POSITION_GOALIE,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_NO,
+            )
+
+        self.session.num_teams = 3
+        self.session.num_rounds = 2
+        self.session.save(update_fields=["num_teams", "num_rounds"])
+
+        with patch("leagues.draft_views.random.choice", side_effect=lambda seq: seq[0]):
+            response = self._autofill()
+
+        self.assertEqual(response.status_code, 200)
+        for team in [self.team1, self.team2, self.team3]:
+            goalie_count = DraftPick.objects.filter(
+                session=self.session,
+                team=team,
+                signup__primary_position=SeasonSignup.POSITION_GOALIE,
+            ).count()
+            self.assertLessEqual(
+                goalie_count,
+                1,
+                f"{team.team_name} ended up with {goalie_count} goalies",
+            )
+
+    def test_autofill_reserves_goalies_once_supply_gets_tight(self):
+        """
+        When goalie supply exactly matches the number of teams, the
+        reservation heuristic should steer goalie-less teams to take one
+        before the pool runs dry, rather than leaving it purely to chance.
+        """
+        for team in [self.team1, self.team2, self.team3]:
+            team.captain_draft_round = None
+            team.save(update_fields=["captain_draft_round"])
+        SeasonSignup.objects.filter(season=self.season).exclude(
+            pk__in=[self.cap1.pk, self.cap2.pk, self.cap3.pk]
+        ).delete()
+
+        for i in range(3):
+            SeasonSignup.objects.create(
+                season=self.season,
+                first_name=f"P{i}",
+                last_name="AAAPlayer",
+                email=f"p{i}@test.com",
+                primary_position=SeasonSignup.POSITION_CENTER,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_NO,
+            )
+        for i in range(3):
+            SeasonSignup.objects.create(
+                season=self.season,
+                first_name=f"G{i}",
+                last_name="Keeper",
+                email=f"g{i}@test.com",
+                primary_position=SeasonSignup.POSITION_GOALIE,
+                secondary_position=SeasonSignup.POSITION_ONE_THING,
+                captain_interest=SeasonSignup.CAPTAIN_NO,
+            )
+
+        self.session.num_teams = 3
+        self.session.num_rounds = 2
+        self.session.save(update_fields=["num_teams", "num_rounds"])
+
+        # Deterministically prefer non-goalies (last in candidate list, since
+        # non-goalies sort before goalies alphabetically) unless the
+        # reservation logic has already narrowed candidates to goalies-only.
+        with patch(
+            "leagues.draft_views.random.choice", side_effect=lambda seq: seq[-1]
+        ):
+            response = self._autofill()
+
+        self.assertEqual(response.status_code, 200)
+        for team in [self.team1, self.team2, self.team3]:
+            goalie_count = DraftPick.objects.filter(
+                session=self.session,
+                team=team,
+                signup__primary_position=SeasonSignup.POSITION_GOALIE,
+            ).count()
+            self.assertEqual(
+                goalie_count,
+                1,
+                f"{team.team_name} ended up with {goalie_count} goalies",
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1265,6 +1636,15 @@ class SessionStatePayloadTests(DraftTestBase):
         payload = _session_state_payload(self.session)
         team_data = next(t for t in payload["teams"] if t["id"] == self.team1.pk)
         self.assertEqual(team_data["picks"][1]["pick_id"], pick.pk)
+
+    def test_payload_includes_signups_open(self):
+        self.session.signups_open = True
+        self.session.save(update_fields=["signups_open"])
+        self.assertTrue(_session_state_payload(self.session)["signups_open"])
+
+        self.session.signups_open = False
+        self.session.save(update_fields=["signups_open"])
+        self.assertFalse(_session_state_payload(self.session)["signups_open"])
 
     def test_payload_state_matches_session_state(self):
         self._activate()
@@ -2128,8 +2508,17 @@ class DraftResultsDownloadTests(DraftTestBase):
         self._make_pick(self.team1, self.players[0], 1, 0)
         self._make_pick(self.team2, self.players[1], 1, 1)
         self._make_pick(self.team3, self.players[2], 1, 2)
+        self._complete()
 
     def test_no_picks_returns_404(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 404)
+
+    def test_picks_exist_but_draft_not_complete_returns_404(self):
+        # make_pick's own completion check needs all num_teams*num_rounds
+        # picks; 3 picks in a 3x3 fixture leaves it ACTIVE, not COMPLETE.
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
         resp = self.client.get(self._url())
         self.assertEqual(resp.status_code, 404)
 
@@ -3605,6 +3994,99 @@ class SignupSeasonFilterTests(DraftTestBase):
 
 
 # ---------------------------------------------------------------------------
+# Admin: DraftTeamInline (on DraftSession) stays in sync with the
+# SeasonSignupAdmin confirmed_captain checkbox
+# ---------------------------------------------------------------------------
+
+
+class DraftTeamInlineSyncTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_draftsession_change", args=[self.session.pk])
+
+    def _post_data_from_current_page(self):
+        """Scrape a valid full POST payload (main form + both inline
+        formsets) from the rendered change page, so this test tracks
+        whatever fields/prefixes the admin actually renders instead of
+        guessing. Also returns the DraftTeamInline's discovered prefix."""
+        resp = self.client.get(self.url)
+        data = {}
+        team_prefix = None
+
+        adminform = resp.context["adminform"]
+        for name in adminform.form.fields:
+            value = adminform.form[name].value()
+            if value not in (None, ""):
+                data[name] = value
+
+        for inline in resp.context["inline_admin_formsets"]:
+            formset = inline.formset
+            prefix = formset.prefix
+            if formset.model is DraftTeam:
+                team_prefix = prefix
+            mgmt = formset.management_form.initial
+            for key in (
+                "TOTAL_FORMS",
+                "INITIAL_FORMS",
+                "MIN_NUM_FORMS",
+                "MAX_NUM_FORMS",
+            ):
+                data[f"{prefix}-{key}"] = mgmt[key]
+            for i, form in enumerate(formset.forms):
+                for name in form.fields:
+                    value = form[name].value()
+                    if value not in (None, ""):
+                        data[f"{prefix}-{i}-{name}"] = value
+
+        self.assertIsNotNone(team_prefix, "could not find the DraftTeamInline formset")
+        return data, team_prefix
+
+    def test_deleting_a_team_via_the_inline_unconfirms_the_captain(self):
+        data, prefix = self._post_data_from_current_page()
+        # Mark team1's DraftTeamInline row for deletion.
+        idx = None
+        for key, value in list(data.items()):
+            if (
+                key.startswith(f"{prefix}-")
+                and key.endswith("-captain")
+                and str(value) == str(self.cap1.pk)
+            ):
+                idx = key.split("-")[-2]
+        self.assertIsNotNone(idx, "could not locate team1's inline row")
+        data[f"{prefix}-{idx}-DELETE"] = "on"
+        data["_save"] = "Save"
+
+        resp = self.client.post(self.url, data)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(DraftTeam.objects.filter(captain=self.cap1).exists())
+        self.cap1.refresh_from_db()
+        self.assertFalse(self.cap1.confirmed_captain)
+
+    def test_adding_a_team_via_the_inline_confirms_the_captain(self):
+        data, prefix = self._post_data_from_current_page()
+        total = int(data[f"{prefix}-TOTAL_FORMS"])
+        data[f"{prefix}-TOTAL_FORMS"] = str(total + 1)
+        data[f"{prefix}-{total}-captain"] = str(self.players[0].pk)
+        data["_save"] = "Save"
+
+        resp = self.client.post(self.url, data)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            DraftTeam.objects.filter(
+                session=self.session, captain=self.players[0]
+            ).exists()
+        )
+        self.players[0].refresh_from_db()
+        self.assertTrue(self.players[0].confirmed_captain)
+
+
+# ---------------------------------------------------------------------------
 # Admin: set up teams from captains
 # ---------------------------------------------------------------------------
 
@@ -3653,6 +4135,11 @@ class SetupTeamsFromCaptainsTests(DraftTestBase):
         self.assertEqual(self.session.teams.count(), 2)
         captains = set(self.session.teams.values_list("captain_id", flat=True))
         self.assertEqual(captains, {self.cap1.pk, self.cap2.pk})
+
+    def test_post_sets_confirmed_captain_on_the_signup(self):
+        self.client.post(self.url, {"captains": [self.cap1.pk]})
+        self.cap1.refresh_from_db()
+        self.assertTrue(self.cap1.confirmed_captain)
 
     def test_team_names_default_to_captain_first_name(self):
         self.client.post(self.url, {"captains": [self.cap1.pk]})
@@ -3740,6 +4227,133 @@ class SetupTeamsFromCaptainsTests(DraftTestBase):
         resp = self.client.get(self.url)
         self.assertContains(resp, "js-copy-emails")
         self.assertContains(resp, self.cap1.email)
+
+
+# ---------------------------------------------------------------------------
+# Admin: "Confirmed captain?" checkbox on SeasonSignupAdmin
+# ---------------------------------------------------------------------------
+
+
+class ConfirmedCaptainCheckboxTests(DraftTestBase):
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_seasonsignup_changelist")
+
+    def _toggle(self, signup, checked):
+        data = {
+            "form-TOTAL_FORMS": "1",
+            "form-INITIAL_FORMS": "1",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+            "form-0-id": str(signup.pk),
+            "_save": "Save",
+        }
+        if checked:
+            data["form-0-confirmed_captain"] = "on"
+        return self.client.post(self.url, data)
+
+    def _toggle_on_change_form(self, signup, checked):
+        change_url = reverse("admin:leagues_seasonsignup_change", args=[signup.pk])
+        data = {
+            "season": signup.season_id,
+            "first_name": signup.first_name,
+            "last_name": signup.last_name,
+            "email": signup.email,
+            "cell_phone": signup.cell_phone,
+            "tshirt_size": signup.tshirt_size,
+            "primary_position": signup.primary_position,
+            "secondary_position": signup.secondary_position,
+            "notes": signup.notes,
+        }
+        if checked:
+            data["confirmed_captain"] = "on"
+        return self.client.post(change_url, data)
+
+    def test_checkbox_renders_in_changelist(self):
+        resp = self.client.get(self.url)
+        self.assertRegex(resp.content.decode(), r'name="form-\d+-confirmed_captain"')
+
+    def test_checking_box_creates_draft_team(self):
+        resp = self._toggle(self.players[0], checked=True)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(self.session.teams.filter(captain=self.players[0]).exists())
+        self.players[0].refresh_from_db()
+        self.assertTrue(self.players[0].confirmed_captain)
+
+    def test_checkbox_resizes_num_teams_and_rounds(self):
+        # Base fixture already has 3 confirmed captains (team1/2/3); adding a
+        # 4th via the checkbox should grow num_teams to match.
+        self._toggle(self.players[0], checked=True)
+
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.num_teams, 4)
+
+    def test_unchecking_box_removes_draft_team(self):
+        # Base fixture already made cap1 the captain of team1.
+        self.assertTrue(self.session.teams.filter(captain=self.cap1).exists())
+
+        resp = self._toggle(self.cap1, checked=False)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(self.session.teams.filter(captain=self.cap1).exists())
+        self.cap1.refresh_from_db()
+        self.assertFalse(self.cap1.confirmed_captain)
+
+    def test_toggle_blocked_once_positions_are_drawn(self):
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+
+        resp = self._toggle(self.players[0], checked=True)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(self.session.teams.filter(captain=self.players[0]).exists())
+        self.players[0].refresh_from_db()
+        self.assertFalse(self.players[0].confirmed_captain)
+
+    def test_unchecking_blocked_once_positions_are_drawn_reverts_to_true(self):
+        self.session.state = DraftSession.STATE_DRAW
+        self.session.save(update_fields=["state"])
+
+        resp = self._toggle(self.cap1, checked=False)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(self.session.teams.filter(captain=self.cap1).exists())
+        self.cap1.refresh_from_db()
+        self.assertTrue(self.cap1.confirmed_captain)
+
+    def test_toggle_no_draft_session_yet_does_nothing(self):
+        other_season = Season.objects.create(
+            year=self.season.year + 1, season_type=1, is_current_season=False
+        )
+        orphan_signup = SeasonSignup.objects.create(
+            season=other_season,
+            first_name="Orphan",
+            last_name="Signup",
+            email="orphan@test.com",
+            primary_position=SeasonSignup.POSITION_CENTER,
+            secondary_position=SeasonSignup.POSITION_ONE_THING,
+            captain_interest=SeasonSignup.CAPTAIN_YES,
+        )
+
+        resp = self._toggle(orphan_signup, checked=True)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(DraftTeam.objects.filter(captain=orphan_signup).count(), 0)
+        orphan_signup.refresh_from_db()
+        self.assertFalse(orphan_signup.confirmed_captain)
+
+    def test_toggle_also_works_from_the_individual_change_form(self):
+        resp = self._toggle_on_change_form(self.players[0], checked=True)
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(self.session.teams.filter(captain=self.players[0]).exists())
+        self.players[0].refresh_from_db()
+        self.assertTrue(self.players[0].confirmed_captain)
 
 
 # ---------------------------------------------------------------------------
@@ -3892,19 +4506,35 @@ class SeasonSignupAdminConfirmedCaptainColumnTests(DraftTestBase):
         self.client.force_login(admin_user)
         self.url = reverse("admin:leagues_seasonsignup_changelist")
 
-    def test_captain_with_draft_team_shown_as_confirmed(self):
+    def test_captain_with_draft_team_shown_as_checked(self):
         resp = self.client.get(self.url)
-        by_pk = {obj.pk: obj for obj in resp.context["cl"].result_list}
-        self.assertTrue(by_pk[self.cap1.pk].is_confirmed_captain)
+        content = resp.content.decode()
+        row = re.search(
+            r'<input[^>]*name="form-(\d+)-id"[^>]*value="%d"' % self.cap1.pk,
+            content,
+        )
+        self.assertIsNotNone(row)
+        idx = row.group(1)
+        checkbox = re.search(
+            r'<input[^>]*name="form-%s-confirmed_captain"[^>]*>' % idx, content
+        )
+        self.assertIsNotNone(checkbox)
+        self.assertIn("checked", checkbox.group(0))
 
-    def test_non_captain_signup_not_confirmed(self):
+    def test_non_captain_signup_shown_as_unchecked(self):
         resp = self.client.get(self.url)
-        by_pk = {obj.pk: obj for obj in resp.context["cl"].result_list}
-        self.assertFalse(by_pk[self.players[0].pk].is_confirmed_captain)
-
-    def test_confirmed_column_renders_checkmark_for_captain(self):
-        resp = self.client.get(self.url)
-        self.assertContains(resp, "Confirmed")
+        content = resp.content.decode()
+        row = re.search(
+            r'<input[^>]*name="form-(\d+)-id"[^>]*value="%d"' % self.players[0].pk,
+            content,
+        )
+        self.assertIsNotNone(row)
+        idx = row.group(1)
+        checkbox = re.search(
+            r'<input[^>]*name="form-%s-confirmed_captain"[^>]*>' % idx, content
+        )
+        self.assertIsNotNone(checkbox)
+        self.assertNotIn("checked", checkbox.group(0))
 
 
 # ---------------------------------------------------------------------------
