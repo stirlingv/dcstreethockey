@@ -3908,6 +3908,93 @@ class SeasonSignupAdminConfirmedCaptainColumnTests(DraftTestBase):
 
 
 # ---------------------------------------------------------------------------
+# Admin: multi-select captain interest filter
+# ---------------------------------------------------------------------------
+
+
+class CaptainInterestMultiFilterTests(DraftTestBase):
+    """
+    Base fixture: cap1/cap2/cap3 are all CAPTAIN_YES; players[] and the
+    goalies are all CAPTAIN_NO. Tests below flip a couple of signups to
+    OVERDUE / LAST_RESORT so a single filter application can be checked
+    against multiple selected values at once.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth.models import User
+
+        admin_user = User.objects.create_superuser("admin", "admin@test.com", "pw")
+        self.client.force_login(admin_user)
+        self.url = reverse("admin:leagues_seasonsignup_changelist")
+
+        self.cap2.captain_interest = SeasonSignup.CAPTAIN_OVERDUE
+        self.cap2.save(update_fields=["captain_interest"])
+        self.cap3.captain_interest = SeasonSignup.CAPTAIN_LAST_RESORT
+        self.cap3.save(update_fields=["captain_interest"])
+
+    def test_single_value_still_works(self):
+        resp = self.client.get(
+            self.url, {"captain_interest_ids": str(SeasonSignup.CAPTAIN_YES)}
+        )
+        result_ids = {obj.pk for obj in resp.context["cl"].result_list}
+        self.assertEqual(result_ids, {self.cap1.pk})
+
+    def test_two_values_combined_in_one_request(self):
+        # This is the reported scenario: "Yes for sure" + "I can as I'm
+        # overdue" selected together, in a single filtered view.
+        resp = self.client.get(
+            self.url,
+            {
+                "captain_interest_ids": f"{SeasonSignup.CAPTAIN_YES},{SeasonSignup.CAPTAIN_OVERDUE}"
+            },
+        )
+        result_ids = {obj.pk for obj in resp.context["cl"].result_list}
+        self.assertEqual(result_ids, {self.cap1.pk, self.cap2.pk})
+        self.assertNotIn(self.cap3.pk, result_ids)
+
+    def test_no_value_shows_everything(self):
+        resp = self.client.get(self.url)
+        result_ids = {obj.pk for obj in resp.context["cl"].result_list}
+        self.assertIn(self.cap1.pk, result_ids)
+        self.assertIn(self.cap3.pk, result_ids)
+
+    def test_copy_emails_action_on_combined_filter_result(self):
+        # Full end-to-end: filter to Yes + Overdue, select everything shown,
+        # run the copy action — both captains' emails should come back in
+        # one pass, no second filter round-trip needed.
+        resp = self.client.get(
+            self.url,
+            {
+                "captain_interest_ids": f"{SeasonSignup.CAPTAIN_YES},{SeasonSignup.CAPTAIN_OVERDUE}"
+            },
+        )
+        shown = list(resp.context["cl"].result_list)
+        copy_resp = self.client.post(
+            self.url,
+            {
+                "action": "copy_emails",
+                "_selected_action": [str(obj.pk) for obj in shown],
+            },
+        )
+        self.assertContains(copy_resp, self.cap1.email)
+        self.assertContains(copy_resp, self.cap2.email)
+        self.assertNotContains(copy_resp, self.cap3.email)
+
+    def test_summary_panel_captain_breakdown_link_filters_correctly(self):
+        resp = self.client.get(self.url)
+        overdue_url = next(
+            row["url"]
+            for row in resp.context["signup_summary"]["captain_breakdown"]
+            if row["label"]
+            == dict(SeasonSignup.CAPTAIN_INTEREST_CHOICES)[SeasonSignup.CAPTAIN_OVERDUE]
+        )
+        followed = self.client.get(overdue_url)
+        result_ids = {obj.pk for obj in followed.context["cl"].result_list}
+        self.assertEqual(result_ids, {self.cap2.pk})
+
+
+# ---------------------------------------------------------------------------
 # Public signup counter
 # ---------------------------------------------------------------------------
 

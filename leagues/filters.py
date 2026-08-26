@@ -99,6 +99,62 @@ class BackupGoalieFilter(SimpleListFilter):
         return queryset
 
 
+class CaptainInterestMultiFilter(SimpleListFilter):
+    """
+    Multi-select captain-interest filter.
+
+    A commissioner reaching out to captain candidates often wants "Yes for
+    sure" and "I can as I'm overdue" together in one view — a plain
+    single-value filter forces two separate page loads to see each, and
+    checkbox selections used for bulk actions (like copying emails) don't
+    survive navigating to a new filtered page. Selecting multiple values
+    here and clicking Apply gets the combined set in one shot instead.
+
+    Reuses the same multi-select widget as the season filter below.
+    """
+
+    title = "captain interest"
+    parameter_name = "captain_interest_ids"
+    template = "admin/season_multiselect_filter.html"
+
+    def __init__(self, request, params, model, model_admin):
+        super().__init__(request, params, model, model_admin)
+        self.request = request
+        self.model_admin = model_admin
+
+    def lookups(self, request, model_admin):
+        return [
+            (str(value), label)
+            for value, label in SeasonSignup.CAPTAIN_INTEREST_CHOICES
+        ]
+
+    def _selected_values(self):
+        if not self.value():
+            return set()
+        return {value for value in self.value().split(",") if value}
+
+    def queryset(self, request, queryset):
+        selected = self._selected_values()
+        if selected:
+            return queryset.filter(captain_interest__in=selected)
+        return queryset
+
+    def choices(self, changelist):
+        selected = self._selected_values()
+        base_query_string = changelist.get_query_string(remove=[self.parameter_name])
+        options = [
+            {"value": value, "display": label, "selected": value in selected}
+            for value, label in self.lookups(self.request, self.model_admin)
+        ]
+        return [
+            {
+                "base_query_string": base_query_string,
+                "options": options,
+                "selected_ids": ",".join(sorted(selected)),
+            }
+        ]
+
+
 class RecentSeasonsFilter(SimpleListFilter):
     title = "season"
     parameter_name = "season"
