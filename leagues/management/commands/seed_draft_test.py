@@ -338,7 +338,7 @@ class Command(BaseCommand):
                     season=ps,
                     defaults={
                         "division": wed_div,
-                        "team_color": "#8b1a1a",
+                        "team_color": "Maroon",
                         "is_active": False,
                     },
                 )

@@ -4,6 +4,7 @@ from tempfile import mkdtemp
 import datetime
 
 from django.contrib.auth.models import Group, Permission, User
+from django.contrib.staticfiles import finders
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.urls import reverse
@@ -14,6 +15,35 @@ from django.utils.http import urlencode
 
 from leagues.forms import MatchUpForm
 from leagues.models import Division, MatchUp, Player, Season, Team, Week
+
+
+class TeamColorChoicesTest(TestCase):
+    """Every team_color choice must have a matching static jersey image,
+    since the schedule/matchup pages build the image filename directly
+    from this value (see homepage_detail_info.html, matchup_detail.html,
+    partials/schedule.html)."""
+
+    def test_every_choice_has_a_matching_jersey_image(self):
+        for value, _label in Team.TEAM_COLOR_CHOICES:
+            filename = f"img/emojis/{value.lower()}_jersey.png"
+            self.assertIsNotNone(
+                finders.find(filename),
+                f"No jersey image found for team_color choice '{value}' "
+                f"(expected {filename})",
+            )
+
+    def test_invalid_team_color_fails_validation(self):
+        team = Team(team_name="Bad Color Team", team_color="Gold", is_active=True)
+        with self.assertRaises(ValidationError):
+            team.full_clean(
+                validate_unique=False, exclude=["division", "season", "team_photo"]
+            )
+
+    def test_valid_team_color_passes_validation(self):
+        team = Team(team_name="Valid Color Team", team_color="Maroon", is_active=True)
+        team.full_clean(
+            validate_unique=False, exclude=["division", "season", "team_photo"]
+        )
 
 
 class ViewTest(TestCase):

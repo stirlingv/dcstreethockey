@@ -374,7 +374,7 @@ class GetMatchesForDivisionTest(ScheduleTestBase):
     def test_excludes_matchups_with_inactive_away_team(self):
         inactive = Team.objects.create(
             team_name="Inactive",
-            team_color="Gray",
+            team_color="Grey",
             division=self.division,
             season=self.season,
             is_active=False,
