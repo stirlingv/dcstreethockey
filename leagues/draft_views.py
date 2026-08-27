@@ -1780,6 +1780,44 @@ def email_team_data(request, session_pk, token):
 
 
 # ---------------------------------------------------------------------------
+# Captain: full roster signup details (contact info, shirt size, etc.)
+# ---------------------------------------------------------------------------
+
+
+def captain_roster_details(request, session_pk, token):
+    """
+    Full signup details — email, cell phone, t-shirt size, notes — for
+    everyone a captain has drafted. Gated by the same private captain
+    token as the rest of the draft-captain views, with no expiration and
+    no draft-complete gate: captains use this in place of the shared
+    spreadsheet they used to keep by hand, so the link is meant to keep
+    working for the life of the season.
+    """
+    captain_team = get_object_or_404(
+        DraftTeam, session_id=session_pk, captain_token=token
+    )
+    session = captain_team.session
+
+    picks = captain_team.draft_picks.select_related("signup").order_by(
+        "round_number", "pick_number"
+    )
+    roster = [
+        {"signup": pick.signup, "is_captain": pick.signup_id == captain_team.captain_id}
+        for pick in picks
+    ]
+
+    return render(
+        request,
+        "leagues/captain_roster_details.html",
+        {
+            "session": session,
+            "captain_team": captain_team,
+            "roster": roster,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Commissioner: add a late signup after the draw
 # ---------------------------------------------------------------------------
 

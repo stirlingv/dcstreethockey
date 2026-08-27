@@ -2489,6 +2489,79 @@ class EmailTeamDataViewTests(DraftTestBase):
 
 
 # ---------------------------------------------------------------------------
+# captain_roster_details
+# ---------------------------------------------------------------------------
+
+
+class CaptainRosterDetailsViewTests(DraftTestBase):
+    def _url(self, team=None):
+        t = team or self.team1
+        return reverse(
+            "captain_roster_details", args=[self.session.pk, t.captain_token]
+        )
+
+    def test_returns_200_regardless_of_draft_state(self):
+        """Unlike email_team_data, this page has no draft-complete gate —
+        captains should be able to bookmark it for the whole season."""
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+        self._activate()
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+        self._complete()
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+    def test_404_with_wrong_token(self):
+        import uuid
+
+        bad_url = reverse(
+            "captain_roster_details", args=[self.session.pk, uuid.uuid4()]
+        )
+        resp = self.client.get(bad_url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_shows_empty_state_before_any_picks(self):
+        resp = self.client.get(self._url())
+        self.assertContains(resp, "No players drafted yet")
+
+    def test_roster_contains_contact_details(self):
+        self.players[0].cell_phone = "(202) 555-0143"
+        self.players[0].tshirt_size = "L"
+        self.players[0].notes = "Out the first week of the season"
+        self.players[0].save()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+
+        resp = self.client.get(self._url())
+        self.assertContains(resp, self.players[0].full_name)
+        self.assertContains(resp, self.players[0].email)
+        self.assertContains(resp, "(202) 555-0143")
+        self.assertContains(resp, "Large")
+        self.assertContains(resp, "Out the first week of the season")
+
+    def test_blank_contact_fields_render_placeholder(self):
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, self.players[0].full_name)
+
+    def test_captain_is_flagged_in_roster(self):
+        self._make_pick(self.team1, self.cap1, 2, 0, auto=True)
+        resp = self.client.get(self._url())
+        self.assertContains(resp, '<span class="captain-badge">C</span>')
+
+    def test_other_team_token_returns_own_roster_only(self):
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._make_pick(self.team2, self.players[1], 1, 1)
+
+        resp2 = self.client.get(self._url(team=self.team2))
+        self.assertContains(resp2, self.players[1].full_name)
+        self.assertNotContains(resp2, self.players[0].full_name)
+
+
+# ---------------------------------------------------------------------------
 # draft_results_download
 # ---------------------------------------------------------------------------
 

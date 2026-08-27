@@ -23,6 +23,7 @@ from .draft_views import (
     reset_draft,
     set_captain_rounds,
     email_team_data,
+    captain_roster_details,
     draft_results_download,
     draft_sessions_list,
     add_late_signup,
@@ -144,6 +145,11 @@ urlpatterns = [
         "draft/<int:session_pk>/my-team/<uuid:token>/",
         email_team_data,
         name="draft_email_team",
+    ),
+    path(
+        "draft/<int:session_pk>/roster-details/<uuid:token>/",
+        captain_roster_details,
+        name="captain_roster_details",
     ),
     path(
         "draft/<int:session_pk>/add-signup/<uuid:token>/",

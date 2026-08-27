@@ -1372,6 +1372,9 @@
   <button class="btn btn-outline-secondary" onclick="copyTeamEmails()" style="font-size:0.85rem;">
     &#128203; Copy Emails
   </button>
+  <a class="btn btn-outline-secondary" href="/draft/{{ session.pk }}/roster-details/{{ captain_token }}/" style="font-size:0.85rem;text-decoration:none;">
+    &#128203; Roster Details
+  </a>
   <span style="font-size:0.78rem;color:#155724;">Send your roster to all teammates so everyone has each other's contact info.</span>
 </div>
 {% endif %}
@@ -3075,7 +3078,10 @@ function renderTeamPanel() {
       <button class="btn btn-outline-secondary" onclick="copyTeamEmails()" style="flex:1;font-size:0.85rem;padding:7px 12px;">
         &#128203; Copy Emails
       </button>
-    </div>`;
+    </div>
+    <a class="btn btn-outline-secondary" href="/draft/${SESSION_PK}/roster-details/${CAPTAIN_TOKEN}/" style="display:block;text-align:center;font-size:0.85rem;padding:7px 12px;text-decoration:none;margin-top:4px;">
+      &#128203; Roster Details (phone, shirt size, etc.)
+    </a>`;
   }
 
   body.innerHTML = html;
