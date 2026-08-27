@@ -109,6 +109,41 @@
   .state-badge.complete{ background: #cce5ff; color: #004085; }
   .state-badge.draw    { background: #f0e6ff; color: #4a0080; }
 
+  /* Confirmed captains, shown below the board only before the draw order
+     is set — once positions are drawn, captain names move to the table
+     column headers and this panel is cleared. */
+  .confirmed-captains-panel {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .confirmed-captains-panel h3 {
+    margin: 0 0 8px 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #8b1a1a;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .captain-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .captain-chip {
+    display: inline-block;
+    padding: 6px 12px;
+    background: #f7f7f7;
+    border: 1px solid #ddd;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #333;
+  }
+
   /* Grid table */
   .board-table {
     border-collapse: collapse;
@@ -1382,6 +1417,7 @@
     </div>
 
     <div id="board-container"></div>
+    <div id="confirmed-captains-panel"></div>
   </div>
 
   <!-- Player pool (right sidebar) -->
@@ -1996,10 +2032,12 @@ function renderBoard() {
         `The board fills in once the draft begins. Browse the <strong>Available</strong> list to see who's signed up.</p>`
       : '<p style="color:#999;">No teams configured yet.</p>';
     document.getElementById('board-container').innerHTML = msg;
+    document.getElementById('confirmed-captains-panel').innerHTML = '';
     return;
   }
 
   const positionsDrawn = teams.some(t => t.draft_position !== null);
+  renderConfirmedCaptainsPanel(teams, positionsDrawn);
   let html = '<table class="board-table"><thead><tr><th class="round-header">Rnd</th>';
   for (let i = 0; i < teams.length; i++) {
     const t = teams[i];
@@ -2081,6 +2119,28 @@ function renderBoard() {
   }
   html += '</tbody></table>';
   document.getElementById('board-container').innerHTML = html;
+}
+
+// Confirmed captains are only interesting before the draw order is set —
+// once positions are drawn, captain names already appear atop the table
+// columns above, so this panel clears itself out.
+function renderConfirmedCaptainsPanel(teams, positionsDrawn) {
+  const panel = document.getElementById('confirmed-captains-panel');
+  if (!panel) return;
+
+  const names = teams.map(t => t.captain_name).filter(Boolean);
+  if (positionsDrawn || !names.length) {
+    panel.innerHTML = '';
+    return;
+  }
+
+  names.sort((a, b) => a.localeCompare(b));
+  const chips = names.map(name => `<span class="captain-chip">${escHtml(name)}</span>`).join('');
+  panel.innerHTML = `
+    <div class="confirmed-captains-panel">
+      <h3>Confirmed Captains</h3>
+      <div class="captain-chip-list">${chips}</div>
+    </div>`;
 }
 
 function pickOrderForRound(roundNum, teams) {
