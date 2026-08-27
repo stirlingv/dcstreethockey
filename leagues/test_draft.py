@@ -2464,7 +2464,28 @@ class EmailTeamDataViewTests(DraftTestBase):
         self.assertIn("full_name", first)
         self.assertIn("email", first)
         self.assertIn("primary_position", first)
+        self.assertIn("secondary_position", first)
         self.assertIn("is_captain", first)
+
+    def test_position_fields_are_display_strings(self):
+        """players[0] signed up as Center with no real secondary position."""
+        self._complete()
+        self._fill_team1_picks()
+        resp = self.client.get(self._url())
+        data = json.loads(resp.content)
+        first = data["roster"][0]
+        self.assertEqual(first["primary_position"], "Center")
+        self.assertIsNone(first["secondary_position"])
+
+    def test_secondary_position_included_when_present(self):
+        """cap1 signed up as Center who can also play Wing."""
+        self._complete()
+        self._make_pick(self.team1, self.cap1, 1, 0)
+        resp = self.client.get(self._url())
+        data = json.loads(resp.content)
+        first = data["roster"][0]
+        self.assertEqual(first["primary_position"], "Center")
+        self.assertEqual(first["secondary_position"], "Wing")
 
     def test_captain_is_flagged_in_roster(self):
         # Captain's auto-pick

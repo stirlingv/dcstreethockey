@@ -1305,6 +1305,59 @@
   .late-signup-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
   .late-signup-error { color: #c82333; font-size: 0.82rem; margin-top: 8px; display: none; }
 
+  /* ---- Welcome email modal ---- */
+  .welcome-email-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 950;
+    padding: 16px;
+  }
+  .welcome-email-modal.visible { display: flex; }
+  .welcome-email-box {
+    background: #fff;
+    border-radius: 8px;
+    padding: 24px 28px;
+    max-width: 620px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .welcome-email-box h3 { margin: 0 0 8px; font-size: 1.05rem; }
+  .welcome-email-hint { font-size: 0.85rem; color: #666; line-height: 1.4; margin-bottom: 12px; }
+  #welcome-email-body {
+    width: 100%;
+    flex: 1;
+    min-height: 340px;
+    padding: 12px 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+  .welcome-email-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+  .welcome-email-actions .btn {
+    min-height: 44px;
+  }
+  @media (max-width: 767px) {
+    .welcome-email-box { padding: 18px 16px; max-height: 95vh; }
+    .welcome-email-actions { justify-content: stretch; }
+    .welcome-email-actions .btn { flex: 1; }
+  }
+
   /* ---- Champion column ---- */
   .board-table th.champion-col-header {
     border-bottom: 3px solid #b7860b;
@@ -1366,8 +1419,8 @@
 {% if is_captain %}
 <div class="captain-complete-bar" id="captain-complete-bar">
   <span class="bar-label">&#10003; DRAFT COMPLETE</span>
-  <button class="btn btn-primary" onclick="emailMyTeam()" style="font-size:0.85rem;">
-    &#9993; Email My Team
+  <button class="btn btn-primary" onclick="openWelcomeEmailModal()" style="font-size:0.85rem;">
+    &#9993; Welcome Email
   </button>
   <button class="btn btn-outline-secondary" onclick="copyTeamEmails()" style="font-size:0.85rem;">
     &#128203; Copy Emails
@@ -1375,7 +1428,7 @@
   <a class="btn btn-outline-secondary" href="/draft/{{ session.pk }}/roster-details/{{ captain_token }}/" style="font-size:0.85rem;text-decoration:none;">
     &#128203; Roster Details
   </a>
-  <span style="font-size:0.78rem;color:#155724;">Send your roster to all teammates so everyone has each other's contact info.</span>
+  <span style="font-size:0.78rem;color:#155724;">Send a templated welcome email to your roster with dues, jersey color, and other details filled in.</span>
 </div>
 {% endif %}
 
@@ -1626,6 +1679,25 @@
     <div class="late-signup-actions">
       <button class="btn" style="background:#eee;color:#333;" onclick="closeLateSignupModal()">Cancel</button>
       <button class="btn btn-primary" onclick="submitLateSignup()">Add Player</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Welcome email preview modal (captain only) -->
+{% if is_captain %}
+<div class="welcome-email-modal" id="welcome-email-modal">
+  <div class="welcome-email-box">
+    <h3>Welcome Email</h3>
+    <p class="welcome-email-hint">
+      Prefilled from your roster. Fill in the bracketed placeholders (dues, jersey
+      color, first game) before sending — this text stays editable.
+    </p>
+    <textarea id="welcome-email-body" spellcheck="false"></textarea>
+    <div class="welcome-email-actions">
+      <button class="btn" style="background:#eee;color:#333;" onclick="closeWelcomeEmailModal()">Close</button>
+      <button class="btn btn-outline-secondary" onclick="copyWelcomeEmailText()">&#128203; Copy Text</button>
+      <button class="btn btn-primary" onclick="openWelcomeEmailInMailApp()">&#9993; Open in Mail App</button>
     </div>
   </div>
 </div>
@@ -2749,35 +2821,100 @@ function fetchTeamData() {
     .catch(() => { showToast('Network error — could not load team data.', true); return null; });
 }
 
-function emailMyTeam() {
+// Groups roster entries into Forwards / Defense / Goalie sections and
+// renders a "welcome to the team" email with placeholders (dues, jersey
+// color, first game, team name) that we have no data source for yet —
+// the captain fills those in before sending.
+function buildWelcomeEmailBody(d) {
+  const groups = { Forwards: [], Defense: [], Goalie: [] };
+  for (const p of d.roster) {
+    if (p.primary_position === 'Center' || p.primary_position === 'Wing') {
+      groups.Forwards.push(p);
+    } else if (p.primary_position === 'Defense') {
+      groups.Defense.push(p);
+    } else {
+      groups.Goalie.push(p);
+    }
+  }
+
+  function formatEntry(p, groupLabel) {
+    let notes = [];
+    if (groupLabel === 'Forwards' && p.primary_position === 'Center') {
+      notes.push('signed up as Center');
+    }
+    if (p.secondary_position && p.secondary_position !== p.primary_position) {
+      notes.push(`can also play ${p.secondary_position}`);
+    }
+    const suffix = notes.length ? ` (${notes.join('; ')})` : '';
+    const captainTag = p.is_captain ? ' (Captain)' : '';
+    return `  - ${p.full_name}${captainTag}${suffix}`;
+  }
+
+  const lines = [];
+  lines.push('Hi Team,');
+  lines.push('');
+  lines.push(
+    `Welcome to our new Wednesday Draft League team! For those I haven't met yet, ` +
+    `my name is ${d.captain_name}, and I'll be your captain for the season.`
+  );
+  lines.push('');
+  lines.push('While positions are flexible, here is our initial roster breakdown:');
+  lines.push('');
+  for (const label of ['Forwards', 'Defense', 'Goalie']) {
+    if (!groups[label].length) continue;
+    lines.push(`${label}:`);
+    lines.push('');
+    for (const p of groups[label]) lines.push(formatEntry(p, label));
+    lines.push('');
+  }
+  lines.push('Important Details:');
+  lines.push('');
+  lines.push('  - Jersey Color: [TBD — will confirm once colors are assigned]');
+  lines.push(
+    '  - Dues: League dues are [amount] per player. Please send payment to me via ' +
+    '[PayPal/Venmo details] as soon as possible.'
+  );
+  lines.push('  - First Game: [date/time and opponent — TBD]');
+  lines.push(
+    `  - Team Name: We're currently listed as "${d.team_name}" — reply with your ` +
+    `suggestions and we'll pick one before the season starts!`
+  );
+  lines.push('');
+  lines.push("Please let me know if you have any questions. Looking forward to a great season. Let's go!");
+  lines.push('');
+  lines.push(d.captain_name);
+  return lines.join('\n');
+}
+
+function openWelcomeEmailModal() {
   fetchTeamData().then(d => {
     if (!d) return;
-
-    const emails = d.roster.map(p => p.email).filter(Boolean);
-    const subject = encodeURIComponent(`${d.season_name} – ${d.team_name}`);
-
-    // Build a plain-text roster body
-    const byPos = {};
-    for (const p of d.roster) {
-      const pos = p.primary_position || 'Other';
-      if (!byPos[pos]) byPos[pos] = [];
-      byPos[pos].push(p.full_name + (p.is_captain ? ' (Captain)' : ''));
-    }
-    const posOrder = ['Goalie', 'Defense', 'Center', 'Wing'];
-    let bodyLines = [`Hi team! Here's your ${d.team_name} roster for ${d.season_name}:\n`];
-    for (const pos of posOrder) {
-      if (byPos[pos] && byPos[pos].length) {
-        bodyLines.push(`${pos}:`);
-        for (const name of byPos[pos]) bodyLines.push(`  ${name}`);
-        bodyLines.push('');
-      }
-    }
-    bodyLines.push("Let's go!");
-    const body = encodeURIComponent(bodyLines.join('\n'));
-
-    const mailto = `mailto:${emails.join(',')}?subject=${subject}&body=${body}`;
-    window.location.href = mailto;
+    const modal = document.getElementById('welcome-email-modal');
+    if (!modal) return;
+    modal.dataset.emails = d.roster.map(p => p.email).filter(Boolean).join(',');
+    modal.dataset.subject = `Welcome to ${d.team_name}!`;
+    document.getElementById('welcome-email-body').value = buildWelcomeEmailBody(d);
+    modal.classList.add('visible');
   });
+}
+
+function closeWelcomeEmailModal() {
+  const modal = document.getElementById('welcome-email-modal');
+  if (modal) modal.classList.remove('visible');
+}
+
+function copyWelcomeEmailText() {
+  const text = document.getElementById('welcome-email-body').value;
+  navigator.clipboard.writeText(text)
+    .then(() => showToast('Email text copied — paste it into your email client.'))
+    .catch(() => showToast('Could not copy — check browser permissions.', true));
+}
+
+function openWelcomeEmailInMailApp() {
+  const modal = document.getElementById('welcome-email-modal');
+  const subject = encodeURIComponent(modal.dataset.subject || '');
+  const body = encodeURIComponent(document.getElementById('welcome-email-body').value);
+  window.location.href = `mailto:${modal.dataset.emails || ''}?subject=${subject}&body=${body}`;
 }
 
 function copyTeamEmails() {
@@ -3069,11 +3206,11 @@ function renderTeamPanel() {
   sumHtml += '</div>';
   html += sumHtml;
 
-  // Show "Email My Team" button for captains viewing their own team after draft completes
+  // Show captain action buttons for captains viewing their own team after draft completes
   if (IS_CAPTAIN && teamViewPk === CAPTAIN_TEAM_PK && state.state === 'complete') {
     html += `<div style="padding:10px 0 4px;display:flex;gap:6px;">
-      <button class="btn btn-primary" onclick="emailMyTeam()" style="flex:1;font-size:0.85rem;padding:7px 12px;">
-        &#9993; Email My Team
+      <button class="btn btn-primary" onclick="openWelcomeEmailModal()" style="flex:1;font-size:0.85rem;padding:7px 12px;">
+        &#9993; Welcome Email
       </button>
       <button class="btn btn-outline-secondary" onclick="copyTeamEmails()" style="flex:1;font-size:0.85rem;padding:7px 12px;">
         &#128203; Copy Emails
