@@ -1738,9 +1738,10 @@ def set_captain_rounds(request, session_pk, token):
 
 def email_team_data(request, session_pk, token):
     """
-    Return the captain's team roster with player emails so the client can
-    build a mailto: link.  Only accessible via the captain's private token.
-    Draft must be complete.
+    Return the captain's team roster with player emails and position info
+    so the client can build a mailto: link or a welcome-email template.
+    Only accessible via the captain's private token. Draft must be
+    complete.
     """
     captain_team = get_object_or_404(
         DraftTeam, session_id=session_pk, captain_token=token
@@ -1760,11 +1761,15 @@ def email_team_data(request, session_pk, token):
     roster = []
     for pick in picks:
         s = pick.signup
+        has_secondary = s.secondary_position != s.POSITION_ONE_THING
         roster.append(
             {
                 "full_name": s.full_name,
                 "email": s.email,
-                "primary_position": s.primary_position,
+                "primary_position": s.get_primary_position_display(),
+                "secondary_position": (
+                    s.get_secondary_position_display() if has_secondary else None
+                ),
                 "is_captain": s.pk == captain_team.captain_id,
             }
         )
