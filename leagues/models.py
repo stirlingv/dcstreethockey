@@ -180,9 +180,26 @@ class PendingTeamPhoto(models.Model):
 
 
 class Team(models.Model):
+    # Every option here must have a matching
+    # static/img/emojis/<lowercase>_jersey.png file — the schedule and
+    # matchup pages build that filename directly from this value.
+    TEAM_COLOR_CHOICES = (
+        ("Black", "Black"),
+        ("Blue", "Blue"),
+        ("Green", "Green"),
+        ("Grey", "Grey"),
+        ("Maroon", "Maroon"),
+        ("Orange", "Orange"),
+        ("Pink", "Pink"),
+        ("Purple", "Purple"),
+        ("Red", "Red"),
+        ("Teal", "Teal"),
+        ("White", "White"),
+        ("Yellow", "Yellow"),
+    )
     CONFERENCE_TYPE = ((1, "East"), (2, "West"), (3, "A League"), (4, "B League"))
     team_name = models.CharField(db_index=True, max_length=55)
-    team_color = models.CharField(max_length=30)
+    team_color = models.CharField(max_length=30, choices=TEAM_COLOR_CHOICES)
     division = models.ForeignKey(Division, null=True, on_delete=models.PROTECT)
     season = models.ForeignKey(Season, null=True, on_delete=models.PROTECT)
     conference = models.PositiveIntegerField(

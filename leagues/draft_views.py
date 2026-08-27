@@ -1495,7 +1495,7 @@ def finalize_draft(request, session_pk, token):
                     team_name=draft_team.team_name,
                     season=session.season,
                     division=wed_division,
-                    team_color="#8b1a1a",
+                    team_color="Maroon",
                     is_active=True,
                     team_photo=None,
                 )
