@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roster Details – {{ captain_team.team_name }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1a1a;
+      color: #e5e5e5;
+      min-height: 100vh;
+      padding: 32px 16px;
+      font-size: 15px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    header p {
+      color: #9ca3af;
+      font-size: 0.95rem;
+    }
+
+    .instructions {
+      background: #2d2d2d;
+      border: 1px solid #3f3f3f;
+      border-left: 4px solid #8b1a1a;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+      color: #d1d5db;
+      line-height: 1.5;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      border: 1px solid #3f3f3f;
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 640px;
+      border-collapse: collapse;
+      background: #2d2d2d;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 0.92rem;
+      border-bottom: 1px solid #3f3f3f;
+      vertical-align: top;
+    }
+
+    th {
+      color: #9ca3af;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      background: #242424;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .player-name {
+      color: #fff;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .captain-badge {
+      display: inline-block;
+      background: #8b1a1a;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    .contact-link {
+      color: #79aec8;
+      text-decoration: none;
+      word-break: break-word;
+    }
+
+    .contact-link:hover {
+      text-decoration: underline;
+    }
+
+    .muted {
+      color: #6b7280;
+    }
+
+    .no-roster {
+      text-align: center;
+      color: #6b7280;
+      padding: 48px 0;
+      font-size: 0.95rem;
+      background: #2d2d2d;
+      border: 1px solid #3f3f3f;
+      border-radius: 8px;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 0.85rem;
+    }
+
+    .back-link a {
+      color: #79aec8;
+      text-decoration: none;
+    }
+
+    .back-link a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 767px) {
+      body { padding: 20px 10px; }
+      header h1 { font-size: 1.3rem; }
+      th, td { padding: 10px; font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>{{ captain_team.team_name }}</h1>
+      <p>{{ session.season }} &mdash; Roster Contact Details</p>
+    </header>
+
+    <div class="instructions">
+      Contact info and t-shirt sizes for everyone on your team. This page stays
+      live for the season, so bookmark it instead of copying the info elsewhere.
+    </div>
+
+    {% if roster %}
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Position</th>
+            <th>Email</th>
+            <th>Cell Phone</th>
+            <th>T-Shirt Size</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in roster %}
+          <tr>
+            <td class="player-name">
+              {{ entry.signup.full_name }}
+              {% if entry.is_captain %}<span class="captain-badge">C</span>{% endif %}
+            </td>
+            <td>{{ entry.signup.get_primary_position_display }}</td>
+            <td>
+              <a class="contact-link" href="mailto:{{ entry.signup.email }}">{{ entry.signup.email }}</a>
+            </td>
+            <td>
+              {% if entry.signup.cell_phone %}
+                <a class="contact-link" href="tel:{{ entry.signup.cell_phone }}">{{ entry.signup.cell_phone }}</a>
+              {% else %}
+                <span class="muted">&mdash;</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.signup.tshirt_size %}
+                {{ entry.signup.get_tshirt_size_display }}
+              {% else %}
+                <span class="muted">&mdash;</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.signup.notes %}
+                {{ entry.signup.notes }}
+              {% else %}
+                <span class="muted">&mdash;</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="no-roster">
+      No players drafted yet &mdash; check back once your team has picks.
+    </div>
+    {% endif %}
+
+    <div class="back-link">
+      <a href="/draft/{{ session.pk }}/captain/{{ captain_team.captain_token }}/">Back to my draft board</a>
+    </div>
+  </div>
+</body>
+</html>
