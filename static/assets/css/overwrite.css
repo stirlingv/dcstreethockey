@@ -1226,6 +1226,22 @@ div div#content .matchupheader{
     display: block;
 }
 
+/* On narrow screens the info icon sits near the right edge of the card, so a
+   tooltip anchored on its left edge (left: 0) grows off the right side of the
+   viewport and gets clipped. Anchor to the button's right edge instead so it
+   grows leftward, staying on screen. */
+@media (max-width: 767px) {
+    .play-forecast-info-tooltip {
+        left: auto;
+        right: 0;
+    }
+
+    .play-forecast-info-tooltip::before {
+        left: auto;
+        right: 14px;
+    }
+}
+
 /* ===== Schedule Page Inline Weather ===== */
 .sched-weather-inline {
     margin: -2px 0 10px 0;
