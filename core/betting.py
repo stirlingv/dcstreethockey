@@ -18,6 +18,22 @@ Algorithm overview:
   6. Spread = expected goal differential rounded to the nearest 0.5.
   7. Total = sum of both sides' expected goals rounded to the nearest 0.5.
 
+Pre-season fallback (no games played yet this season):
+  A team with zero recorded games in its current-season Team_Stat row has no
+  season goals-for/against to build on, so the season-stats path above is
+  unavailable.  Instead, offense is projected by summing each non-goalie
+  roster player's career scoring rate (the same recency-weighted,
+  division-blended rate computed for player props), and defense is
+  projected from the team's primary goalie's career GAA (falling back to
+  FALLBACK_GA_NO_DATA if the goalie also has no career games recorded).
+  This only ever substitutes for missing season data — once a team has
+  played at least one game this season, its real Team_Stat numbers are
+  used exclusively, as before. A matchup where either side used this
+  fallback is flagged "projected": True in its result dict, since it's a
+  rougher estimate than a line built from actual season results.  A team
+  with no data of either kind (no season games AND no player career
+  history) still produces no line.
+
 All output is FOR ENTERTAINMENT PURPOSES ONLY.
 """
 
@@ -38,6 +54,13 @@ FORM_WEIGHT = 0.4  # recent-form share of offensive estimate (vs season avg)
 GOALIE_ADJ_WEIGHT = 0.5  # dampening on goalie GAA vs team-average adjustment
 GOALIE_SUB_PENALTY = 1.5  # extra expected goals against when status is "Sub Needed"
 LOGISTIC_SCALE = 0.7  # steepness of the win-probability sigmoid
+
+# Last-resort team defense estimate for the pre-season fallback, used only
+# when a team has zero games this season AND its goalie has zero career
+# games recorded (so there is no data-driven GA estimate of any kind).
+# Roughly the middle of the division goal-rate priors below (a team of
+# ~8-9 non-goalie players at the ~0.3 league-average GPG scale).
+FALLBACK_GA_NO_DATA = 3.0
 
 # Minimum probability used for the regulation-draw outcome in the 3-way line.
 # Ensures the draw market is always shown even when teams have no recorded OT
@@ -187,6 +210,159 @@ def fmt_spread(value: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Shared helpers — team/division info & career scoring rates
+#
+# Used by both compute_betting_lines_for_matchups (for the pre-season
+# fallback) and compute_player_props_for_matchups.
+# ---------------------------------------------------------------------------
+
+
+def _build_team_info(team_ids) -> dict:
+    """
+    Division + name info per team.  Division.division (the integer 1-5) is
+    stored rather than the FK PK so that comparisons against _DRAFT_DIVISION
+    and the division-prior dicts are unambiguous regardless of the
+    auto-assigned PK order.
+    """
+    return {
+        t.id: {
+            "name": t.team_name,
+            "division": t.division.division if t.division else None,
+        }
+        for t in Team.objects.filter(id__in=team_ids)
+        .select_related("division")
+        .only("id", "team_name", "division", "division__division")
+    }
+
+
+def _compute_career_data(
+    all_player_ids: list, team_info: dict, target_divisions: set
+) -> dict:
+    """
+    Recency-weighted, division-blended career scoring rate for each player.
+
+    Groups every Stat row by (player, team, season) to get per-season goal
+    and point totals.  Seasons are then weighted exponentially by recency
+    (most recent = 1.0, prior season = PROP_SEASON_DECAY, two seasons ago =
+    PROP_SEASON_DECAY^2, etc.) so that a player's recent productivity counts
+    more than their output from three seasons ago.
+
+    The effective career rate is blended toward the league-average baseline
+    (per-division PROP_PRIOR_GOAL_RATE / PROP_PRIOR_ASSIST_RATE) using
+    CAREER_PRIOR_WEIGHT phantom games, so players with thin histories stay
+    close to the mean.
+
+    Multi-point games (≥2 goals+assists in one game) signal elite upside that
+    isn't fully captured by averages alone; they apply a small multiplier.
+
+    Computed once per unique target division, since seasons played in a
+    different division than the target are weighted at
+    PROP_CROSS_DIVISION_DECAY of their normal recency weight, and the
+    league-average anchor itself shifts per division.
+
+    Returns {(player_id, division): (career_gpg, career_apg, prior_strength)}.
+    Players with no Stat history at all are omitted.
+    """
+    career_season_rows = list(
+        Stat.objects.filter(player_id__in=all_player_ids)
+        .values(
+            "player_id",
+            "team_id",
+            "team__season__year",
+            "team__season__season_type",
+            "team__division__division",  # integer 1–5; used for cross-division decay
+        )
+        .annotate(
+            season_goals=Sum("goals"),
+            season_assists=Sum("assists"),
+            season_stat_games=Count("matchup_id", distinct=True),
+            season_multi_pt=Count(
+                "matchup_id",
+                distinct=True,
+                filter=(
+                    Q(goals__gte=2)
+                    | Q(assists__gte=2)
+                    | Q(goals__gte=1, assists__gte=1)
+                ),
+            ),
+        )
+        .order_by(
+            "player_id",
+            "-team__season__year",
+            "-team__season__season_type",
+        )
+    )
+
+    # Team season game counts for all historical teams (reliable denominator).
+    _career_team_ids = {row["team_id"] for row in career_season_rows}
+    _career_team_games: dict[int, int] = {}
+    for ts in Team_Stat.objects.filter(team_id__in=_career_team_ids):
+        g = ts.win + ts.otw + ts.loss + ts.otl + ts.tie
+        if g > 0:
+            _career_team_games[ts.team_id] = g
+
+    # Group seasons by player (query is already ordered by player_id).
+    _player_seasons: dict[int, list] = defaultdict(list)
+    for row in career_season_rows:
+        _player_seasons[row["player_id"]].append(row)
+
+    career_data: dict = {}
+    for target_div in target_divisions:
+        prior_goal = _DIVISION_PRIOR_GOAL_RATE.get(target_div, PROP_PRIOR_GOAL_RATE)
+        prior_assist = _DIVISION_PRIOR_ASSIST_RATE.get(
+            target_div, PROP_PRIOR_ASSIST_RATE
+        )
+
+        for pid, seasons in _player_seasons.items():
+            # seasons ordered most-recent-first by the query above
+            eff_goals = eff_assists = eff_games = eff_multi = 0.0
+            total_stat_games = 0
+
+            for i, s in enumerate(seasons):
+                # Prefer Team_Stat game count; fall back to player's own stat-game
+                # count if the historical team has no Team_Stat row.
+                team_games = _career_team_games.get(
+                    s["team_id"], s["season_stat_games"] or 0
+                )
+                if team_games == 0:
+                    continue
+                w = PROP_SEASON_DECAY**i
+                # Seasons from a different division get a cross-division discount.
+                if s["team__division__division"] != target_div:
+                    w *= PROP_CROSS_DIVISION_DECAY
+                eff_goals += w * (s["season_goals"] or 0)
+                eff_assists += w * (s["season_assists"] or 0)
+                eff_games += w * team_games
+                eff_multi += w * (s["season_multi_pt"] or 0)
+                total_stat_games += s["season_stat_games"] or 0
+
+            if eff_games == 0:
+                continue
+
+            # Bayesian blend of recency-weighted career rates toward league average.
+            career_gpg = (eff_goals + CAREER_PRIOR_WEIGHT * prior_goal) / (
+                eff_games + CAREER_PRIOR_WEIGHT
+            )
+            career_apg = (eff_assists + CAREER_PRIOR_WEIGHT * prior_assist) / (
+                eff_games + CAREER_PRIOR_WEIGHT
+            )
+
+            # Multi-point quality boost: players who regularly record 2+ stats/game
+            # get a modest upward nudge, reflecting elite scoring upside.
+            multi_rate = eff_multi / eff_games
+            quality_mult = 1.0 + multi_rate * PROP_MULTI_POINT_BOOST
+            career_gpg *= quality_mult
+            career_apg *= quality_mult
+
+            prior_strength = max(
+                PROP_PRIOR_GAMES, min(total_stat_games, PROP_CAREER_PRIOR_MAX_GAMES)
+            )
+            career_data[(pid, target_div)] = (career_gpg, career_apg, prior_strength)
+
+    return career_data
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -204,7 +380,12 @@ def compute_betting_lines_for_matchups(matchup_ids: list) -> dict:
             "home_ml":          "-150",
             "vig":              "-110",
             "home_is_favorite": True,
+            "projected":        False,
         }
+
+    "projected" is True when either side's offense/defense came from the
+    pre-season fallback (no games recorded yet this season) rather than
+    actual season results — see the module docstring.
     """
     if not matchup_ids:
         return {}
@@ -222,6 +403,8 @@ def compute_betting_lines_for_matchups(matchup_ids: list) -> dict:
     for m in matchups:
         team_ids.add(m.hometeam_id)
         team_ids.add(m.awayteam_id)
+
+    team_info = _build_team_info(team_ids)
 
     # ── 1. Team season stats (one query) ────────────────────────────────────
     # Team_Stat has one row per (team, season, division). Pick the most recent
@@ -245,6 +428,12 @@ def compute_betting_lines_for_matchups(matchup_ids: list) -> dict:
         if r.position1 == 4:  # Goalie position
             goalie_ids_by_team[r.team_id].append(r.player_id)
         all_player_ids.append(r.player_id)
+
+    # ── 2b. Career scoring rates — only needed for the pre-season fallback,
+    # but cheap to compute unconditionally (a handful of queries, same cost
+    # already paid by compute_player_props_for_matchups for these matchups).
+    target_divisions = {team_info[tid]["division"] for tid in team_ids}
+    career_data = _compute_career_data(all_player_ids, team_info, target_divisions)
 
     # ── 3. Recent player stats (one query) ───────────────────────────────────
     # Fetch all historical stat rows for these players on these teams, newest
@@ -289,14 +478,50 @@ def compute_betting_lines_for_matchups(matchup_ids: list) -> dict:
             return None
         return goalie_ga[player_id] / games
 
+    # ── Helper: pre-season fallback when a team has zero games this season ────
+    # Offense is projected from the roster's career scoring rates (the same
+    # per-player rates computed for player props); defense is projected from
+    # the primary goalie's career GAA, falling back to FALLBACK_GA_NO_DATA if
+    # even that is unknown (a brand-new goalie with no recorded games).
+    # Returns None if there is no usable data of any kind (no games this
+    # season AND no career history for any rostered player).
+    def _team_metrics_projected(team_id: int):
+        division = team_info.get(team_id, {}).get("division")
+        goalie_ids = set(goalie_ids_by_team[team_id])
+
+        projected_gf = 0.0
+        contributors = 0
+        for pid in rosters_by_team[team_id]:
+            if pid in goalie_ids:
+                continue
+            career = career_data.get((pid, division))
+            if career is None:
+                continue
+            career_gpg, _career_apg, _prior_strength = career
+            projected_gf += career_gpg
+            contributors += 1
+
+        if contributors == 0:
+            return None
+
+        gids = goalie_ids_by_team.get(team_id, [])
+        primary_gid = gids[0] if gids else None
+        gaa = _goalie_gaa(primary_gid) if primary_gid is not None else None
+        projected_ga = gaa if gaa is not None else FALLBACK_GA_NO_DATA
+
+        return {
+            "gf": projected_gf,
+            "ga": projected_ga,
+            "games": 0,
+            "projected": True,
+        }
+
     # ── Helper: blended team offensive estimate ───────────────────────────────
     def _team_metrics(team_id: int):
         ts = team_stats.get(team_id)
-        if ts is None:
-            return None
-        games = ts.win + ts.otw + ts.loss + ts.otl + ts.tie
+        games = ts.win + ts.otw + ts.loss + ts.otl + ts.tie if ts else 0
         if games == 0:
-            return None
+            return _team_metrics_projected(team_id)
 
         season_gf_pg = ts.goals_for / games
         season_ga_pg = ts.goals_against / games
@@ -323,6 +548,7 @@ def compute_betting_lines_for_matchups(matchup_ids: list) -> dict:
             "gf": blended_gf,
             "ga": season_ga_pg,
             "games": games,
+            "projected": False,
         }
 
     # ── Helper: apply goalie adjustment to expected goals against ─────────────
@@ -412,16 +638,19 @@ def compute_betting_lines_for_matchups(matchup_ids: list) -> dict:
         # → P(home reg win) = home_win_prob − p_d / 2
         # → P(away reg win) = (1 − home_win_prob) − p_d / 2
         # After clamping negatives, the three values are renormalized to 1.
+        # home_m["games"]/away_m["games"] are 0 for a projected (fallback)
+        # team — there's no season OT history to draw from, so the draw
+        # probability floor (THREEWAY_MIN_DRAW_PROB) applies instead.
         home_ts = team_stats.get(matchup.hometeam_id)
         away_ts = team_stats.get(matchup.awayteam_id)
         home_ot_rate = (
             (home_ts.otw + home_ts.otl + home_ts.tie) / home_m["games"]
-            if home_ts
+            if home_ts and home_m["games"]
             else 0.0
         )
         away_ot_rate = (
             (away_ts.otw + away_ts.otl + away_ts.tie) / away_m["games"]
-            if away_ts
+            if away_ts and away_m["games"]
             else 0.0
         )
         p_d = max(THREEWAY_MIN_DRAW_PROB, (home_ot_rate + away_ot_rate) / 2)
@@ -444,6 +673,7 @@ def compute_betting_lines_for_matchups(matchup_ids: list) -> dict:
             "home_3way": fmt_american(win_prob_to_american(p_home_3)),
             "away_3way": fmt_american(win_prob_to_american(p_away_3)),
             "draw_3way": fmt_american(win_prob_to_american(p_d)),
+            "projected": home_m["projected"] or away_m["projected"],
         }
 
     return results
@@ -553,18 +783,7 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
             team_stats[ts.team_id] = ts
 
     # ── 3a. Team division + name info ────────────────────────────────────────
-    # Store Division.division (the integer 1–5) rather than the FK PK so that
-    # comparisons against _DRAFT_DIVISION and the division-prior dicts are
-    # unambiguous regardless of the auto-assigned PK order.
-    team_info = {
-        t.id: {
-            "name": t.team_name,
-            "division": t.division.division if t.division else None,
-        }
-        for t in Team.objects.filter(id__in=team_ids)
-        .select_related("division")
-        .only("id", "team_name", "division", "division__division")
-    }
+    team_info = _build_team_info(team_ids)
 
     # ── 3b. Build a PROP_HISTORY_GAMES game window per (player, current_team).
     #
@@ -695,126 +914,15 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
             player_assist_totals[key] += row["assists"] or 0
 
     # ── 3d. Career prior: per-season production, recency-weighted ────────────
-    #
-    # Groups every Stat row by (player, team, season) to get per-season goal
-    # and point totals.  Seasons are then weighted exponentially by recency
-    # (most recent = 1.0, prior season = PROP_SEASON_DECAY, two seasons ago =
-    # PROP_SEASON_DECAY^2, etc.) so that a player's recent productivity counts
-    # more than their output from three seasons ago.
-    #
-    # The effective career rate is blended toward the league-average baseline
-    # (PROP_PRIOR_GOAL_RATE / PROP_PRIOR_POINT_RATE) using CAREER_PRIOR_WEIGHT
-    # phantom games, so players with thin histories stay close to the mean.
-    #
-    # Multi-point games (≥2 goals+assists in one game) signal elite upside that
-    # isn't fully captured by averages alone; they apply a small multiplier.
-    #
-    # career_data[pid] = (career_gpg, career_ppp, prior_strength)
-    career_season_rows = list(
-        Stat.objects.filter(player_id__in=all_player_ids)
-        .values(
-            "player_id",
-            "team_id",
-            "team__season__year",
-            "team__season__season_type",
-            "team__division__division",  # integer 1–5; used for cross-division decay
-        )
-        .annotate(
-            season_goals=Sum("goals"),
-            season_assists=Sum("assists"),
-            season_stat_games=Count("matchup_id", distinct=True),
-            season_multi_pt=Count(
-                "matchup_id",
-                distinct=True,
-                filter=(
-                    Q(goals__gte=2)
-                    | Q(assists__gte=2)
-                    | Q(goals__gte=1, assists__gte=1)
-                ),
-            ),
-        )
-        .order_by(
-            "player_id",
-            "-team__season__year",
-            "-team__season__season_type",
-        )
-    )
-
-    # Team season game counts for all historical teams (reliable denominator).
-    _career_team_ids = {row["team_id"] for row in career_season_rows}
-    _career_team_games: dict[int, int] = {}
-    for ts in Team_Stat.objects.filter(team_id__in=_career_team_ids):
-        g = ts.win + ts.otw + ts.loss + ts.otl + ts.tie
-        if g > 0:
-            _career_team_games[ts.team_id] = g
-
-    # Group seasons by player (query is already ordered by player_id).
-    _player_seasons: dict[int, list] = defaultdict(list)
-    for row in career_season_rows:
-        _player_seasons[row["player_id"]].append(row)
-
-    # career_data[(pid, division)] = (career_gpg, career_apg, prior_strength)
-    #
     # Computed once per unique target division in the matchup set.  For each
     # target division, seasons played in a different division are weighted at
     # PROP_CROSS_DIVISION_DECAY of their normal recency weight — so a player's
     # D2 history still informs their D1 estimate, but at half the weight.  The
     # league-average prior also shifts per-division so that the regression-to-
     # mean anchor reflects typical scoring rates for that tier of competition.
+    # See _compute_career_data for the full algorithm.
     target_divisions = {team_info[m.hometeam_id]["division"] for m in matchups}
-
-    career_data: dict[tuple, tuple] = {}
-    for target_div in target_divisions:
-        prior_goal = _DIVISION_PRIOR_GOAL_RATE.get(target_div, PROP_PRIOR_GOAL_RATE)
-        prior_assist = _DIVISION_PRIOR_ASSIST_RATE.get(
-            target_div, PROP_PRIOR_ASSIST_RATE
-        )
-
-        for pid, seasons in _player_seasons.items():
-            # seasons ordered most-recent-first by the query above
-            eff_goals = eff_assists = eff_games = eff_multi = 0.0
-            total_stat_games = 0
-
-            for i, s in enumerate(seasons):
-                # Prefer Team_Stat game count; fall back to player's own stat-game
-                # count if the historical team has no Team_Stat row.
-                team_games = _career_team_games.get(
-                    s["team_id"], s["season_stat_games"] or 0
-                )
-                if team_games == 0:
-                    continue
-                w = PROP_SEASON_DECAY**i
-                # Seasons from a different division get a cross-division discount.
-                if s["team__division__division"] != target_div:
-                    w *= PROP_CROSS_DIVISION_DECAY
-                eff_goals += w * (s["season_goals"] or 0)
-                eff_assists += w * (s["season_assists"] or 0)
-                eff_games += w * team_games
-                eff_multi += w * (s["season_multi_pt"] or 0)
-                total_stat_games += s["season_stat_games"] or 0
-
-            if eff_games == 0:
-                continue
-
-            # Bayesian blend of recency-weighted career rates toward league average.
-            career_gpg = (eff_goals + CAREER_PRIOR_WEIGHT * prior_goal) / (
-                eff_games + CAREER_PRIOR_WEIGHT
-            )
-            career_apg = (eff_assists + CAREER_PRIOR_WEIGHT * prior_assist) / (
-                eff_games + CAREER_PRIOR_WEIGHT
-            )
-
-            # Multi-point quality boost: players who regularly record 2+ stats/game
-            # get a modest upward nudge, reflecting elite scoring upside.
-            multi_rate = eff_multi / eff_games
-            quality_mult = 1.0 + multi_rate * PROP_MULTI_POINT_BOOST
-            career_gpg *= quality_mult
-            career_apg *= quality_mult
-
-            prior_strength = max(
-                PROP_PRIOR_GAMES, min(total_stat_games, PROP_CAREER_PRIOR_MAX_GAMES)
-            )
-            career_data[(pid, target_div)] = (career_gpg, career_apg, prior_strength)
+    career_data = _compute_career_data(all_player_ids, team_info, target_divisions)
 
     # ── 4. Goalie career stats for GAA (one query) ───────────────────────────
     all_goalie_ids = [gid for gids in goalie_ids_by_team.values() for gid in gids]
