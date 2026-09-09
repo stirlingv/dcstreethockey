@@ -57,6 +57,9 @@
                     {% endif %}
                     {% if lines %}
                     <div class="betting-lines" id="bl-panel-{{ match.id }}" hidden>
+                        {% if lines.projected %}
+                        <div class="bl-projected-note">Projected from player history — no games played yet this season</div>
+                        {% endif %}
                         <div class="bl-grid bl-header-row">
                             <span class="bl-team-col"></span>
                             <span class="bl-col-label">SPREAD</span>

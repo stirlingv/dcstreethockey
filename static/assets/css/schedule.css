@@ -75,6 +75,17 @@
     border: 1px solid #2a2e3a;
 }
 
+.bl-projected-note {
+    font-size: 11px;
+    font-weight: 600;
+    color: #d1d5db;
+    background: #2a2e3a;
+    border-radius: 4px;
+    padding: 5px 8px;
+    margin-bottom: 6px;
+    text-align: center;
+}
+
 .bl-grid {
     display: grid;
     grid-template-columns: 130px 1fr 1fr 1fr;

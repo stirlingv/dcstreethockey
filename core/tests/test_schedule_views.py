@@ -905,6 +905,285 @@ class PlayerRecentFormTest(BettingLinesBase):
 
 
 # ---------------------------------------------------------------------------
+# Pre-season fallback — compute_betting_lines_for_matchups with zero games
+# ---------------------------------------------------------------------------
+
+
+class PreSeasonFallbackBase(TestCase):
+    """
+    Two brand-new current-season teams (zero games recorded) whose rostered
+    players carry career scoring history from a prior season.  Models the
+    Wednesday Draft League at the start of a new draft season: new team
+    rows, but returning players with a scoring track record.
+    """
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.prior_season = Season.objects.create(
+            year=2024, season_type=1, is_current_season=False
+        )
+        self.division = Division.objects.create(division=3)  # Wednesday Draft
+
+        # Prior-season teams establish the players' career scoring rates.
+        self.prior_home_team = Team.objects.create(
+            team_name="Prior Home",
+            team_color="Red",
+            division=self.division,
+            season=self.prior_season,
+            is_active=False,
+        )
+        self.prior_away_team = Team.objects.create(
+            team_name="Prior Away",
+            team_color="Blue",
+            division=self.division,
+            season=self.prior_season,
+            is_active=False,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.prior_season,
+            team=self.prior_home_team,
+            win=6,
+            loss=4,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=40,
+            goals_against=30,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.prior_season,
+            team=self.prior_away_team,
+            win=4,
+            loss=6,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=30,
+            goals_against=40,
+        )
+
+        # This season's freshly-drafted teams — zero games played yet, so
+        # they have NO Team_Stat row at all for the current season.
+        self.home_team = Team.objects.create(
+            team_name="New Home",
+            team_color="Green",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.away_team = Team.objects.create(
+            team_name="New Away",
+            team_color="Yellow",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+
+        future_date = datetime.date.today() + datetime.timedelta(days=3)
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=future_date
+        )
+        self.matchup = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(19, 0),
+            hometeam=self.home_team,
+            awayteam=self.away_team,
+        )
+
+        # Returning players with a prior-season scoring record.
+        self.home_player = Player.objects.create(first_name="Home", last_name="Scorer")
+        self.away_player = Player.objects.create(first_name="Away", last_name="Scorer")
+
+        Roster.objects.create(
+            player=self.home_player, team=self.prior_home_team, position1=1
+        )
+        Roster.objects.create(
+            player=self.away_player, team=self.prior_away_team, position1=1
+        )
+        past_week = Week.objects.create(
+            division=self.division,
+            season=self.prior_season,
+            date=datetime.date.today() - datetime.timedelta(days=200),
+        )
+        past_matchup = MatchUp.objects.create(
+            week=past_week,
+            time=datetime.time(19, 0),
+            hometeam=self.prior_home_team,
+            awayteam=self.prior_away_team,
+        )
+        Stat.objects.create(
+            player=self.home_player,
+            team=self.prior_home_team,
+            matchup=past_matchup,
+            goals=3,
+            assists=1,
+        )
+        Stat.objects.create(
+            player=self.away_player,
+            team=self.prior_away_team,
+            matchup=past_matchup,
+            goals=0,
+            assists=0,
+        )
+
+        # This season's roster (the new draft teams the players landed on).
+        Roster.objects.create(player=self.home_player, team=self.home_team, position1=1)
+        Roster.objects.create(player=self.away_player, team=self.away_team, position1=1)
+
+
+class PreSeasonFallbackTest(PreSeasonFallbackBase):
+    def test_returns_a_line_instead_of_none(self):
+        # Neither team has a current-season Team_Stat row, but both rosters
+        # have career history — the fallback should still produce a line.
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertIsNotNone(result[self.matchup.id])
+
+    def test_flagged_as_projected(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertTrue(result[self.matchup.id]["projected"])
+
+    def test_projected_line_has_required_keys(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        lines = result[self.matchup.id]
+        for key in (
+            "home_spread",
+            "away_spread",
+            "total",
+            "home_ml",
+            "away_ml",
+            "vig",
+            "home_is_favorite",
+            "home_3way",
+            "away_3way",
+            "draw_3way",
+        ):
+            self.assertIn(key, lines, msg=f"Missing key: {key}")
+
+    def test_total_is_positive(self):
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertGreater(float(result[self.matchup.id]["total"]), 0)
+
+    def test_higher_career_scorer_is_favored(self):
+        # Home player has a stronger career record (3 goals) than away
+        # player (0 goals) in the fixture, so home should be favored.
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertTrue(result[self.matchup.id]["home_is_favorite"])
+
+    def test_does_not_crash_3way_line_with_zero_season_games(self):
+        # Regression: home_m["games"]/away_m["games"] are 0 in fallback mode;
+        # the OT-rate division must not raise ZeroDivisionError.
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertIsNotNone(result[self.matchup.id]["draw_3way"])
+
+    def test_real_season_stats_are_not_flagged_projected(self):
+        # Once a team has played its first game this season, the real
+        # Team_Stat path is used and the line is not flagged as projected.
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.home_team,
+            win=1,
+            loss=0,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=5,
+            goals_against=3,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=self.season,
+            team=self.away_team,
+            win=0,
+            loss=1,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=3,
+            goals_against=5,
+        )
+        result = compute_betting_lines_for_matchups([self.matchup.id])
+        self.assertFalse(result[self.matchup.id]["projected"])
+
+    def test_no_career_history_and_no_season_games_returns_none(self):
+        # A team with neither season games nor any rostered player's career
+        # history has no usable data of any kind — still None, not a line
+        # built from nothing.
+        no_data_home = Team.objects.create(
+            team_name="Blank Home",
+            team_color="Purple",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        no_data_away = Team.objects.create(
+            team_name="Blank Away",
+            team_color="Teal",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        week2 = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date.today() + datetime.timedelta(days=4),
+        )
+        matchup2 = MatchUp.objects.create(
+            week=week2,
+            time=datetime.time(20, 0),
+            hometeam=no_data_home,
+            awayteam=no_data_away,
+        )
+        result = compute_betting_lines_for_matchups([matchup2.id])
+        self.assertIsNone(result[matchup2.id])
+
+
+class PreSeasonFallbackGoalieTest(PreSeasonFallbackBase):
+    """A rostered goalie's career GAA should be used ahead of the flat
+    FALLBACK_GA_NO_DATA constant when projecting a fallback team's defense."""
+
+    def test_known_goalie_gaa_changes_total_from_flat_fallback(self):
+        # Baseline: neither team has a goalie, so both sides' defense
+        # defaults to the flat FALLBACK_GA_NO_DATA constant.
+        baseline = compute_betting_lines_for_matchups([self.matchup.id])
+        baseline_total = float(baseline[self.matchup.id]["total"])
+
+        # Give the home team a goalie with a strong (low) career GAA from a
+        # prior season, well below FALLBACK_GA_NO_DATA.
+        goalie = Player.objects.create(first_name="Elite", last_name="Goalie")
+        Roster.objects.create(player=goalie, team=self.prior_home_team, position1=4)
+        past_week2 = Week.objects.create(
+            division=self.division,
+            season=self.prior_season,
+            date=datetime.date.today() - datetime.timedelta(days=190),
+        )
+        past_matchup2 = MatchUp.objects.create(
+            week=past_week2,
+            time=datetime.time(19, 0),
+            hometeam=self.prior_home_team,
+            awayteam=self.prior_away_team,
+        )
+        Stat.objects.create(
+            player=goalie,
+            team=self.prior_home_team,
+            matchup=past_matchup2,
+            goals_against=1,
+        )
+        Roster.objects.create(player=goalie, team=self.home_team, position1=4)
+
+        adjusted = compute_betting_lines_for_matchups([self.matchup.id])
+        adjusted_total = float(adjusted[self.matchup.id]["total"])
+
+        # A career-elite goalie (1.0 GAA) should suppress the away team's
+        # expected goals relative to the flat 3.0 fallback, lowering the total.
+        self.assertLess(adjusted_total, baseline_total)
+
+
+# ---------------------------------------------------------------------------
 # Schedule view — betting_lines in context
 # ---------------------------------------------------------------------------
 
@@ -993,6 +1272,86 @@ class ScheduleViewBettingLinesTest(TestCase):
         self.assertContains(response, "TOTAL")
         self.assertContains(response, "MONEYLINE")
         self.assertContains(response, "For entertainment purposes only")
+
+    def test_projected_note_rendered_when_fallback_used(self):
+        # No current-season Team_Stat rows, but a rostered player carries
+        # career history from a prior season — the fallback should kick in
+        # and the template should surface the "projected" disclosure.
+        prior_season = Season.objects.create(
+            year=2024, season_type=1, is_current_season=False
+        )
+        prior_team = Team.objects.create(
+            team_name="Prior Schedule Home",
+            team_color="Grey",
+            division=self.division,
+            season=prior_season,
+            is_active=False,
+        )
+        opponent_prior_team = Team.objects.create(
+            team_name="Prior Schedule Away",
+            team_color="Orange",
+            division=self.division,
+            season=prior_season,
+            is_active=False,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=prior_season,
+            team=prior_team,
+            win=5,
+            loss=5,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=30,
+            goals_against=30,
+        )
+        Team_Stat.objects.create(
+            division=self.division,
+            season=prior_season,
+            team=opponent_prior_team,
+            win=5,
+            loss=5,
+            otw=0,
+            otl=0,
+            tie=0,
+            goals_for=30,
+            goals_against=30,
+        )
+        player = Player.objects.create(first_name="Returning", last_name="Player")
+        Roster.objects.create(player=player, team=prior_team, position1=1)
+        past_week = Week.objects.create(
+            division=self.division,
+            season=prior_season,
+            date=datetime.date.today() - datetime.timedelta(days=200),
+        )
+        past_matchup = MatchUp.objects.create(
+            week=past_week,
+            time=datetime.time(19, 0),
+            hometeam=prior_team,
+            awayteam=opponent_prior_team,
+        )
+        Stat.objects.create(
+            player=player, team=prior_team, matchup=past_matchup, goals=2, assists=1
+        )
+        Roster.objects.create(player=player, team=self.home_team, position1=1)
+
+        away_player = Player.objects.create(first_name="Visiting", last_name="Player")
+        Roster.objects.create(player=away_player, team=opponent_prior_team, position1=1)
+        Stat.objects.create(
+            player=away_player,
+            team=opponent_prior_team,
+            matchup=past_matchup,
+            goals=1,
+            assists=0,
+        )
+        Roster.objects.create(player=away_player, team=self.away_team, position1=1)
+
+        response = self.client.get(reverse("schedule"))
+        lines = response.context["betting_lines"].get(self.matchup.id)
+        self.assertIsNotNone(lines)
+        self.assertTrue(lines["projected"])
+        self.assertContains(response, "Projected from player history")
 
 
 # ---------------------------------------------------------------------------
