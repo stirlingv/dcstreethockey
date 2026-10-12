@@ -5,6 +5,9 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  schedule:
+    # Weekly, so a newly published advisory is caught even without a PR.
+    - cron: '0 13 * * 1'
 
 jobs:
   test:
@@ -34,14 +37,14 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
 
     - name: Set up environment variables
       run: |
@@ -68,5 +71,64 @@ jobs:
 
     - name: Run pre-commit hooks
       run: |
-        pip install pre-commit
         pre-commit run --all-files
+
+  production-smoke:
+    # Boot the site the way Render does and crawl every page, admin included.
+    # Installs production packages only, so a removed dependency that is still
+    # needed fails here instead of on the live site.
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smoke_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11 (matches Render)
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install production dependencies only
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run production smoke test
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/smoke_db
+      run: scripts/run_production_smoke.sh
+
+  dependency-audit:
+    # Audits every installed package, including sub-dependencies that
+    # requirements.txt doesn't pin (Dependabot only sees pinned ones).
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install production dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Audit for known vulnerabilities
+      run: |
+        SITE=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+        pipx run pip-audit --path "$SITE" --desc on

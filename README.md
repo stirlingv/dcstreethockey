@@ -112,7 +112,7 @@ The standings logic includes comprehensive tests for:
    cd dcstreethockey
    python3 -m venv venv
    source venv/bin/activate
-   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
    ```
 
 1. **Setup database:**

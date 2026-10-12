@@ -46,10 +46,35 @@ All tests must pass before committing. The pre-commit hook runs the full suite a
 | `leagues/models.py` validation | `leagues/tests.py` |
 | Draft league views & state machine | `leagues/test_draft.py` |
 | Project-level views | `dcstreethockey/tests.py` |
+| Every admin page and public URL (smoke sweep) | `dcstreethockey/test_smoke.py` |
+| `requirements.txt` hygiene and security floors | `dcstreethockey/test_dependencies.py` |
 
 ### PostgreSQL-specific queries in tests
 
 The test database is SQLite. If a view uses a PostgreSQL-only feature (e.g., `.distinct("field")`), mock that queryset in the test rather than calling it directly. See `core/tests/test_cancellation.py` for an example using `unittest.mock.patch`.
+
+### Smoke tests and new pages
+
+`dcstreethockey/test_smoke.py` opens every admin page and every public URL. It fails when a new admin model, custom admin URL, or public URL isn't covered, so when you add one:
+
+- New model registered in the admin? Add a row for it in `dcstreethockey/smoke_data.py`.
+- New public URL? Add its name to `PublicUrlSmokeTest.EXPECTED` with the statuses a GET should return.
+- New custom admin URL? Add it to `_custom_admin_urls` (safe to GET) or `STATE_CHANGING_ADMIN_URLS`.
+
+Views that change data must reject GET (`@require_POST`), so links, crawlers and chat-app link previews can't trigger them.
+
+### Production smoke test
+
+CI also boots the site with the production settings under uvicorn, against an empty Postgres database seeded by `manage.py seed_smoke_data`, and crawls every page including the admin. To run it locally:
+
+```bash
+createdb dcsh_smoke
+DATABASE_URL=postgres://dcstreethockey:dcstreethockey@localhost/dcsh_smoke \
+    scripts/run_production_smoke.sh
+dropdb dcsh_smoke
+```
+
+`scripts/smoke_crawl.py` can also crawl any running copy of the site, for example a local server on a copy of production data. Use `--snapshot-dir` to save each page's HTML for a before-and-after diff.
 
 ### Performance tests
 
@@ -60,6 +85,13 @@ The test database is SQLite. If a view uses a PostgreSQL-only feature (e.g., `.d
 3. Never raise a ceiling without understanding _why_ the count increased.
 
 ---
+
+## Dependencies
+
+- `requirements.txt` holds production packages only. Development and CI tools go in `requirements-dev.txt`, which includes it. Install locally with `pip install -r requirements-dev.txt`.
+- `dcstreethockey/test_dependencies.py` fails if a pin isn't needed, or if the code imports a package `requirements.txt` doesn't install. A package production needs but never imports directly belongs in `INDIRECT_RUNTIME_PINS` with the reason.
+- Never pin a package below its entry in `PATCHED_DEPENDENCY_FLOORS`. Add an entry whenever a security advisory is fixed.
+- Before removing a dependency, run the full suite and the production smoke test. Removing a Django app from `INSTALLED_APPS` also removes its templates, template tags and static files.
 
 ## Pre-commit hooks (run automatically on every commit)
 

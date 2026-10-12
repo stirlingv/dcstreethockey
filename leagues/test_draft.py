@@ -634,6 +634,18 @@ class DrawPositionsViewTests(DraftTestBase):
         self.session.refresh_from_db()
         self.assertFalse(self.session.signups_open)
 
+    def test_draw_rejects_get_without_changing_the_draft(self):
+        # Regression: a GET (e.g. a chat app unfurling a shared commissioner
+        # link) used to shuffle positions, advance the state and close signups.
+        response = self.client.get(self._draw_url())
+
+        self.assertEqual(response.status_code, 405)
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.state, DraftSession.STATE_SETUP)
+        self.assertTrue(self.session.signups_open)
+        positions = list(self.session.teams.values_list("draft_position", flat=True))
+        self.assertEqual(positions, [None, None, None])
+
     def test_draw_wrong_state_returns_400(self):
         self._activate()
         response = self.client.post(self._draw_url())
@@ -2718,6 +2730,26 @@ class DraftSessionsListTests(DraftTestBase):
         resp = self.client.get(reverse("draft_sessions_list"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, str(self.session.season))
+
+    def test_download_buttons_hidden_while_draft_in_progress(self):
+        # Regression: the archive showed CSV/Excel buttons for any draft with
+        # picks, but the download returns 404 until the draft is complete.
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(resp, str(self.session.season))
+        self.assertNotContains(
+            resp, reverse("draft_results_download", args=[self.session.pk])
+        )
+
+    def test_download_buttons_shown_for_complete_draft(self):
+        self._activate()
+        self._make_pick(self.team1, self.players[0], 1, 0)
+        self._complete()
+        resp = self.client.get(reverse("draft_sessions_list"))
+        self.assertContains(
+            resp, reverse("draft_results_download", args=[self.session.pk])
+        )
 
     def test_active_session_shown_with_watch_live(self):
         self.session.state = DraftSession.STATE_ACTIVE
