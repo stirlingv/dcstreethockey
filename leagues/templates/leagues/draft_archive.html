@@ -246,7 +246,7 @@
                 </span>
                 <span class="da-teams-picks">
                   {{ session.num_teams }} teams
-                  {% if session.pick_count %}&middot; {{ session.pick_count }} picks{% endif %}
+                  {% if session.state == 'complete' and session.pick_count %}&middot; {{ session.pick_count }} picks{% endif %}
                 </span>
               </div>
 
@@ -285,7 +285,7 @@
                 {% else %}View Draft Board
                 {% endif %}
               </a>
-              {% if session.pick_count %}
+              {% if session.state == 'complete' and session.pick_count %}
               <a href="{% url 'draft_results_download' session.pk %}?format=csv"
                  class="da-btn da-btn-secondary">CSV</a>
               <a href="{% url 'draft_results_download' session.pk %}?format=xlsx"

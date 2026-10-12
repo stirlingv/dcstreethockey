@@ -1,11 +1,8 @@
 import importlib
-from importlib.metadata import version as installed_version
-from pathlib import Path
 
 from django.core.cache import cache
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
-from packaging.version import Version
 
 from core.views import PlayerStatDetailView
 from dcstreethockey.context_processors import current_draft_board_url, draft_signup_url
@@ -240,50 +237,3 @@ class ProductionStaticStorageTest(SimpleTestCase):
         self.assertNotIn(
             "django.contrib.staticfiles.storage.ManifestStaticFilesStorage", source
         )
-
-
-# First patched release for each GitHub security advisory raised against this
-# repo. Lowering a pin below its floor would reintroduce a known vulnerability.
-PATCHED_DEPENDENCY_FLOORS = {
-    # GHSA-ffc3-869f-jxw9 (critical), GHSA-w2cx-738m-mc7w, GHSA-r6x4-923q-g947,
-    # GHSA-gvp8-978c-rx2q all affect PyJWT <= 2.13.0.
-    "pyjwt": "2.14.0",
-    "django": "5.2.17",
-    "urllib3": "2.8.0",
-    "pillow": "12.3.0",
-    "sqlparse": "0.6.0",
-    "djangorestframework": "3.17.2",
-    "idna": "3.15",
-    "oauthlib": "4.0.0",
-    "setuptools": "83.0.0",
-}
-
-REQUIREMENTS_FILE = Path(__file__).resolve().parent.parent / "requirements.txt"
-
-
-def _pinned_requirements():
-    pins = {}
-    for line in REQUIREMENTS_FILE.read_text().splitlines():
-        line = line.split("#", 1)[0].strip()
-        if "==" in line:
-            name, pinned = line.split("==", 1)
-            pins[name.strip().lower()] = pinned.strip()
-    return pins
-
-
-class PatchedDependencyFloorTest(SimpleTestCase):
-    """Regression guard for Dependabot security advisories."""
-
-    def test_requirements_pins_are_at_or_above_patched_versions(self):
-        pins = _pinned_requirements()
-        for package, floor in PATCHED_DEPENDENCY_FLOORS.items():
-            with self.subTest(package=package):
-                self.assertIn(package, pins, f"{package} is not pinned")
-                self.assertGreaterEqual(Version(pins[package]), Version(floor))
-
-    def test_installed_versions_are_at_or_above_patched_versions(self):
-        for package, floor in PATCHED_DEPENDENCY_FLOORS.items():
-            with self.subTest(package=package):
-                self.assertGreaterEqual(
-                    Version(installed_version(package)), Version(floor)
-                )

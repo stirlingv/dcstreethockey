@@ -65,11 +65,7 @@ INSTALLED_APPS = [
     "django_extensions",
     "channels",
     "core",
-    "suit",
     "storages",
-    "datetimewidget",
-    "localflavor",
-    "widget_tweaks",
     "leagues",
 ]
 

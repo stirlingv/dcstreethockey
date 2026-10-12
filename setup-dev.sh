@@ -12,7 +12,7 @@ fi
 
 # Install/update dependencies
 echo "📦 Installing dependencies..."
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # Install pre-commit hooks
 echo "🔧 Installing pre-commit hooks..."

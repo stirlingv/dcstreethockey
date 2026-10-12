@@ -14,7 +14,7 @@
 ### 2. Configuration Files
 - **`.flake8`**: Linting configuration that works with Black
 - **`pyproject.toml`**: Black and isort configuration
-- **Requirements updated**: Added pre-commit, black, flake8 to requirements.txt
+- **Requirements updated**: Added pre-commit, black, flake8 to requirements-dev.txt
 
 ### 3. Development Scripts
 - **`setup-dev.sh`**: Automated setup script for new developers

@@ -793,6 +793,7 @@ def draft_captain_portal(request, session_pk):
 # ---------------------------------------------------------------------------
 
 
+@require_POST
 def draw_positions(request, session_pk, token):
     """
     Assign draft positions randomly (live reveal).

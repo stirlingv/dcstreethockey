@@ -1,0 +1,8 @@
+# Development and CI tools. Production installs only requirements.txt.
+-r requirements.txt
+
+black==26.3.1
+django-upgrade==1.17.0
+flake8==7.0.0
+pre-commit==3.6.0
+tokenize-rt==5.2.0
