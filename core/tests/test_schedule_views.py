@@ -27,6 +27,7 @@ from core.betting import (
 )
 from core.views.schedule import (
     add_goals_for_matchups,
+    get_detailed_matchups,
     get_goalies_for_matchup,
     get_matches_for_division,
     get_matches_for_team,
@@ -2354,3 +2355,121 @@ class MatchupDetailGameCenterTest(ScheduleTestBase):
         self._make_final()
         response = self.client.get(self.url)
         self.assertNotContains(response, "not available for this matchup")
+
+
+# ---------------------------------------------------------------------------
+# Box score: a goalie who scores or assists (get_detailed_matchups)
+# ---------------------------------------------------------------------------
+
+
+class GoaliePointsBoxScoreTest(ScheduleTestBase):
+    """
+    A goalie who records a point used to move into the scorers list and lose
+    their goals-against line from the box score. The game's goalie of record
+    (goalie status page, else roster goalie) now shows in both tables.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.home_goalie = Player.objects.create(first_name="Pat", last_name="Pads")
+        Roster.objects.create(
+            player=self.home_goalie,
+            team=self.home_team,
+            position1=4,
+            is_primary_goalie=True,
+        )
+
+    def _box(self):
+        detailed = get_detailed_matchups(MatchUp.objects.filter(id=self.matchup.id))
+        return detailed[str(self.past_date)][str(self.matchup.id)]
+
+    def _ids(self, stats):
+        return [s.player_id for s in stats]
+
+    def test_goalie_with_assist_shows_in_both_tables(self):
+        Stat.objects.create(
+            player=self.home_goalie,
+            team=self.home_team,
+            matchup=self.matchup,
+            assists=1,
+            goals_against=3,
+        )
+        box = self._box()
+        self.assertIn(self.home_goalie.id, self._ids(box["stats"]))
+        self.assertEqual(self._ids(box["home_goalie_stats"]), [self.home_goalie.id])
+        self.assertEqual(box["home_goalie_stats"][0].goals_against, 3)
+
+    def test_named_sub_goalie_with_goal_shows_in_both_tables(self):
+        sub = Player.objects.create(first_name="Sub", last_name="Keeper")
+        self.matchup.home_goalie = sub
+        self.matchup.home_goalie_status = 1
+        self.matchup.save()
+        Stat.objects.create(
+            player=sub,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=1,
+            goals_against=2,
+        )
+        box = self._box()
+        self.assertIn(sub.id, self._ids(box["stats"]))
+        self.assertEqual(self._ids(box["home_goalie_stats"]), [sub.id])
+
+    def test_scorer_who_is_not_the_goalie_stays_out_of_goalie_table(self):
+        Stat.objects.create(
+            player=self.home_player, team=self.home_team, matchup=self.matchup, goals=2
+        )
+        box = self._box()
+        self.assertEqual(self._ids(box["stats"]), [self.home_player.id])
+        self.assertEqual(box["home_goalie_stats"], [])
+
+    def test_unnamed_sub_goalie_without_points_still_in_goalie_table(self):
+        sub = Player.objects.create(first_name="Walk", last_name="On")
+        Stat.objects.create(
+            player=sub, team=self.home_team, matchup=self.matchup, goals_against=4
+        )
+        self.assertEqual(self._ids(self._box()["home_goalie_stats"]), [sub.id])
+
+    def test_sub_needed_without_name_falls_back_to_no_points_rule(self):
+        # Nobody is goalie of record, so a goalie row with a point is shown
+        # only with the scorers, as before this change.
+        self.matchup.home_goalie_status = 2
+        self.matchup.save()
+        Stat.objects.create(
+            player=self.home_goalie,
+            team=self.home_team,
+            matchup=self.matchup,
+            assists=1,
+            goals_against=3,
+        )
+        box = self._box()
+        self.assertIn(self.home_goalie.id, self._ids(box["stats"]))
+        self.assertEqual(box["home_goalie_stats"], [])
+
+    def test_goalie_goal_counts_toward_score(self):
+        Stat.objects.create(
+            player=self.home_goalie,
+            team=self.home_team,
+            matchup=self.matchup,
+            goals=1,
+            goals_against=0,
+        )
+        scored = add_goals_for_matchups(MatchUp.objects.filter(id=self.matchup.id))
+        self.assertEqual(scored[0].home_goals, 1)
+
+    def test_game_page_shows_goalie_goals_against(self):
+        Stat.objects.create(
+            player=self.home_goalie,
+            team=self.home_team,
+            matchup=self.matchup,
+            assists=1,
+            goals_against=3,
+            empty_net=1,
+        )
+        response = Client().get(reverse("matchup_detail", args=[self.matchup.id]))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        goalie_table = content.split("<th>Goalie</th>")
+        # Away table first, then home; the goalie appears in the home one.
+        self.assertIn("Pads, Pat", goalie_table[2])
+        self.assertIn("<td>3</td>", goalie_table[2])

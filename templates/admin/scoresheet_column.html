@@ -1,8 +1,8 @@
 {% comment %}
 One team's column of the scoresheet grid. Expects `side` with team,
-players (non-goalies) and goalies. Every row posts all four stat fields;
-the two that aren't shown for a row type ride along as hidden inputs so
-saving the grid never wipes a value entered elsewhere.
+players (non-goalies) and goalies. Every row posts all four stat fields.
+Player rows carry GA/EN as hidden inputs so saving never wipes them; goalie
+rows show all four, since a goalie can also score or assist.
 {% endcomment %}
 <div class="ss-col">
     <h3 class="ss-team-title">{{ side.team.team_name }}</h3>
@@ -37,8 +37,10 @@ saving the grid never wipes a value entered elsewhere.
         <thead>
             <tr>
                 <th class="ss-name">Goalie</th>
-                <th class="ss-num">GA</th>
-                <th class="ss-num">EN</th>
+                <th class="ss-num"><abbr title="Goals against">GA</abbr></th>
+                <th class="ss-num"><abbr title="Empty-net goals against: goals allowed while this goalie was pulled. Not counted in GAA.">EN GA</abbr></th>
+                <th class="ss-num"><abbr title="Goals this goalie scored, such as into an empty net">G</abbr></th>
+                <th class="ss-num"><abbr title="Assists this goalie earned">A</abbr></th>
             </tr>
         </thead>
         <tbody>
@@ -46,11 +48,11 @@ saving the grid never wipes a value entered elsewhere.
             <tr>
                 <td class="ss-name">
                     {{ row.name }}{% if row.is_captain %} <span class="ss-cap">(C)</span>{% endif %}
-                    <input type="hidden" name="ss-{{ row.player_id }}-goals" value="{{ row.goals }}">
-                    <input type="hidden" name="ss-{{ row.player_id }}-assists" value="{{ row.assists }}">
                 </td>
                 <td class="ss-num"><input type="number" min="0" inputmode="numeric" class="ss-input" name="ss-{{ row.player_id }}-goals_against" value="{{ row.goals_against }}" data-team="{{ side.team.id }}" data-ss="goals_against" aria-label="{{ row.name }} goals against"></td>
-                <td class="ss-num"><input type="number" min="0" inputmode="numeric" class="ss-input" name="ss-{{ row.player_id }}-empty_net" value="{{ row.empty_net }}" data-team="{{ side.team.id }}" data-ss="empty_net" aria-label="{{ row.name }} empty net goals"></td>
+                <td class="ss-num"><input type="number" min="0" inputmode="numeric" class="ss-input" name="ss-{{ row.player_id }}-empty_net" value="{{ row.empty_net }}" data-team="{{ side.team.id }}" data-ss="empty_net" aria-label="{{ row.name }} empty-net goals against"></td>
+                <td class="ss-num"><input type="number" min="0" inputmode="numeric" class="ss-input" name="ss-{{ row.player_id }}-goals" value="{{ row.goals }}" data-team="{{ side.team.id }}" data-ss="goals" aria-label="{{ row.name }} goals scored"></td>
+                <td class="ss-num"><input type="number" min="0" inputmode="numeric" class="ss-input" name="ss-{{ row.player_id }}-assists" value="{{ row.assists }}" data-team="{{ side.team.id }}" data-ss="assists" aria-label="{{ row.name }} assists"></td>
             </tr>
             {% endfor %}
         </tbody>

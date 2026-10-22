@@ -544,3 +544,163 @@ class CanPlayGoalieTest(TestCase):
         """The existing logic still works — goalie position on roster is sufficient."""
         response = self.client.get(self._url())
         self.assertIn(self.roster_goalie, response.context["all_goalies"])
+
+
+# ---------------------------------------------------------------------------
+# leagues/goalie_of_record.py — who played goal, for goalie stat displays
+# ---------------------------------------------------------------------------
+
+
+class GoaliesOfRecordTest(TestCase):
+    def setUp(self):
+        self.season = make_season()
+        self.division = make_division()
+        self.home = make_team("Home", self.division, self.season, "Red")
+        self.away = make_team("Away", self.division, self.season, "Blue")
+        self.week = make_week(self.division, self.season, offset_days=-3)
+        self.matchup = make_matchup(self.week, self.home, self.away)
+
+    def _player(self, last_name):
+        return Player.objects.create(first_name="Test", last_name=last_name)
+
+    def _goalie_on(self, team, last_name, primary=False, position2=False):
+        player = self._player(last_name)
+        Roster.objects.create(
+            player=player,
+            team=team,
+            position1=2 if position2 else 4,
+            position2=4 if position2 else None,
+            is_primary_goalie=primary,
+        )
+        return player
+
+    def _map(self):
+        from leagues.goalie_of_record import goalies_of_record
+
+        self.matchup.refresh_from_db()
+        return goalies_of_record([self.matchup])
+
+    def test_goalie_named_on_status_page_is_goalie_of_record(self):
+        self._goalie_on(self.home, "Regular", primary=True)
+        sub = self._player("Sub")
+        self.matchup.home_goalie = sub
+        self.matchup.home_goalie_status = 1
+        self.matchup.save()
+        self.assertEqual(self._map()[(self.matchup.id, self.home.id)], sub.id)
+
+    def test_defaults_to_primary_roster_goalie(self):
+        self._goalie_on(self.home, "Aardvark")
+        primary = self._goalie_on(self.home, "Zebra", primary=True)
+        self.assertEqual(self._map()[(self.matchup.id, self.home.id)], primary.id)
+
+    def test_without_primary_uses_first_goalie_by_last_name(self):
+        self._goalie_on(self.home, "Zebra")
+        first = self._goalie_on(self.home, "Aardvark")
+        self.assertEqual(self._map()[(self.matchup.id, self.home.id)], first.id)
+
+    def test_secondary_position_goalie_counts_like_status_page(self):
+        backup = self._goalie_on(self.home, "Backup", position2=True)
+        self.assertEqual(self._map()[(self.matchup.id, self.home.id)], backup.id)
+
+    def test_substitute_roster_goalie_ignored(self):
+        player = self._player("Fill")
+        Roster.objects.create(
+            player=player, team=self.home, position1=4, is_substitute=True
+        )
+        self.assertNotIn((self.matchup.id, self.home.id), self._map())
+
+    def test_sub_needed_without_a_name_has_no_goalie_of_record(self):
+        self._goalie_on(self.home, "Regular", primary=True)
+        self.matchup.home_goalie_status = 2
+        self.matchup.save()
+        self.assertNotIn((self.matchup.id, self.home.id), self._map())
+
+    def test_team_without_goalie_has_no_goalie_of_record(self):
+        self.assertEqual(self._map(), {})
+
+    def test_both_sides_mapped(self):
+        home_goalie = self._goalie_on(self.home, "Home", primary=True)
+        away_goalie = self._goalie_on(self.away, "Away", primary=True)
+        self.assertEqual(
+            self._map(),
+            {
+                (self.matchup.id, self.home.id): home_goalie.id,
+                (self.matchup.id, self.away.id): away_goalie.id,
+            },
+        )
+
+    def test_empty_matchup_list(self):
+        from leagues.goalie_of_record import goalies_of_record
+
+        self.assertEqual(goalies_of_record([]), {})
+
+
+class IsGoalieAppearanceTest(TestCase):
+    def setUp(self):
+        from leagues.goalie_of_record import is_goalie_appearance
+
+        self.check = is_goalie_appearance
+        self.goalie_map = {(10, 1): 100}
+
+    def test_row_without_points_counts_as_goalie_row(self):
+        self.assertTrue(self.check(200, 1, 10, 0, 0, self.goalie_map))
+
+    def test_none_counts_as_zero(self):
+        self.assertTrue(self.check(200, 1, 10, None, None, self.goalie_map))
+
+    def test_goalie_of_record_with_assist_still_counts(self):
+        self.assertTrue(self.check(100, 1, 10, 0, 1, self.goalie_map))
+
+    def test_goalie_of_record_with_goal_still_counts(self):
+        self.assertTrue(self.check(100, 1, 10, 1, None, self.goalie_map))
+
+    def test_other_player_with_points_is_not_a_goalie_row(self):
+        self.assertFalse(self.check(200, 1, 10, 2, 0, self.goalie_map))
+
+    def test_goalie_of_record_for_other_team_does_not_count(self):
+        self.assertFalse(self.check(100, 2, 10, 0, 1, self.goalie_map))
+
+    def test_row_without_game_and_with_points_is_not_a_goalie_row(self):
+        self.assertFalse(self.check(100, 1, None, 0, 1, self.goalie_map))
+
+
+class GoalieAppearanceIdsTest(TestCase):
+    def setUp(self):
+        self.season = make_season()
+        self.division = make_division()
+        self.home = make_team("Home", self.division, self.season, "Red")
+        self.away = make_team("Away", self.division, self.season, "Blue")
+        week = make_week(self.division, self.season, offset_days=-3)
+        self.matchup = make_matchup(week, self.home, self.away)
+        self.goalie = Player.objects.create(first_name="Net", last_name="Minder")
+        Roster.objects.create(
+            player=self.goalie, team=self.home, position1=4, is_primary_goalie=True
+        )
+        self.center = Player.objects.create(first_name="Cee", last_name="Center")
+        Roster.objects.create(player=self.center, team=self.home, position1=1)
+
+    def _ids(self, qs):
+        from leagues.goalie_of_record import goalie_appearance_ids
+
+        return sorted(goalie_appearance_ids(qs))
+
+    def test_empty_queryset(self):
+        from leagues.models import Stat
+
+        self.assertEqual(self._ids(Stat.objects.none()), [])
+
+    def test_mixed_rows(self):
+        from leagues.models import Stat
+
+        goalie_assist = Stat.objects.create(
+            player=self.goalie,
+            team=self.home,
+            matchup=self.matchup,
+            assists=1,
+            goals_against=3,
+        )
+        center_goal = Stat.objects.create(
+            player=self.center, team=self.home, matchup=self.matchup, goals=1
+        )
+        self.assertEqual(self._ids(Stat.objects.all()), [goalie_assist.id])
+        self.assertNotIn(center_goal.id, self._ids(Stat.objects.all()))

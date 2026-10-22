@@ -24,6 +24,7 @@ from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, render
 from django.views.generic.list import ListView
 
+from leagues.goalie_of_record import goalie_appearance_ids
 from leagues.models import (
     Division,
     Player,
@@ -349,8 +350,11 @@ def get_career_stats_for_player(player_id=0):
         totals = Stat.objects.filter(player_id=player_id).aggregate(
             career_goals=Sum("goals"),
             career_assists=Sum("assists"),
+            # Empty-net goals against don't count toward GAA, matching the
+            # per-season goalie rows on the same page.
             average_goals_against_per_game=ExpressionWrapper(
-                Sum("goals_against") / goalie_games_played,
+                Sum(Coalesce("goals_against", 0) - Coalesce("empty_net", 0))
+                / goalie_games_played,
                 output_field=DecimalField(),
             ),
             first_season=Min("team__season__year"),
@@ -377,12 +381,9 @@ def get_career_stats_for_player(player_id=0):
 
 
 def get_goalie_games_played(player):
-    games_played = (
-        Stat.objects.filter(player__id=player)
-        .filter((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None)))
-        .count()
-    )
-    return float(games_played)
+    # Includes games where the player was the goalie of record and also
+    # recorded a point (see leagues.goalie_of_record).
+    return float(len(goalie_appearance_ids(Stat.objects.filter(player__id=player))))
 
 
 def get_seasons_played(player):
@@ -448,14 +449,11 @@ def get_offensive_stats_for_player(player, scope="combined"):
 
 
 def get_goalie_stats(player, scope="combined"):
+    # Games the player played in goal, including the rare one where the
+    # goalie of record also scored or assisted (see leagues.goalie_of_record).
+    goalie_ids = goalie_appearance_ids(Stat.objects.filter(player_id=player))
     return (
-        filter_stats_by_scope(
-            Stat.objects.filter(
-                Q(player_id=player)
-                & ((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None)))
-            ),
-            scope,
-        )
+        filter_stats_by_scope(Stat.objects.filter(id__in=goalie_ids), scope)
         .values(
             "team__id",
             "team__team_name",

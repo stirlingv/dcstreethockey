@@ -1122,6 +1122,87 @@ class ScoresheetGridTest(TestCase):
         stat = Stat.objects.get(matchup=self.matchup, player=self.home_center)
         self.assertEqual(stat.goals, 0)
 
+    # ── Goalie goals and assists ──────────────────────────────────────
+
+    def test_goalie_row_has_goal_and_assist_boxes(self):
+        response = self.client.get(self._url())
+        g = self.home_goalie.pk
+        self.assertContains(
+            response,
+            f'class="ss-input" name="ss-{g}-goals" value="" '
+            f'data-team="{self.home_team.pk}" data-ss="goals"',
+        )
+        self.assertContains(
+            response,
+            f'class="ss-input" name="ss-{g}-assists" value="" '
+            f'data-team="{self.home_team.pk}" data-ss="assists"',
+        )
+        # The old hidden inputs are gone, so each field is posted once.
+        self.assertNotContains(response, f'type="hidden" name="ss-{g}-goals"')
+        self.assertNotContains(response, f'type="hidden" name="ss-{g}-assists"')
+
+    def test_empty_net_column_says_goals_against(self):
+        response = self.client.get(self._url())
+        self.assertContains(response, ">EN GA</abbr>")
+        self.assertContains(response, "Not counted in GAA")
+        self.assertContains(response, "If a goalie scores or gets an assist")
+
+    def test_goalie_assist_saved_with_goals_against(self):
+        g = self.home_goalie.pk
+        self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    f"ss-{g}-goals_against": "3",
+                    f"ss-{g}-empty_net": "",
+                    f"ss-{g}-goals": "",
+                    f"ss-{g}-assists": "1",
+                }
+            ),
+        )
+        rows = list(
+            Stat.objects.filter(matchup=self.matchup, player=self.home_goalie).values(
+                "goals", "assists", "goals_against", "empty_net"
+            )
+        )
+        self.assertEqual(
+            rows, [{"goals": 0, "assists": 1, "goals_against": 3, "empty_net": 0}]
+        )
+
+    def test_goalie_goal_counts_toward_team_goals_for(self):
+        g = self.home_goalie.pk
+        self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    f"ss-{self.home_center.pk}-goals": "2",
+                    f"ss-{g}-goals_against": "0",
+                    f"ss-{g}-goals": "1",
+                }
+            ),
+        )
+        home = Team_Stat.objects.get(
+            team=self.home_team, division=self.division, season=self.season
+        )
+        self.assertEqual(home.goals_for, 3)
+        stat = Stat.objects.get(matchup=self.matchup, player=self.home_goalie)
+        self.assertEqual((stat.goals, stat.goals_against), (1, 0))
+
+    def test_existing_goalie_points_prefill(self):
+        Stat.objects.create(
+            matchup=self.matchup,
+            team=self.home_team,
+            player=self.home_goalie,
+            goals=1,
+            assists=2,
+            goals_against=4,
+        )
+        response = self.client.get(self._url())
+        g = self.home_goalie.pk
+        self.assertContains(response, f'name="ss-{g}-goals" value="1"')
+        self.assertContains(response, f'name="ss-{g}-assists" value="2"')
+        self.assertContains(response, f'name="ss-{g}-goals_against" value="4"')
+
 
 class StatRosterAdminTest(TestCase):
     """Standalone Stat and Roster admins: usable changelists, no bare admin."""
