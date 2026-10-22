@@ -6,6 +6,10 @@ import requests
 from django.core.cache import cache
 from django.shortcuts import render
 
+from core.betting import (
+    compute_betting_lines_for_matchups,
+    compute_player_props_for_matchups,
+)
 from leagues.models import HomePage, MatchUp
 
 _WEATHER_FULL_TTL = 60 * 30  # 30 minutes
@@ -283,6 +287,23 @@ def _fetch_weather(api_key, game_times):
     return weather_data
 
 
+def odds_matchup_ids(matchups):
+    """
+    IDs of the games that get Game Lines and Player Props on the home page.
+
+    Matches the Schedule page, which never shows them for Sunday D1
+    (division 1), and also skips cancelled games since there is nothing to
+    bet on. ``matchups`` must have ``hometeam__division`` select_related.
+    """
+    return [
+        m.id
+        for m in matchups
+        if not m.is_cancelled
+        and m.hometeam.division is not None
+        and m.hometeam.division.division != 1
+    ]
+
+
 def home(request):
     today = datetime.date.today()
     next_week = today + datetime.timedelta(days=6)
@@ -325,9 +346,13 @@ def home(request):
     else:
         weather_data = cached
 
+    odds_ids = odds_matchup_ids(matchups)
+
     context = {
         "weather_data": weather_data,
         "weather_unavailable": weather_unavailable,
+        "betting_lines": compute_betting_lines_for_matchups(odds_ids),
+        "player_props": compute_player_props_for_matchups(odds_ids),
         "matchup": matchups,
         "one_row": one_row,
         "homepage": HomePage.objects.last(),

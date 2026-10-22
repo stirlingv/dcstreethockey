@@ -32,34 +32,6 @@
 		function handleSelect(elm){
 	  	window.location = elm.value;
 	  }
-	function showPropSort(sortKey, el) {
-		var panel = el.closest('.props-panel');
-		panel.querySelectorAll('.props-list[data-sort]').forEach(function(list) {
-			list.style.display = list.getAttribute('data-sort') === sortKey ? '' : 'none';
-		});
-		panel.querySelectorAll('.props-sort-col').forEach(function(col) {
-			var key = col.getAttribute('data-sort');
-			var isActive = key === sortKey;
-			col.classList.toggle('props-sort-active', isActive);
-			col.textContent = key.toUpperCase() + (isActive ? ' ▲' : '');
-		});
-	}
-	function toggleOdds(btn, panelId) {
-		var panel = document.getElementById(panelId);
-		var expanded = btn.getAttribute('aria-expanded') === 'true';
-		if (expanded) {
-			panel.hidden = true;
-			btn.setAttribute('aria-expanded', 'false');
-			btn.textContent = btn.getAttribute('data-label');
-		} else {
-			if (!btn.getAttribute('data-label')) {
-				btn.setAttribute('data-label', btn.textContent);
-			}
-			panel.hidden = false;
-			btn.setAttribute('aria-expanded', 'true');
-			btn.textContent = 'Hide';
-		}
-	}
 	function filterSchedule(division) {
 		// Update active pill state
 		var buttons = document.querySelectorAll('#divisionFilter .pill-item');
@@ -86,4 +58,8 @@
 		});
 	}
 </script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'assets/js/odds.js' %}"></script>
 {% endblock %}

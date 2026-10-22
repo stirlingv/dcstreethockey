@@ -92,6 +92,13 @@
                                         </td>
                                     </tr>
                                 </table>
+                                {% with betting_lines|get_item:match.id as lines %}{% with player_props|get_item:match.id as props %}
+                                {% if lines or props %}
+                                <div class="home-odds">
+                                    {% include 'partials/odds_panels.html' %}
+                                </div>
+                                {% endif %}
+                                {% endwith %}{% endwith %}
                             </li>
                             {% endif %}
                         {% endfor %}

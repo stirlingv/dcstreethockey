@@ -1,6 +1,10 @@
 {% extends 'core/base.html' %}
 {% load static %}
 
+{% block extra_head %}
+<!-- Game Lines / Player Props panel styles (shared with the Schedule page) -->
+<link rel="stylesheet" href="{% static 'assets/css/schedule.css' %}">
+{% endblock %}
 
 {% block content %}
 
@@ -9,4 +13,8 @@
 	{% include "core/homepage_info.html" %}
 	{% include "core/homepage_info_2.html" %}
 
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'assets/js/odds.js' %}"></script>
 {% endblock %}
