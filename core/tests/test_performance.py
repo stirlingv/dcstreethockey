@@ -49,6 +49,12 @@ SCORES_ONE_DIVISION_QUERY_CEILING = (
 PLAYER_STATS_QUERY_CEILING = 25
 GOALIE_BOARD_QUERY_CEILING = 40  # roster goalie lookup per matchup; see N+1 note
 DRAFT_BOARD_QUERY_CEILING = 20  # batch stats: reduced from ~414 (3 queries per player)
+# Home page with 6 priced games measured 37: ~10 for the page itself plus the
+# Game Lines / Player Props computation shared with the Schedule page.
+HOME_QUERY_CEILING = 40
+# Known N+1: core/betting.py fetches each non-draft team's recent-game window
+# with its own sliced query, so each extra game (two teams) adds 2 queries.
+HOME_QUERIES_PER_GAME_BUDGET = 2
 # Max additional queries allowed per extra team added to standings
 STANDINGS_QUERIES_PER_TEAM_BUDGET = 5
 
@@ -394,5 +400,91 @@ class DraftBoardQueryCountTest(TestCase):
                 f"_session_state_payload ran {len(ctx)} queries "
                 f"(ceiling: {DRAFT_BOARD_QUERY_CEILING}). "
                 "Check for N+1 regressions in stats or pick loading."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Home page — Game Lines / Player Props for the week's games
+# ---------------------------------------------------------------------------
+
+
+class HomeQueryCountTest(TestCase):
+    """Home page stays under HOME_QUERY_CEILING with priced games listed."""
+
+    def setUp(self):
+        self.client = Client()
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        # Sunday D2: D1 games never get lines, so they wouldn't exercise them.
+        self.division = Division.objects.create(division=2)
+        self.week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date.today() + datetime.timedelta(days=1),
+        )
+        self.past_week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=datetime.date.today() - datetime.timedelta(days=7),
+        )
+        self.games = 0
+
+    def _add_games(self, count):
+        for _ in range(count):
+            n = self.games
+            home = _make_team(f"Home {n}", self.division, self.season, color="Red")
+            away = _make_team(f"Away {n}", self.division, self.season, color="Blue")
+            for team in (home, away):
+                for i in range(3):
+                    _make_player_with_stats(
+                        f"P{i}", team.team_name, team, self.past_week
+                    )
+            MatchUp.objects.create(
+                week=self.week,
+                time=datetime.time(19, 0),
+                hometeam=home,
+                awayteam=away,
+            )
+            self.games += 1
+
+    def _home_queries(self):
+        from core.tests.test_home_odds import get_home
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = get_home(self.client)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="home-odds"', count=self.games)
+        return len(ctx.captured_queries)
+
+    def test_home_query_count_bounded(self):
+        self._add_games(6)
+        count = self._home_queries()
+        self.assertLessEqual(
+            count,
+            HOME_QUERY_CEILING,
+            msg=(
+                f"Home view ran {count} queries with 6 priced games "
+                f"(ceiling: {HOME_QUERY_CEILING}). Possible N+1 regression."
+            ),
+        )
+
+    def test_home_query_count_per_game_budget(self):
+        """
+        Adding games may only cost the known per-team recent-window query in
+        core/betting.py. Fix it by batching those windows, then lower the budget.
+        """
+        self._add_games(2)
+        baseline = self._home_queries()
+        self._add_games(4)
+        added = self._home_queries() - baseline
+        max_allowed = 4 * HOME_QUERIES_PER_GAME_BUDGET
+        self.assertLessEqual(
+            added,
+            max_allowed,
+            msg=(
+                f"Adding 4 games increased home queries by {added} "
+                f"(budget: {max_allowed} = 4 games × {HOME_QUERIES_PER_GAME_BUDGET})."
             ),
         )

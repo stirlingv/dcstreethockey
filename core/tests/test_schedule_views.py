@@ -1273,6 +1273,29 @@ class ScheduleViewBettingLinesTest(TestCase):
         self.assertContains(response, "MONEYLINE")
         self.assertContains(response, "For entertainment purposes only")
 
+    def test_panels_use_shared_partial_and_script(self):
+        # The panels moved to partials/odds_panels.html and their handlers to
+        # static/assets/js/odds.js so the home page can reuse both.
+        for team, gf, ga in ((self.home_team, 25, 20), (self.away_team, 20, 25)):
+            Team_Stat.objects.create(
+                division=self.division,
+                season=self.season,
+                team=team,
+                win=4,
+                loss=4,
+                otw=0,
+                otl=0,
+                tie=0,
+                goals_for=gf,
+                goals_against=ga,
+            )
+        response = self.client.get(reverse("schedule"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "partials/odds_panels.html")
+        self.assertContains(response, f'aria-controls="bl-panel-{self.matchup.id}"')
+        self.assertContains(response, "assets/js/odds.js")
+        self.assertNotContains(response, "function toggleOdds")
+
     def test_projected_note_rendered_when_fallback_used(self):
         # No current-season Team_Stat rows, but a rostered player carries
         # career history from a prior season — the fallback should kick in

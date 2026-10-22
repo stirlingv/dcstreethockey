@@ -373,6 +373,96 @@ a.props-name:hover,
 
 /* ── Responsive betting lines ──────────────────────────────────────────── */
 
+.bl-toggle-btn:focus-visible {
+    outline: 2px solid #1a5276;
+    outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+    /* 44px touch targets on phones */
+    .bl-toggle-btn {
+        min-height: 44px;
+        padding: 0 14px;
+        font-size: 13px;
+    }
+
+    .props-sort-col {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* ── Home page: panels inside the narrow game-day columns ──────────────── */
+
+.home-odds {
+    margin-top: 6px;
+    text-align: left;
+    /* Lets the rules below react to the game column's width, which on
+       tablets is far narrower than the viewport suggests. */
+    container-type: inline-size;
+}
+
+.home-odds .bl-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.home-odds .betting-lines,
+.home-odds .props-panel {
+    padding: 8px;
+}
+
+.home-odds .bl-grid {
+    grid-template-columns: 92px 1fr 1fr 1fr;
+    gap: 2px 6px;
+}
+
+/* A home column is about a third of the desktop width, too narrow for the
+   Schedule page's two-column props list. */
+@media (min-width: 769px) {
+    .home-odds .props-list {
+        display: block;
+    }
+}
+
+/* Tablet-width home columns are only ~260-300px wide. */
+@container (max-width: 320px) {
+    .home-odds .bl-grid {
+        grid-template-columns: 58px repeat(3, minmax(0, 1fr));
+        gap: 2px 4px;
+    }
+
+    .home-odds .bl-col-label {
+        font-size: 9px;
+        letter-spacing: 0;
+    }
+
+    .home-odds .bl-cell,
+    .home-odds .bl-3way-cell {
+        padding: 3px 2px;
+    }
+
+    .home-odds .bl-main {
+        font-size: 13px;
+    }
+
+    .home-odds .bl-3way-grid {
+        gap: 2px 4px;
+    }
+
+    .home-odds .props-row {
+        grid-template-columns: minmax(0, 1fr) 40px 40px 40px;
+    }
+
+    .home-odds .props-team-tag {
+        min-width: 20px;
+    }
+}
+
 /* ── Matchup Detail Page ───────────────────────────────────────────────── */
 
 .matchup-detail-card {
