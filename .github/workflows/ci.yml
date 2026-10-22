@@ -129,6 +129,11 @@ jobs:
         pip install -r requirements.txt
 
     - name: Audit for known vulnerabilities
+      # Ignored advisories (remove each once a fixed release can be installed):
+      # - CVE-2026-106454, twisted 26.4.0, no fixed release yet. ReDoS in
+      #   twisted.mail.imap4's LIST/LSUB wildcard handling. Twisted is only
+      #   here because daphne needs it; the site never runs an IMAP server.
       run: |
         SITE=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
-        pipx run pip-audit --path "$SITE" --desc on
+        pipx run pip-audit --path "$SITE" --desc on \
+          --ignore-vuln CVE-2026-106454

@@ -53,7 +53,11 @@ PATCHED_DEPENDENCY_FLOORS = {
     "pyjwt": "2.14.0",
     "django": "5.2.17",
     "urllib3": "2.8.0",
-    "pillow": "12.3.0",
+    # 24 advisories fixed in 13.0.0 (CVE-2026-112390 through -112901): crafted
+    # images crash or hang decoders, plus Ghostscript argument injection.
+    "pillow": "13.0.0",
+    # PYSEC-2026-4320: bundle trusted the compromised emSign ECC Root CA - G3.
+    "certifi": "2026.10.19",
     "sqlparse": "0.6.0",
     "djangorestframework": "3.17.2",
     "idna": "3.15",
