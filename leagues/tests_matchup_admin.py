@@ -1223,9 +1223,7 @@ class ScoresheetGridTest(TestCase):
         self.assertContains(response, "Sub in goal?")
         self.assertContains(
             response,
-            reverse(
-                "admin:leagues_matchupgoaliestatus_change", args=[self.matchup.pk]
-            ),
+            reverse("admin:leagues_matchupgoaliestatus_change", args=[self.matchup.pk]),
         )
         self.assertContains(response, "Can play goalie")
 
@@ -1257,7 +1255,9 @@ class ScoresheetGridTest(TestCase):
         )
         response = self.client.post(self._url(), data)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f'name="ss-{self.home_center.pk}-goals" value="4"')
+        self.assertContains(
+            response, f'name="ss-{self.home_center.pk}-goals" value="4"'
+        )
         self.assertContains(
             response, f'name="ss-{self.home_goalie.pk}-goals_against" value="2"'
         )
@@ -1282,7 +1282,8 @@ class ScoresheetGridTest(TestCase):
             player=sub, team=self.home_team, position1=2, is_substitute=True
         )
         response = self.client.post(
-            self._url(), self._post_data(**self._inline_row(sub, self.home_team, goals=1))
+            self._url(),
+            self._post_data(**self._inline_row(sub, self.home_team, goals=1)),
         )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Stat.objects.filter(matchup=self.matchup, player=sub).exists())
