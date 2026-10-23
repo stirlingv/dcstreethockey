@@ -25,8 +25,16 @@
         Fill in goals and assists next to each player, and goals-against for the
         goalie &mdash; just like the paper scoresheet. Leave a player's boxes
         <strong>empty</strong> if they recorded nothing. A shutout is an explicit
-        <strong>0</strong> goals-against. Subs and unrostered players go in the
+        <strong>0</strong> goals-against. If a goalie scores or gets an assist,
+        enter it in their <strong>G</strong> or <strong>A</strong> box.
+        Subs and unrostered players go in the
         &ldquo;Subs &amp; other players&rdquo; section below.
+    </p>
+    <p class="ss-hint ss-hint-sub-goalie">
+        <strong>Sub in goal?</strong> Also
+        <a href="{% url 'admin:leagues_matchupgoaliestatus_change' original.pk %}">set them as this game&rsquo;s goalie</a>
+        so their goalie stats are counted. If they aren&rsquo;t in the goalie list,
+        tick &ldquo;Can play goalie&rdquo; on their player record first.
     </p>
     <input type="hidden" name="ss-player-ids" value="{{ scoresheet_player_ids }}">
     <div class="ss-grid">
@@ -53,6 +61,7 @@
     border-left: 3px solid #417690;
     line-height: 1.5;
   }
+  .ss-hint-sub-goalie { border-top: 1px solid #d6e4ef; }
   .ss-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -106,6 +115,8 @@
   @media (max-width: 767px) {
     .ss-grid { grid-template-columns: 1fr; }
     .ss-input { min-height: 44px; width: 58px !important; font-size: 16px; }
+    /* Goalie rows have four boxes (GA, EN GA, G, A). */
+    .ss-goalie-table .ss-input { width: 46px !important; }
   }
 </style>
 {% endif %}

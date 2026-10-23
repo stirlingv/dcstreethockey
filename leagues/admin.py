@@ -409,8 +409,43 @@ class PlayerAdmin(admin.ModelAdmin):
     list_editable = ["is_active", "can_play_goalie", "exclude_from_auto_deactivation"]
 
 
+class StatInlineFormSet(forms.BaseInlineFormSet):
+    """
+    Rejects stats for players on either team's regular roster. Those players
+    are entered in the scoresheet grid, which saves after this section and
+    used to overwrite their rows here without any warning.
+    """
+
+    def clean(self):
+        super().clean()
+        match = self.instance
+        team_ids = [t for t in (match.hometeam_id, match.awayteam_id) if t]
+        if not team_ids:
+            return
+        roster_team = {
+            player_id: team_name
+            for player_id, team_name in Roster.objects.filter(
+                team_id__in=team_ids, is_substitute=False, player__isnull=False
+            ).values_list("player_id", "team__team_name")
+        }
+        problems = []
+        for form in self.forms:
+            data = getattr(form, "cleaned_data", None) or {}
+            player = data.get("player")
+            if data.get("DELETE") or player is None or player.id not in roster_team:
+                continue
+            problems.append(
+                f"{player.first_name} {player.last_name} is on the "
+                f"{roster_team[player.id]} roster, so their stats go in the "
+                "scoresheet above. Remove them here and enter their stats there."
+            )
+        if problems:
+            raise forms.ValidationError(problems)
+
+
 class StatInline(admin.TabularInline):
     model = Stat
+    formset = StatInlineFormSet
     extra = 1
     verbose_name = "sub / other player stat"
     verbose_name_plural = "Subs & other players (not on either roster)"
@@ -744,6 +779,15 @@ class MatchUpAdmin(admin.ModelAdmin):
             for stat_row in Stat.objects.filter(matchup=match).order_by("pk"):
                 existing_stats.setdefault(stat_row.player_id, stat_row)
 
+            # When a save fails validation and the form is shown again, keep
+            # what the admin typed instead of reverting to the saved stats.
+            resubmitted = request.method == "POST" and "ss-player-ids" in request.POST
+
+            def _cell(stat_row, player_id, field):
+                if resubmitted:
+                    return request.POST.get(f"ss-{player_id}-{field}", "")
+                return getattr(stat_row, field) if stat_row else ""
+
             def _sheet_rows(team):
                 rows = []
                 roster_qs = (
@@ -765,12 +809,10 @@ class MatchUpAdmin(admin.ModelAdmin):
                             ),
                             "is_goalie": is_goalie,
                             "is_captain": entry.is_captain,
-                            "goals": stat_row.goals if stat_row else "",
-                            "assists": stat_row.assists if stat_row else "",
-                            "goals_against": (
-                                stat_row.goals_against if stat_row else ""
-                            ),
-                            "empty_net": stat_row.empty_net if stat_row else "",
+                            **{
+                                field: _cell(stat_row, entry.player_id, field)
+                                for field in self._SHEET_FIELDS
+                            },
                         }
                     )
                 # Split like a paper scoresheet: players up top, goalies

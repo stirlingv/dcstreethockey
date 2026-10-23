@@ -913,3 +913,119 @@ class DivisionLeaderStatsTestCase(TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GoaliePointsPlayerPageTestCase(TestCase):
+    """
+    A goalie who records a point keeps that game in their goalie record.
+
+    The player page used to count a game as a goalie game only when the row
+    had no goals and no assists, so a goalie's assist dropped the whole game
+    (and its goals against) from their goalie record and GAA.
+    """
+
+    def setUp(self):
+        import datetime
+
+        self.season = Season.objects.create(
+            year=2025, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=2)
+        self.team = Team.objects.create(
+            team_name="Net Team",
+            team_color="Red",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.opponent = Team.objects.create(
+            team_name="Other Team",
+            team_color="Blue",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        self.goalie = Player.objects.create(first_name="Pat", last_name="Pads")
+        Roster.objects.create(
+            player=self.goalie,
+            team=self.team,
+            position1=4,
+            is_primary_goalie=True,
+        )
+        self.games = []
+        for days in (14, 7):
+            week = Week.objects.create(
+                division=self.division,
+                season=self.season,
+                date=datetime.date.today() - datetime.timedelta(days=days),
+            )
+            self.games.append(
+                MatchUp.objects.create(
+                    week=week,
+                    time="19:00",
+                    hometeam=self.team,
+                    awayteam=self.opponent,
+                )
+            )
+        # Game 1: ordinary goalie game. Game 2: the goalie also assists, and
+        # one of the goals against came while the goalie was pulled.
+        Stat.objects.create(
+            player=self.goalie,
+            team=self.team,
+            matchup=self.games[0],
+            goals_against=2,
+        )
+        Stat.objects.create(
+            player=self.goalie,
+            team=self.team,
+            matchup=self.games[1],
+            assists=1,
+            goals_against=3,
+            empty_net=1,
+        )
+
+    def test_goalie_record_keeps_game_with_assist(self):
+        from core.views.players import get_goalie_stats
+
+        rows = list(get_goalie_stats(self.goalie.id))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["sum_games_played"], 2)
+        # 2 + (3 - 1 empty-net) goals against.
+        self.assertEqual(rows[0]["sum_goals_against"], 4)
+
+    def test_goalie_games_played_counts_game_with_assist(self):
+        from core.views.players import get_goalie_games_played
+
+        self.assertEqual(get_goalie_games_played(self.goalie.id), 2.0)
+
+    def test_career_gaa_excludes_empty_net_goals(self):
+        stats = get_career_stats_for_player(self.goalie.id)
+        self.assertEqual(stats["career_assists"], 1)
+        self.assertAlmostEqual(float(stats["average_goals_against_per_game"]), 2.0)
+
+    def test_points_as_a_player_on_another_team_are_not_goalie_games(self):
+        from core.views.players import get_goalie_stats
+
+        wing_team = Team.objects.create(
+            team_name="Wing Team",
+            team_color="Green",
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+        Roster.objects.create(player=self.goalie, team=wing_team, position1=2)
+        Stat.objects.create(
+            player=self.goalie, team=wing_team, matchup=self.games[0], goals=2
+        )
+        teams = {r["team__team_name"] for r in get_goalie_stats(self.goalie.id)}
+        self.assertEqual(teams, {"Net Team"})
+
+    def test_player_page_shows_full_goalie_record_and_assist(self):
+        from django.test import Client
+        from django.urls import reverse
+
+        response = Client().get(reverse("player", args=[self.goalie.id]))
+        self.assertEqual(response.status_code, 200)
+        goalie_rows = list(response.context["goalie_stats"])
+        self.assertEqual(goalie_rows[0]["sum_games_played"], 2)
+        self.assertEqual(response.context["career_stats"]["career_assists"], 1)

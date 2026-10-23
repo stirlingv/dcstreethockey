@@ -7,6 +7,7 @@ from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import get_object_or_404, render
 from django.views.generic.list import ListView
 
+from leagues.goalie_of_record import goalies_of_record, is_goalie_appearance
 from leagues.models import Division, MatchUp, Player, Roster, Stat, Team, Week
 
 from core.betting import (
@@ -255,11 +256,27 @@ def get_detailed_matchups(matchups):
     home_goalie_stats = defaultdict(list)
     away_goalie_stats = defaultdict(list)
 
+    # Only needed when someone scored: a row without points is always treated
+    # as a goalie row, so skip the roster lookup for scoreless pages.
+    has_points = any((s.goals or 0) + (s.assists or 0) > 0 for s in all_stats)
+    goalie_map = goalies_of_record(matchup_list) if has_points else {}
+
     for stat in all_stats:
         mid = stat.matchup_id
         if (stat.goals or 0) + (stat.assists or 0) > 0:
             scorers[mid].append(stat)
-        elif stat.team_id == matchup_lookup[mid].hometeam_id:
+        # A goalie who records a point shows in both tables, so their goals
+        # against stay on the game page.
+        if not is_goalie_appearance(
+            stat.player_id,
+            stat.team_id,
+            mid,
+            stat.goals,
+            stat.assists,
+            goalie_map,
+        ):
+            continue
+        if stat.team_id == matchup_lookup[mid].hometeam_id:
             home_goalie_stats[mid].append(stat)
         else:
             away_goalie_stats[mid].append(stat)
