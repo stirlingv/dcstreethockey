@@ -1203,6 +1203,90 @@ class ScoresheetGridTest(TestCase):
         self.assertContains(response, f'name="ss-{g}-assists" value="2"')
         self.assertContains(response, f'name="ss-{g}-goals_against" value="4"')
 
+    # ── Sub goalie instruction & subs section ─────────────────────────
+
+    def _inline_row(self, player, team, **values):
+        row = {
+            "stat_set-TOTAL_FORMS": "1",
+            "stat_set-0-player": str(player.pk),
+            "stat_set-0-team": str(team.pk),
+            "stat_set-0-goals": "0",
+            "stat_set-0-assists": "0",
+            "stat_set-0-goals_against": "0",
+            "stat_set-0-empty_net": "0",
+        }
+        row.update({f"stat_set-0-{k}": str(v) for k, v in values.items()})
+        return row
+
+    def test_sub_goalie_instruction_links_to_this_games_goalie(self):
+        response = self.client.get(self._url())
+        self.assertContains(response, "Sub in goal?")
+        self.assertContains(
+            response,
+            reverse(
+                "admin:leagues_matchupgoaliestatus_change", args=[self.matchup.pk]
+            ),
+        )
+        self.assertContains(response, "Can play goalie")
+
+    def test_rostered_player_in_subs_section_is_rejected_with_message(self):
+        # Regression: this used to save, then the scoresheet grid silently
+        # overwrote it, so the goalie's assist was lost without a warning.
+        data = self._post_data(
+            **{
+                f"ss-{self.home_goalie.pk}-goals_against": "3",
+                **self._inline_row(self.home_goalie, self.home_team, assists=1),
+            }
+        )
+        response = self.client.post(self._url(), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Pat Goalie is on the Home Team roster, so their stats go in the "
+            "scoresheet above.",
+        )
+        self.assertFalse(Stat.objects.filter(matchup=self.matchup).exists())
+
+    def test_rejected_save_keeps_what_was_typed_in_the_grid(self):
+        data = self._post_data(
+            **{
+                f"ss-{self.home_center.pk}-goals": "4",
+                f"ss-{self.home_goalie.pk}-goals_against": "2",
+                **self._inline_row(self.away_wing, self.home_team, goals=1),
+            }
+        )
+        response = self.client.post(self._url(), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'name="ss-{self.home_center.pk}-goals" value="4"')
+        self.assertContains(
+            response, f'name="ss-{self.home_goalie.pk}-goals_against" value="2"'
+        )
+
+    def test_unrostered_sub_still_saves(self):
+        # The subs section offers rostered players plus anyone who can play
+        # goalie, so a walk-in sub goalie has "Can play goalie" ticked.
+        sub = Player.objects.create(
+            first_name="Sub", last_name="Keeper", is_active=True, can_play_goalie=True
+        )
+        data = self._post_data(
+            **self._inline_row(sub, self.home_team, assists=1, goals_against=2)
+        )
+        response = self.client.post(self._url(), data)
+        self.assertEqual(response.status_code, 302)
+        stat = Stat.objects.get(matchup=self.matchup, player=sub)
+        self.assertEqual((stat.assists, stat.goals_against), (1, 2))
+
+    def test_roster_substitute_still_saves_in_subs_section(self):
+        sub = Player.objects.create(first_name="Roster", last_name="Sub")
+        Roster.objects.create(
+            player=sub, team=self.home_team, position1=2, is_substitute=True
+        )
+        response = self.client.post(
+            self._url(), self._post_data(**self._inline_row(sub, self.home_team, goals=1))
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Stat.objects.filter(matchup=self.matchup, player=sub).exists())
+
 
 class StatRosterAdminTest(TestCase):
     """Standalone Stat and Roster admins: usable changelists, no bare admin."""
