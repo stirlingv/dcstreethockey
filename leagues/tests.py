@@ -2481,3 +2481,390 @@ class StatsEntryWidgetOpenStateTest(TestCase):
         # Stats are entered (outcome/goalie badges may show) — stay collapsed.
         self.assertNotIn('<details class="se-division" open>', rendered)
         self.assertIn('<details class="se-division">', rendered)
+
+
+# ---------------------------------------------------------------------------
+# Rescheduling resets goalie statuses (Week.save, MatchUp.save, admin)
+# ---------------------------------------------------------------------------
+
+
+class GoalieResetFixture(TestCase):
+    """A week with two games whose goalies are confirmed, one with a sub."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+        )
+        self.division = Division.objects.create(division=2)
+        self.today = datetime.date.today()
+        self.week = Week.objects.create(
+            division=self.division, season=self.season, date=self.today
+        )
+        self.away = self._make_team("Away", "Blue")
+        self.home = self._make_team("Home", "Red")
+        self.sub = Player.objects.create(
+            first_name="Sam", last_name="Sub", can_play_goalie=True
+        )
+        self.game1 = MatchUp.objects.create(
+            week=self.week,
+            awayteam=self.away,
+            hometeam=self.home,
+            time=datetime.time(19, 0),
+            away_goalie_status=MatchUp.GOALIE_STATUS_CONFIRMED,
+            home_goalie=self.sub,
+            home_goalie_status=MatchUp.GOALIE_STATUS_CONFIRMED,
+        )
+        self.game2 = MatchUp.objects.create(
+            week=self.week,
+            awayteam=self.home,
+            hometeam=self.away,
+            time=datetime.time(20, 30),
+            away_goalie_status=MatchUp.GOALIE_STATUS_SUB_NEEDED,
+        )
+
+    def _make_team(self, name, color):
+        return Team.objects.create(
+            team_name=name,
+            team_color=color,
+            division=self.division,
+            season=self.season,
+            is_active=True,
+        )
+
+    def assertReset(self, game):
+        game.refresh_from_db()
+        self.assertEqual(game.away_goalie_status, MatchUp.GOALIE_STATUS_UNCONFIRMED)
+        self.assertEqual(game.home_goalie_status, MatchUp.GOALIE_STATUS_UNCONFIRMED)
+        self.assertIsNone(game.away_goalie)
+        self.assertIsNone(game.home_goalie)
+
+    def assertUntouched(self, game):
+        game.refresh_from_db()
+        self.assertEqual(game.away_goalie_status, MatchUp.GOALIE_STATUS_CONFIRMED)
+        self.assertEqual(game.home_goalie_status, MatchUp.GOALIE_STATUS_CONFIRMED)
+        self.assertEqual(game.home_goalie, self.sub)
+
+
+class WeekRescheduleResetsGoalieStatusTest(GoalieResetFixture):
+    def test_changing_the_date_resets_every_game_on_the_week(self):
+        self.week.date = self.today + datetime.timedelta(days=7)
+        self.week.save()
+        self.assertReset(self.game1)
+        self.assertReset(self.game2)
+        self.assertEqual(self.week.rescheduled_from, self.today)
+        self.assertEqual(self.week.goalie_statuses_reset, 2)
+
+    def test_count_only_includes_games_that_changed(self):
+        MatchUp.objects.create(
+            week=self.week,
+            awayteam=self.away,
+            hometeam=self.home,
+            time=datetime.time(21, 0),
+        )
+        self.week.date = self.today + datetime.timedelta(days=1)
+        self.week.save()
+        self.assertEqual(self.week.goalie_statuses_reset, 2)
+
+    def test_saving_without_a_date_change_keeps_goalie_statuses(self):
+        self.week.is_cancelled = True
+        self.week.save()
+        self.assertUntouched(self.game1)
+        self.assertIsNone(self.week.rescheduled_from)
+        self.assertEqual(self.week.goalie_statuses_reset, 0)
+
+    def test_creating_a_week_records_no_reschedule(self):
+        week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=14),
+        )
+        self.assertIsNone(week.rescheduled_from)
+        self.assertEqual(week.goalie_statuses_reset, 0)
+
+    def test_games_on_other_weeks_are_left_alone(self):
+        other_week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=3),
+        )
+        other_game = MatchUp.objects.create(
+            week=other_week,
+            awayteam=self.away,
+            hometeam=self.home,
+            time=datetime.time(19, 0),
+            away_goalie_status=MatchUp.GOALIE_STATUS_CONFIRMED,
+            home_goalie=self.sub,
+            home_goalie_status=MatchUp.GOALIE_STATUS_CONFIRMED,
+        )
+        self.week.date = self.today + datetime.timedelta(days=7)
+        self.week.save()
+        self.assertUntouched(other_game)
+
+    def test_reset_goalie_statuses_helper(self):
+        from leagues.models import reset_goalie_statuses
+
+        self.assertEqual(reset_goalie_statuses(MatchUp.objects.all()), 2)
+        self.assertReset(self.game1)
+        self.assertReset(self.game2)
+        # Already reset: nothing to change.
+        self.assertEqual(reset_goalie_statuses(MatchUp.objects.all()), 0)
+        self.assertEqual(reset_goalie_statuses(MatchUp.objects.none()), 0)
+
+
+class MatchUpRescheduleResetsGoalieStatusTest(GoalieResetFixture):
+    def test_moving_a_game_to_another_date_resets_it(self):
+        later = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=7),
+        )
+        game = MatchUp.objects.get(pk=self.game1.pk)
+        game.week = later
+        game.save()
+        self.assertTrue(game.goalie_status_reset)
+        self.assertReset(game)
+        # The other game on the original week is untouched.
+        self.game2.refresh_from_db()
+        self.assertEqual(
+            self.game2.away_goalie_status, MatchUp.GOALIE_STATUS_SUB_NEEDED
+        )
+
+    def test_moving_a_game_to_a_week_on_the_same_date_keeps_statuses(self):
+        other_division = Division.objects.create(division=4)
+        same_day = Week.objects.create(
+            division=other_division, season=self.season, date=self.today
+        )
+        game = MatchUp.objects.get(pk=self.game1.pk)
+        game.week = same_day
+        game.save()
+        self.assertFalse(game.goalie_status_reset)
+        self.assertUntouched(game)
+
+    def test_saving_a_game_without_moving_it_keeps_statuses(self):
+        game = MatchUp.objects.get(pk=self.game1.pk)
+        game.time = datetime.time(18, 0)
+        game.save()
+        self.assertFalse(game.goalie_status_reset)
+        self.assertUntouched(game)
+
+    def test_confirming_a_goalie_still_saves(self):
+        # The captain page saves status changes with a plain save().
+        game = MatchUp.objects.get(pk=self.game2.pk)
+        game.away_goalie = self.sub
+        game.away_goalie_status = MatchUp.GOALIE_STATUS_CONFIRMED
+        game.save()
+        game.refresh_from_db()
+        self.assertEqual(game.away_goalie, self.sub)
+        self.assertEqual(game.away_goalie_status, MatchUp.GOALIE_STATUS_CONFIRMED)
+
+    def test_move_with_update_fields_still_resets(self):
+        later = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=7),
+        )
+        game = MatchUp.objects.get(pk=self.game1.pk)
+        game.week = later
+        game.save(update_fields=["week"])
+        self.assertReset(game)
+
+    def test_instance_not_loaded_from_db_still_detects_a_move(self):
+        later = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=7),
+        )
+        game = MatchUp(
+            pk=self.game1.pk,
+            week=later,
+            awayteam=self.away,
+            hometeam=self.home,
+            time=datetime.time(19, 0),
+            away_goalie_status=MatchUp.GOALIE_STATUS_CONFIRMED,
+            home_goalie=self.sub,
+            home_goalie_status=MatchUp.GOALIE_STATUS_CONFIRMED,
+        )
+        game.save()
+        self.assertReset(game)
+
+    def test_new_game_keeps_the_statuses_it_was_created_with(self):
+        game = MatchUp.objects.create(
+            week=self.week,
+            awayteam=self.away,
+            hometeam=self.home,
+            time=datetime.time(21, 0),
+            home_goalie=self.sub,
+            home_goalie_status=MatchUp.GOALIE_STATUS_CONFIRMED,
+        )
+        self.assertFalse(game.goalie_status_reset)
+        game.refresh_from_db()
+        self.assertEqual(game.home_goalie, self.sub)
+
+
+class WeekAdminRescheduleTest(GoalieResetFixture):
+    def setUp(self):
+        super().setUp()
+        self.client = Client()
+        User.objects.create_superuser(
+            username="admin", email="admin@test.com", password="adminpass123"
+        )
+        self.client.login(username="admin", password="adminpass123")
+
+    def _week_post(self, new_date, inline_rows=0, **extra):
+        data = {
+            "division": self.division.pk,
+            "season": self.season.pk,
+            "date": new_date.isoformat(),
+            "matchup_set-TOTAL_FORMS": str(inline_rows),
+            "matchup_set-INITIAL_FORMS": str(inline_rows),
+            "matchup_set-MIN_NUM_FORMS": "0",
+            "matchup_set-MAX_NUM_FORMS": "1000",
+        }
+        data.update(extra)
+        return data
+
+    def test_changing_the_date_in_the_admin_resets_and_explains(self):
+        new_date = self.today + datetime.timedelta(days=7)
+        response = self.client.post(
+            reverse("admin:leagues_week_change", args=[self.week.pk]),
+            self._week_post(new_date),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertReset(self.game1)
+        self.assertReset(self.game2)
+        self.assertContains(response, "goalie statuses on 2 games were reset")
+        self.assertContains(response, f"to {new_date:%A, %B %-d}")
+
+    def test_edited_inline_row_cannot_bring_back_stale_goalie_values(self):
+        # The inline game row was loaded with its goalie confirmed and a sub
+        # named. Editing its time in the same save as the date change must
+        # not re-save those stale values over the reset.
+        new_date = self.today + datetime.timedelta(days=7)
+        row = {
+            "matchup_set-0-id": str(self.game1.pk),
+            "matchup_set-0-week": str(self.week.pk),
+            "matchup_set-0-time": "06:00 PM",
+            "matchup_set-0-awayteam": str(self.away.pk),
+            "matchup_set-0-hometeam": str(self.home.pk),
+            "matchup_set-0-away_goalie_status": str(MatchUp.GOALIE_STATUS_CONFIRMED),
+            "matchup_set-0-home_goalie": str(self.sub.pk),
+            "matchup_set-0-home_goalie_status": str(MatchUp.GOALIE_STATUS_CONFIRMED),
+        }
+        response = self.client.post(
+            reverse("admin:leagues_week_change", args=[self.week.pk]),
+            self._week_post(new_date, inline_rows=1, **row),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.game1.refresh_from_db()
+        self.assertEqual(self.game1.time, datetime.time(18, 0))
+        self.assertReset(self.game1)
+        self.assertReset(self.game2)
+        self.assertContains(response, "goalie statuses on 2 games were reset")
+
+    def test_saving_without_a_date_change_shows_no_reset_message(self):
+        response = self.client.post(
+            reverse("admin:leagues_week_change", args=[self.week.pk]),
+            self._week_post(self.today),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertUntouched(self.game1)
+        self.assertNotContains(response, "were reset to Unconfirmed")
+
+    def test_week_list_action_resets_selected_weeks(self):
+        response = self.client.post(
+            reverse("admin:leagues_week_changelist")
+            + f"?season__id__exact={self.season.pk}",
+            {
+                "action": "reset_goalie_statuses_action",
+                "_selected_action": [str(self.week.pk)],
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertReset(self.game1)
+        self.assertReset(self.game2)
+        self.assertContains(response, "Reset goalie status to Unconfirmed on 2 games")
+
+    def test_week_list_action_reports_nothing_to_reset(self):
+        from leagues.models import reset_goalie_statuses
+
+        reset_goalie_statuses(MatchUp.objects.all())
+        response = self.client.post(
+            reverse("admin:leagues_week_changelist")
+            + f"?season__id__exact={self.season.pk}",
+            {
+                "action": "reset_goalie_statuses_action",
+                "_selected_action": [str(self.week.pk)],
+            },
+            follow=True,
+        )
+        self.assertContains(response, "already Unconfirmed with no sub")
+
+
+class GoalieStatusAdminResetTest(GoalieResetFixture):
+    def setUp(self):
+        super().setUp()
+        self.client = Client()
+        User.objects.create_superuser(
+            username="admin", email="admin@test.com", password="adminpass123"
+        )
+        self.client.login(username="admin", password="adminpass123")
+        self.url = (
+            reverse("admin:leagues_matchupgoaliestatus_changelist") + "?timeframe=all"
+        )
+
+    def test_changelist_offers_the_reset_action_and_a_date_drilldown(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="reset_goalie_statuses_action"')
+        self.assertContains(response, "Reset goalie status to Unconfirmed")
+        # date_hierarchy renders the year of the listed games as a drilldown.
+        self.assertContains(response, f"week__date__year={self.today.year}")
+
+    def test_action_resets_only_the_selected_games(self):
+        response = self.client.post(
+            self.url,
+            {
+                "action": "reset_goalie_statuses_action",
+                "_selected_action": [str(self.game1.pk)],
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertReset(self.game1)
+        self.game2.refresh_from_db()
+        self.assertEqual(
+            self.game2.away_goalie_status, MatchUp.GOALIE_STATUS_SUB_NEEDED
+        )
+        self.assertContains(response, "Reset goalie status to Unconfirmed on 1 game ")
+
+    def test_moving_a_game_in_the_game_admin_explains_the_reset(self):
+        later = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=7),
+        )
+        response = self.client.post(
+            reverse("admin:leagues_matchup_change", args=[self.game1.pk]),
+            {
+                "week": later.pk,
+                "time": "07:00 PM",
+                "awayteam": self.away.pk,
+                "hometeam": self.home.pk,
+                "away_goalie_status": MatchUp.GOALIE_STATUS_CONFIRMED,
+                "home_goalie": self.sub.pk,
+                "home_goalie_status": MatchUp.GOALIE_STATUS_CONFIRMED,
+                "stat_set-TOTAL_FORMS": "0",
+                "stat_set-INITIAL_FORMS": "0",
+                "stat_set-MIN_NUM_FORMS": "0",
+                "stat_set-MAX_NUM_FORMS": "1000",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertReset(self.game1)
+        self.assertContains(response, "This game moved to")
+        self.assertContains(response, "reset to Unconfirmed")

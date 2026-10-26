@@ -47,6 +47,7 @@ from leagues.models import (
     DraftTeam,
     DraftRound,
     DraftPick,
+    reset_goalie_statuses,
 )
 import json
 import logging
@@ -664,6 +665,13 @@ class MatchUpAdmin(admin.ModelAdmin):
             else:
                 obj.shootout_winner_is_home = None
         super().save_model(request, obj, form, change)
+        if getattr(obj, "goalie_status_reset", False):
+            messages.info(
+                request,
+                f"This game moved to {obj.week.date:%A, %B %-d}, so its goalie "
+                "statuses were reset to Unconfirmed and any sub was cleared. "
+                "Captains will need to confirm their goalies again.",
+            )
 
     def changelist_view(self, request, extra_context=None):
         redirect_url = _apply_default_matchup_filters(request, default_timeframe="past")
@@ -1233,6 +1241,24 @@ class MatchUpGoalieStatusAdmin(admin.ModelAdmin):
     list_display_links = ["week", "formatted_time"]
     ordering = ["week__date", "time"]
     list_per_page = 50
+    # Lets an admin narrow the list to one game day, then reset or edit it.
+    date_hierarchy = "week__date"
+    actions = ["reset_goalie_statuses_action"]
+
+    @admin.action(description="Reset goalie status to Unconfirmed (clears subs)")
+    def reset_goalie_statuses_action(self, request, queryset):
+        reset = reset_goalie_statuses(queryset)
+        if reset:
+            messages.success(
+                request,
+                f"Reset goalie status to Unconfirmed on {reset} "
+                f"game{'s' if reset != 1 else ''} and cleared any subs. "
+                "Captains will need to confirm their goalies again.",
+            )
+        else:
+            messages.info(
+                request, "The selected games were already Unconfirmed with no sub."
+            )
 
     fieldsets = (
         (
@@ -1587,12 +1613,46 @@ class WeekAdmin(admin.ModelAdmin):
     list_display_links = ["__str__"]
     list_filter = ["division", "season", "is_cancelled"]
 
-    actions = ["show_all_seasons"]
+    actions = ["show_all_seasons", "reset_goalie_statuses_action"]
 
     def show_all_seasons(self, request, queryset):
         return queryset
 
     show_all_seasons.short_description = "Show All Seasons"
+
+    @admin.action(
+        description="Reset goalie statuses to Unconfirmed for these weeks' games"
+    )
+    def reset_goalie_statuses_action(self, request, queryset):
+        reset = reset_goalie_statuses(MatchUp.objects.filter(week__in=queryset))
+        if reset:
+            messages.success(
+                request,
+                f"Reset goalie status to Unconfirmed on {reset} "
+                f"game{'s' if reset != 1 else ''} and cleared any subs. "
+                "Captains will need to confirm their goalies again.",
+            )
+        else:
+            messages.info(request, "Those games were already Unconfirmed with no sub.")
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        week = form.instance
+        if getattr(week, "rescheduled_from", None) is None:
+            return
+        # Week.save() already reset the games, but an edited inline row is
+        # saved afterwards with the goalie values it was loaded with, so
+        # apply the reset once more now that every inline has been saved.
+        reset = max(week.reset_goalie_statuses(), week.goalie_statuses_reset)
+        if reset:
+            messages.info(
+                request,
+                f"Games moved from {week.rescheduled_from:%A, %B %-d} to "
+                f"{week.date:%A, %B %-d}: goalie statuses on {reset} "
+                f"game{'s' if reset != 1 else ''} were reset to Unconfirmed and "
+                "any subs were cleared. Captains will need to confirm their "
+                "goalies again.",
+            )
 
     def changelist_view(self, request, extra_context=None):
         if not request.GET.get("season__id__exact"):

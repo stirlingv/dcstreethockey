@@ -336,16 +336,22 @@ class Week(models.Model):
 
     def save(self, *args, **kwargs):
         cascade_cancellation = False
+        # Set when this save moved the week to a new date: the old date, and
+        # how many games had their goalie status reset because of it. Admin
+        # screens use these to tell the user what happened.
+        self.rescheduled_from = None
+        self.goalie_statuses_reset = 0
         if self.pk:
-            previous_cancelled = (
+            previous = (
                 Week.objects.filter(pk=self.pk)
-                .values_list("is_cancelled", flat=True)
+                .values_list("is_cancelled", "date")
                 .first()
             )
-            cascade_cancellation = (
-                previous_cancelled is not None
-                and previous_cancelled != self.is_cancelled
-            )
+            if previous is not None:
+                previous_cancelled, previous_date = previous
+                cascade_cancellation = previous_cancelled != self.is_cancelled
+                if previous_date != self.date:
+                    self.rescheduled_from = previous_date
         super().save(*args, **kwargs)
         if cascade_cancellation:
             # Keep every game on this week/division in sync with a single
@@ -353,13 +359,44 @@ class Week(models.Model):
             # it — no separate per-game step required.
             self.matchup_set.update(is_cancelled=self.is_cancelled)
             cache.delete("cancelled_games_ctx")
+        if self.rescheduled_from is not None:
+            # A rescheduled slate is a new game day: confirmations and subs
+            # arranged for the old date no longer hold, so ask again.
+            self.goalie_statuses_reset = self.reset_goalie_statuses()
+
+    def reset_goalie_statuses(self):
+        """Set every game on this week back to Unconfirmed with no sub."""
+        return reset_goalie_statuses(self.matchup_set.all())
+
+
+def reset_goalie_statuses(matchups):
+    """
+    Reset goalie status on the given games to Unconfirmed and clear any
+    goalie named on them (a sub or an explicit pick). Returns how many games
+    actually changed; games already in that state are left alone.
+    """
+    unconfirmed = MatchUp.GOALIE_STATUS_UNCONFIRMED
+    return matchups.exclude(
+        away_goalie_status=unconfirmed,
+        away_goalie__isnull=True,
+        home_goalie_status=unconfirmed,
+        home_goalie__isnull=True,
+    ).update(
+        away_goalie=None,
+        away_goalie_status=unconfirmed,
+        home_goalie=None,
+        home_goalie_status=unconfirmed,
+    )
 
 
 class MatchUp(models.Model):
+    GOALIE_STATUS_CONFIRMED = 1
+    GOALIE_STATUS_SUB_NEEDED = 2
+    GOALIE_STATUS_UNCONFIRMED = 3
     GOALIE_STATUS_CHOICES = (
-        (1, "Confirmed"),
-        (2, "Sub Needed"),
-        (3, "Unconfirmed"),
+        (GOALIE_STATUS_CONFIRMED, "Confirmed"),
+        (GOALIE_STATUS_SUB_NEEDED, "Sub Needed"),
+        (GOALIE_STATUS_UNCONFIRMED, "Unconfirmed"),
     )
     week = models.ForeignKey(Week, null=True, on_delete=models.CASCADE, db_index=True)
     time = models.TimeField(db_index=True)
@@ -445,6 +482,50 @@ class MatchUp(models.Model):
 
         if errors:
             raise ValidationError(errors)
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        # Remembered so save() can tell whether the game moved to another
+        # week without an extra query.
+        instance._loaded_week_id = instance.week_id
+        return instance
+
+    def _moved_to_new_date(self):
+        """True if this save moves an existing game to a week on another date."""
+        if not self.pk or not self.week_id:
+            return False
+        if getattr(self, "_loaded_week_id", None) == self.week_id:
+            return False
+        previous_date = (
+            MatchUp.objects.filter(pk=self.pk)
+            .values_list("week__date", flat=True)
+            .first()
+        )
+        if previous_date is None:
+            return False
+        new_date = Week.objects.filter(pk=self.week_id).values_list("date", flat=True)
+        return previous_date != new_date.first()
+
+    def save(self, *args, **kwargs):
+        # Moving a game to another date makes its goalie confirmations and
+        # any sub stale, the same as rescheduling the whole week.
+        self.goalie_status_reset = False
+        if self._moved_to_new_date():
+            self.away_goalie = None
+            self.away_goalie_status = self.GOALIE_STATUS_UNCONFIRMED
+            self.home_goalie = None
+            self.home_goalie_status = self.GOALIE_STATUS_UNCONFIRMED
+            self.goalie_status_reset = True
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {
+                    "away_goalie",
+                    "away_goalie_status",
+                    "home_goalie",
+                    "home_goalie_status",
+                }
+        super().save(*args, **kwargs)
+        self._loaded_week_id = self.week_id
 
     def __str__(self):
         return f"{self.awayteam} vs {self.hometeam} on {self.week.date}"
