@@ -130,10 +130,23 @@ jobs:
 
     - name: Audit for known vulnerabilities
       # Ignored advisories (remove each once a fixed release can be installed):
-      # - CVE-2026-106454, twisted 26.4.0, no fixed release yet. ReDoS in
-      #   twisted.mail.imap4's LIST/LSUB wildcard handling. Twisted is only
-      #   here because daphne needs it; the site never runs an IMAP server.
+      # twisted 26.4.0: the only fix so far is the 26.10.0rc1 pre-release,
+      # which production shouldn't pin. Twisted is installed only because
+      # daphne needs it; production serves through uvicorn, and the site runs
+      # none of the affected Twisted servers.
+      # - CVE-2026-106454: ReDoS in twisted.mail.imap4 wildcard handling.
+      # - CVE-2026-115774: infinite loop in the twisted.mail.imap4 server.
+      # - CVE-2026-115775: unbounded XML element tree in twisted.words.xish.
+      # - CVE-2026-115776: unbounded line buffer in the twisted.words IRC server.
+      # - CVE-2026-115778: unbounded telnet subnegotiation buffer in twisted.conch.
+      # - CVE-2026-115877: bare CR/LF in a header value accepted by the
+      #   twisted.web HTTP server, which only serves `manage.py runserver` here.
       run: |
         SITE=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
         pipx run pip-audit --path "$SITE" --desc on \
-          --ignore-vuln CVE-2026-106454
+          --ignore-vuln CVE-2026-106454 \
+          --ignore-vuln CVE-2026-115774 \
+          --ignore-vuln CVE-2026-115775 \
+          --ignore-vuln CVE-2026-115776 \
+          --ignore-vuln CVE-2026-115778 \
+          --ignore-vuln CVE-2026-115877

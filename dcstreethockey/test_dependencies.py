@@ -62,7 +62,12 @@ PATCHED_DEPENDENCY_FLOORS = {
     "djangorestframework": "3.17.2",
     "idna": "3.15",
     "oauthlib": "4.0.0",
-    "setuptools": "83.0.0",
+    # GHSA-xmj3-9gf7-h52w: a crafted wheel's namespace_packages.txt could
+    # create a file outside the install directory (Windows only).
+    "setuptools": "84.1.0",
+    # PYSEC-2026-4322 / GHSA-9v8h-qqgm-4m35: out-of-bounds write in the Brotli
+    # decoder, reachable from any Brotli-compressed response or request body.
+    "brotli": "1.2.1",
 }
 
 
