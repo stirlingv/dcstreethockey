@@ -22,6 +22,8 @@ from leagues.models import (
     DraftRound,
     DraftSession,
     DraftTeam,
+    GoalieStatusChange,
+    GoalieSubOffer,
     HomePage,
     MatchUp,
     PendingPlayerPhoto,
@@ -122,6 +124,22 @@ def build_smoke_data():
         time=datetime.time(11, 0),
         hometeam=away,
         awayteam=home,
+        home_goalie_status=MatchUp.GOALIE_STATUS_SUB_NEEDED,
+    )
+    GoalieStatusChange.objects.create(
+        matchup=upcoming,
+        team=away,
+        status=MatchUp.GOALIE_STATUS_SUB_NEEDED,
+        reported_by="Smoke Reporter",
+        source=GoalieStatusChange.SOURCE_BOARD,
+    )
+    sub_offer = GoalieSubOffer.objects.create(
+        matchup=upcoming,
+        team=away,
+        player=players["home_goalie"],
+        name="Home Goalie",
+        phone="202-555-0100",
+        note="Can be there by 10:45",
     )
     Stat.objects.create(
         player=players["home_center"], team=home, matchup=played, goals=2, assists=1
@@ -210,6 +228,7 @@ def build_smoke_data():
         "ref": ref,
         "played": played,
         "upcoming": upcoming,
+        "sub_offer": sub_offer,
         "draft_season": draft_season,
         "draft": draft,
         "draft_teams": draft_teams,

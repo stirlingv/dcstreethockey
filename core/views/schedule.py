@@ -7,6 +7,9 @@ from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import get_object_or_404, render
 from django.views.generic.list import ListView
 
+from django.conf import settings
+
+from leagues.goalie_board import goalie_sides_for_matchup, goalie_sides_for_matchups
 from leagues.goalie_of_record import goalies_of_record, is_goalie_appearance
 from leagues.models import Division, MatchUp, Player, Roster, Stat, Team, Week
 
@@ -380,6 +383,24 @@ def schedule(request):
     context["betting_lines"] = compute_betting_lines_for_matchups(all_matchup_ids)
     context["player_props"] = compute_player_props_for_matchups(all_matchup_ids)
 
+    # Goalie status chips for each game, linking to the Goalie Status Board.
+    all_matchups = [
+        match
+        for date_games in context["schedule"].values()
+        for division_games in date_games.values()
+        for match in division_games
+    ]
+    sides = goalie_sides_for_matchups(all_matchups)
+    context["goalie_sides"] = {
+        mid: [info["away"], info["home"]] for mid, info in sides.items()
+    }
+    context["sub_needed_games"] = sum(
+        1
+        for info in sides.values()
+        if info["away"]["needs_sub"] or info["home"]["needs_sub"]
+    )
+    context["czar_name"] = settings.GOALIE_CZAR_NAME
+
     return render(request, "leagues/schedule.html", context=context)
 
 
@@ -537,6 +558,12 @@ def matchup_detail(request, matchup_id):
         lines = compute_betting_lines_for_matchups([matchup_id]).get(matchup_id)
         props = compute_player_props_for_matchups([matchup_id]).get(matchup_id)
 
+    # Goalie status chips, for games still to be played.
+    goalie_sides = None
+    if not is_past and not matchup.is_cancelled:
+        info = goalie_sides_for_matchup(matchup)
+        goalie_sides = [info["away"], info["home"]] if info else None
+
     return render(
         request,
         "core/matchup_detail.html",
@@ -544,6 +571,7 @@ def matchup_detail(request, matchup_id):
             "matchup": matchup,
             "lines": lines,
             "props": props,
+            "goalie_sides": goalie_sides,
             "box": box,
             "has_stats": has_stats,
             "is_final": is_final,

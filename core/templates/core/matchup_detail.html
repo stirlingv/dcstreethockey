@@ -61,6 +61,17 @@
                 </div>
             </div>
 
+            {% if goalie_sides %}
+            <div class="goalie-line goalie-line-detail">
+                {% for side in goalie_sides %}
+                <a class="goalie-chip {% if side.status == 1 %}gc-confirmed{% elif side.status == 2 %}gc-sub-needed{% else %}gc-unconfirmed{% endif %}" href="{% url 'goalie_status_board' %}#game-{{ matchup.id }}" title="Update on the Goalie Status Board">
+                    <span class="gc-team">{{ side.team.team_name }} goalie</span>
+                    <span class="gc-status">{% if side.status == 2 %}&#9888; Sub needed{% elif side.status == 1 %}&#10003; Confirmed{% else %}Unconfirmed{% endif %}</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% if matchup.is_cancelled %}
             <div class="matchup-status-note">This game was cancelled{% if has_stats %} &mdash; any stats below are unofficial{% endif %}.</div>
             {% elif is_final %}

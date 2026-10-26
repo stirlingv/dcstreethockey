@@ -4,7 +4,7 @@
 {% block title %}Goalie Status Board - DC Street Hockey{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'assets/css/goalie.css' %}">
+<link rel="stylesheet" href="{% static 'assets/css/goalie.css' %}?v=2">
 {% endblock %}
 
 {% block content %}
@@ -14,6 +14,8 @@
             <div class="title">
                 Goalie Status Board
             </div>
+
+            {% include 'partials/messages.html' %}
 
             <div class="status-summary">
                 <h2>Upcoming Games Needing Goalies</h2>
@@ -26,75 +28,114 @@
                         ✓ All games have goalies confirmed or assigned
                     </div>
                 {% endif %}
+                <p class="board-intro">
+                    Anyone can update this board &mdash; no login needed.
+                    Goalie out? Tap <strong>Can&rsquo;t make it?</strong> on your team&rsquo;s game.
+                    Able to fill in? Tap <strong>I can sub</strong>.
+                    {{ czar_name }} watches this board and helps teams find subs.
+                </p>
             </div>
 
             {% for week_data in weeks_data %}
-            <div class="week-section">
+            <section class="week-section">
                 <div class="week-header">
                     <h3>{{ week_data.week.date|date:"l, F j, Y" }}</h3>
                     <span class="division-badge">{{ week_data.week.division }}</span>
                 </div>
-
                 {% if week_data.matchups %}
-                <table class="matchups-table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Away Team</th>
-                            <th>Away Goalie</th>
-                            <th>Home Team</th>
-                            <th>Home Goalie</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for match_data in week_data.matchups %}
-                        <tr>
-                            <td class="time-cell">{{ match_data.matchup.time|time:"g:i A" }}</td>
-                            <td class="team-cell">{{ match_data.matchup.awayteam.team_name }}</td>
-                            <td>
-                                <div class="goalie-cell">
-                                    <span class="goalie-name {% if match_data.away_goalie_info.is_sub %}is-sub{% endif %}">
-                                        {% if match_data.away_goalie_info.goalie_name %}
-                                            {{ match_data.away_goalie_info.goalie_name }}
-                                            {% if match_data.away_goalie_info.is_sub %}<span class="sub-badge">Sub</span>{% endif %}
-                                        {% else %}
-                                            ---
-                                        {% endif %}
-                                    </span>
-                                    <span class="status-badge {% if match_data.away_goalie_info.status == 1 %}confirmed{% elif match_data.away_goalie_info.status == 2 %}sub-needed{% else %}unconfirmed{% endif %}">
-                                        {{ match_data.away_goalie_info.status_display }}
-                                    </span>
+                <div class="game-cards">
+                    {% for match_data in week_data.matchups %}
+                    <article class="game-card{% if match_data.away_goalie_info.needs_sub or match_data.home_goalie_info.needs_sub %} game-card-needs-sub{% endif %}" id="game-{{ match_data.matchup.id }}">
+                        <div class="game-card-head">
+                            <span class="game-time">{{ match_data.matchup.time|time:"g:i A" }}</span>
+                            <span class="game-teams">{{ match_data.matchup.awayteam.team_name }} <span class="game-at">@</span> {{ match_data.matchup.hometeam.team_name }}</span>
+                        </div>
+                        {% for side in match_data.sides %}
+                        <div class="side-row{% if side.needs_sub %} side-needs-sub{% endif %}">
+                            <div class="side-main">
+                                <div class="side-team">{{ side.team.team_name }} <span class="side-label">{% if side.side == "home" %}home{% else %}away{% endif %}</span></div>
+                                <div class="side-status">
+                                    <span class="status-badge {% if side.status == 1 %}confirmed{% elif side.status == 2 %}sub-needed{% else %}unconfirmed{% endif %}">{{ side.status_display }}</span>
+                                    {% if side.goalie_name %}
+                                    <span class="goalie-name {% if side.is_sub %}is-sub{% endif %}">{{ side.goalie_name }}{% if side.is_sub %} <span class="sub-badge">Sub</span>{% endif %}</span>
+                                    {% elif not side.needs_sub %}
+                                    <span class="goalie-name goalie-none">No goalie on roster</span>
+                                    {% endif %}
                                 </div>
-                            </td>
-                            <td class="team-cell">{{ match_data.matchup.hometeam.team_name }}</td>
-                            <td>
-                                <div class="goalie-cell">
-                                    <span class="goalie-name {% if match_data.home_goalie_info.is_sub %}is-sub{% endif %}">
-                                        {% if match_data.home_goalie_info.goalie_name %}
-                                            {{ match_data.home_goalie_info.goalie_name }}
-                                            {% if match_data.home_goalie_info.is_sub %}<span class="sub-badge">Sub</span>{% endif %}
-                                        {% else %}
-                                            ---
-                                        {% endif %}
-                                    </span>
-                                    <span class="status-badge {% if match_data.home_goalie_info.status == 1 %}confirmed{% elif match_data.home_goalie_info.status == 2 %}sub-needed{% else %}unconfirmed{% endif %}">
-                                        {{ match_data.home_goalie_info.status_display }}
-                                    </span>
+                                {% if side.reported_by %}
+                                <div class="reported-by">Reported by {{ side.reported_by }}{% if side.reported_at %} &middot; {{ side.reported_at|date:"D g:i A" }}{% endif %}</div>
+                                {% endif %}
+                                {% if side.needs_sub and side.volunteers %}
+                                <div class="volunteer-list">
+                                    <strong>{{ side.volunteers|length }} volunteer{{ side.volunteers|length|pluralize }}:</strong>
+                                    {% for v in side.volunteers %}{{ v.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                                    <span class="volunteer-note">&mdash; waiting for the captain to confirm</span>
                                 </div>
-                            </td>
-                        </tr>
+                                {% endif %}
+                            </div>
+                            <div class="side-actions">
+                                {% if side.needs_sub %}
+                                <details class="board-action">
+                                    <summary class="board-btn board-btn-primary">I can sub</summary>
+                                    <form method="post" action="{% url 'offer_sub' match_data.matchup.id side.side %}" class="board-form">
+                                        {% csrf_token %}
+                                        <input type="text" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
+                                        <p class="board-form-title">Fill in for {{ side.team.team_name }} on {{ match_data.matchup.week.date|date:"D, M j" }} at {{ match_data.matchup.time|time:"g:i A" }}</p>
+                                        <label>
+                                            <span>Your name</span>
+                                            <input type="text" name="name" list="goalie-names" required maxlength="100" autocomplete="name" placeholder="First Last">
+                                        </label>
+                                        <label>
+                                            <span>Phone</span>
+                                            <input type="tel" name="phone" required maxlength="30" autocomplete="tel" placeholder="So the captain can reach you">
+                                        </label>
+                                        <label>
+                                            <span>Note <em>(optional)</em></span>
+                                            <input type="text" name="note" maxlength="300" placeholder="e.g. Can do 7pm but not 8:30">
+                                        </label>
+                                        <button type="submit" class="board-btn board-btn-primary board-btn-submit">Send &mdash; I&rsquo;m available</button>
+                                        <p class="board-form-help">The captain and {{ czar_name }} will see your offer and reach out to confirm.</p>
+                                    </form>
+                                </details>
+                                {% else %}
+                                <details class="board-action">
+                                    <summary class="board-btn board-btn-secondary">Can&rsquo;t make it?</summary>
+                                    <form method="post" action="{% url 'report_sub_needed' match_data.matchup.id side.side %}" class="board-form">
+                                        {% csrf_token %}
+                                        <input type="text" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
+                                        <p class="board-form-title">Mark {{ side.team.team_name }} as needing a goalie sub on {{ match_data.matchup.week.date|date:"D, M j" }}</p>
+                                        <label>
+                                            <span>Your name</span>
+                                            <input type="text" name="name" required maxlength="100" autocomplete="name" placeholder="First Last">
+                                        </label>
+                                        <label>
+                                            <span>Note <em>(optional)</em></span>
+                                            <input type="text" name="note" maxlength="300" placeholder="e.g. Pat is out of town">
+                                        </label>
+                                        <button type="submit" class="board-btn board-btn-danger board-btn-submit">Mark Sub Needed</button>
+                                        <p class="board-form-help">This tells the captain and {{ czar_name }} that a sub is needed, and lets goalies volunteer.</p>
+                                    </form>
+                                </details>
+                                {% endif %}
+                            </div>
+                        </div>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </article>
+                    {% endfor %}
+                </div>
                 {% else %}
                 <div class="no-matchups">No matchups scheduled for this week.</div>
                 {% endif %}
-            </div>
+            </section>
             {% empty %}
             <div class="no-matchups">
                 <p>No upcoming games scheduled.</p>
             </div>
             {% endfor %}
+
+            <datalist id="goalie-names">
+                {% for name in goalie_names %}<option value="{{ name }}">{% endfor %}
+            </datalist>
 
             <div class="legend">
                 <div class="legend-item">
@@ -113,4 +154,21 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Put the cursor in the first field when an action opens, and close any
+// other open form in the same card so the page stays tidy on a phone.
+document.querySelectorAll('.board-action').forEach(function (details) {
+    details.addEventListener('toggle', function () {
+        if (!details.open) return;
+        details.closest('.game-card').querySelectorAll('.board-action[open]').forEach(function (other) {
+            if (other !== details) other.open = false;
+        });
+        var first = details.querySelector('input:not([type="hidden"]):not(.hp-field)');
+        if (first) first.focus();
+    });
+});
+</script>
 {% endblock %}

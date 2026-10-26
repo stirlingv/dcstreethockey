@@ -15,6 +15,16 @@
             </div>
             <p class="record-legend">Team records: W-OTW-OTL-L <span class="record-legend-note">(seasons before 2022: W-L-T)</span></p>
 
+            <div class="goalie-strip">
+                {% if sub_needed_games %}
+                <a class="goalie-strip-alert" href="{% url 'goalie_status_board' %}">&#9888; {{ sub_needed_games }} upcoming game{{ sub_needed_games|pluralize }} need{{ sub_needed_games|pluralize:"s," }} a goalie sub &mdash; can you help?</a>
+                {% endif %}
+                <details class="goalie-strip-info">
+                    <summary>What are the goalie chips?</summary>
+                    <p>Each game shows both teams&rsquo; goalie status. Tap a chip to open that game on the Goalie Status Board, where anyone &mdash; captains, goalies, teammates &mdash; can mark <strong>Can&rsquo;t make it?</strong> or <strong>I can sub</strong> in a few seconds, no login needed. The sooner {{ czar_name }} knows a sub is needed, the easier it is to find one.</p>
+                </details>
+            </div>
+
 			<div class="pill-group" id="divisionFilter">
 				<button type="button" class="pill-item activeoption" data-division="all" onclick="filterSchedule('all')">All</button>
 				<button type="button" class="pill-item" data-division="Monday A League" onclick="filterSchedule('Monday A League')">Monday A</button>

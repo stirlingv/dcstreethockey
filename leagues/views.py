@@ -5,7 +5,13 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
 
+from django.conf import settings
+from django.contrib import messages
+from django.urls import reverse
+
 from .models import (
+    GoalieStatusChange,
+    GoalieSubOffer,
     MatchUp,
     Team,
     Player,
@@ -15,6 +21,17 @@ from .models import (
     PendingTeamPhoto,
 )
 from .forms import PlayerPhotoUploadForm, TeamPhotoUploadForm
+from .goalie_board import (
+    SIDES,
+    client_ip,
+    confirm_offer,
+    goalie_sides_for_matchups,
+    listed_goalies,
+    match_listed_goalie,
+    notify_goalie_czar,
+    over_rate_limit,
+    side_fields,
+)
 
 
 def get_roster_goalie(team):
@@ -125,44 +142,31 @@ def goalie_status_board(request):
         )
     )
 
+    upcoming_weeks = list(upcoming_weeks)
+    all_matchups = list(
+        MatchUp.objects.filter(week__in=upcoming_weeks)
+        .select_related("week", "awayteam", "hometeam")
+        .order_by("week__date", "time")
+    )
+    sides = goalie_sides_for_matchups(all_matchups)
+    by_week = {}
+    for matchup in all_matchups:
+        by_week.setdefault(matchup.week_id, []).append(matchup)
+
     weeks_data = []
     for week in upcoming_weeks:
-        matchups = (
-            MatchUp.objects.filter(week=week)
-            .select_related(
-                "awayteam",
-                "hometeam",
-                "away_goalie",
-                "home_goalie",
-                "awayteam__division",
-                "hometeam__division",
-            )
-            .order_by("time")
-        )
-
         matchups_data = []
-        for matchup in matchups:
-            away_info = get_goalie_display_info(
-                matchup, matchup.awayteam, "away_goalie", "away_goalie_status"
-            )
-            home_info = get_goalie_display_info(
-                matchup, matchup.hometeam, "home_goalie", "home_goalie_status"
-            )
-
+        for matchup in by_week.get(week.id, []):
+            info = sides[matchup.id]
             matchups_data.append(
                 {
                     "matchup": matchup,
-                    "away_goalie_info": away_info,
-                    "home_goalie_info": home_info,
+                    "away_goalie_info": info["away"],
+                    "home_goalie_info": info["home"],
+                    "sides": [info["away"], info["home"]],
                 }
             )
-
-        weeks_data.append(
-            {
-                "week": week,
-                "matchups": matchups_data,
-            }
-        )
+        weeks_data.append({"week": week, "matchups": matchups_data})
 
     # Count games needing subs for the same date window shown on this page.
     sub_needed_count = 0
@@ -177,8 +181,162 @@ def goalie_status_board(request):
         "weeks_data": weeks_data,
         "sub_needed_count": sub_needed_count,
         "status_choices": MatchUp.GOALIE_STATUS_CHOICES,
+        "goalie_names": [f"{p.first_name} {p.last_name}" for p in listed_goalies()],
+        "czar_name": settings.GOALIE_CZAR_NAME,
     }
     return render(request, "leagues/goalie_status_board.html", context)
+
+
+def _board_game(matchup_id, side):
+    """The upcoming, uncancelled game and side a public board post targets."""
+    if side not in SIDES:
+        raise Http404("Unknown side")
+    matchup = get_object_or_404(
+        MatchUp.objects.select_related("week", "awayteam", "hometeam"),
+        id=matchup_id,
+    )
+    if matchup.is_cancelled or matchup.week.date < timezone.now().date():
+        raise Http404("This game is not open for goalie updates")
+    return matchup
+
+
+def _back_to_board(matchup):
+    return redirect(f"{reverse('goalie_status_board')}#game-{matchup.id}")
+
+
+def _clean(request, field, limit):
+    return request.POST.get(field, "").strip()[:limit]
+
+
+@require_POST
+def report_sub_needed(request, matchup_id, side):
+    """
+    Public: anyone (a goalie, a captain, a teammate) can flag that a team
+    needs a goalie sub for a game. Marks the side Sub Needed and records who
+    reported it so the board shows "reported by".
+    """
+    matchup = _board_game(matchup_id, side)
+    team_field, goalie_field, status_field = side_fields(side)
+    team = getattr(matchup, team_field)
+    name = _clean(request, "name", 100)
+    note = _clean(request, "note", 300)
+
+    if request.POST.get("website"):  # honeypot: bots fill every field
+        return _back_to_board(matchup)
+    if over_rate_limit(request):
+        messages.error(
+            request,
+            "Too many updates from your connection. Try again in a few minutes.",
+        )
+        return _back_to_board(matchup)
+    if not name:
+        messages.error(
+            request, "Please add your name so the captain knows who reported it."
+        )
+        return _back_to_board(matchup)
+
+    setattr(matchup, goalie_field, None)
+    setattr(matchup, status_field, MatchUp.GOALIE_STATUS_SUB_NEEDED)
+    matchup.save()
+    GoalieStatusChange.objects.create(
+        matchup=matchup,
+        team=team,
+        status=MatchUp.GOALIE_STATUS_SUB_NEEDED,
+        reported_by=name,
+        note=note,
+        source=GoalieStatusChange.SOURCE_BOARD,
+        ip_address=client_ip(request),
+    )
+    when = f"{matchup.week.date:%A, %B %-d} at {matchup.time:%-I:%M %p}"
+    emailed = notify_goalie_czar(
+        f"Goalie sub needed: {team.team_name} on {when}",
+        f"{name} reported that {team.team_name} needs a goalie sub on {when}"
+        f" (vs {matchup.awayteam if team_field == 'hometeam' else matchup.hometeam})."
+        f"{' Note: ' + note if note else ''}\n\n"
+        f"Board: {request.build_absolute_uri(reverse('goalie_status_board'))}",
+    )
+    czar = settings.GOALIE_CZAR_NAME
+    messages.success(
+        request,
+        f"Thanks, {name}. {team.team_name} is now marked Sub Needed for {when}. "
+        + (
+            f"{czar} has been emailed."
+            if emailed
+            else f"{czar} and the captain can see it on the board."
+        )
+        + " Goalies who can fill in can tap “I can sub” on that game.",
+    )
+    return _back_to_board(matchup)
+
+
+@require_POST
+def offer_sub(request, matchup_id, side):
+    """
+    Public: a goalie volunteers to fill in for a team that needs a sub. The
+    captain (or an admin) confirms the volunteer, which names them as goalie.
+    """
+    matchup = _board_game(matchup_id, side)
+    team_field, _, status_field = side_fields(side)
+    team = getattr(matchup, team_field)
+    name = _clean(request, "name", 100)
+    phone = _clean(request, "phone", 30)
+    note = _clean(request, "note", 300)
+
+    if request.POST.get("website"):  # honeypot
+        return _back_to_board(matchup)
+    if over_rate_limit(request):
+        messages.error(
+            request,
+            "Too many updates from your connection. Try again in a few minutes.",
+        )
+        return _back_to_board(matchup)
+    if not name or not phone:
+        messages.error(
+            request,
+            "Please add your name and a phone number so the captain can reach you.",
+        )
+        return _back_to_board(matchup)
+    if getattr(matchup, status_field) != MatchUp.GOALIE_STATUS_SUB_NEEDED:
+        messages.info(
+            request,
+            f"{team.team_name} isn't marked as needing a sub for this game anymore, "
+            "so your offer wasn't posted. Thanks for checking!",
+        )
+        return _back_to_board(matchup)
+
+    player = match_listed_goalie(name)
+    existing = GoalieSubOffer.objects.filter(
+        matchup=matchup, team=team, status=GoalieSubOffer.STATUS_OFFERED
+    )
+    existing = (
+        existing.filter(player=player) if player else existing.filter(name__iexact=name)
+    ).first()
+    if existing:
+        existing.phone, existing.note = phone, note
+        existing.save(update_fields=["phone", "note"])
+    else:
+        GoalieSubOffer.objects.create(
+            matchup=matchup,
+            team=team,
+            player=player,
+            name=name,
+            phone=phone,
+            note=note,
+            ip_address=client_ip(request),
+        )
+    when = f"{matchup.week.date:%A, %B %-d} at {matchup.time:%-I:%M %p}"
+    notify_goalie_czar(
+        f"Goalie sub offered: {name} for {team.team_name} on {when}",
+        f"{name} ({phone}) can play goalie for {team.team_name} on {when}."
+        f"{' Note: ' + note if note else ''}\n\n"
+        f"The captain can confirm from their goalie page, or you can from the admin.",
+    )
+    messages.success(
+        request,
+        f"Thanks, {name}! {team.team_name}'s captain and {settings.GOALIE_CZAR_NAME} "
+        "can see you're available and will reach out to confirm.",
+    )
+    return _back_to_board(matchup)
 
 
 def captain_goalie_update(request, access_code):
@@ -216,6 +374,8 @@ def captain_goalie_update(request, access_code):
 
     # Get team's roster goalie
     roster_goalie = get_roster_goalie(team)
+    upcoming_matchups = list(upcoming_matchups)
+    sides = goalie_sides_for_matchups(upcoming_matchups)
 
     matchups_data = []
     for matchup in upcoming_matchups:
@@ -231,6 +391,7 @@ def captain_goalie_update(request, access_code):
 
         # If no goalie explicitly set, use roster goalie as the "current"
         display_goalie = current_goalie or roster_goalie
+        side_info = sides[matchup.id]["home" if is_home else "away"]
 
         matchups_data.append(
             {
@@ -240,6 +401,9 @@ def captain_goalie_update(request, access_code):
                 "current_goalie": display_goalie,
                 "current_status": current_status,
                 "roster_goalie": roster_goalie,
+                "volunteers": side_info["volunteers"],
+                "reported_by": side_info["reported_by"],
+                "reported_at": side_info["reported_at"],
             }
         )
 
@@ -249,8 +413,55 @@ def captain_goalie_update(request, access_code):
         "all_goalies": all_goalies,
         "roster_goalie": roster_goalie,
         "status_choices": MatchUp.GOALIE_STATUS_CHOICES,
+        "czar_name": settings.GOALIE_CZAR_NAME,
     }
     return render(request, "leagues/captain_goalie_update.html", context)
+
+
+def _captain_offer(access_code, offer_id):
+    team = get_object_or_404(Team, captain_access_code=access_code, is_active=True)
+    offer = get_object_or_404(
+        GoalieSubOffer.objects.select_related("matchup__week", "team"),
+        id=offer_id,
+        team=team,
+    )
+    return team, offer
+
+
+@require_POST
+def confirm_sub_offer(request, access_code, offer_id):
+    """Captain: name a volunteer as the goalie and mark the game Confirmed."""
+    team, offer = _captain_offer(access_code, offer_id)
+    if offer.status != GoalieSubOffer.STATUS_OFFERED:
+        messages.info(request, f"{offer.name}'s offer was already handled.")
+    else:
+        confirm_offer(
+            offer,
+            reported_by=f"{team.team_name} captain",
+            source=GoalieStatusChange.SOURCE_CAPTAIN,
+            ip=client_ip(request),
+        )
+        messages.success(
+            request,
+            f"{offer.name} is confirmed in goal for "
+            f"{offer.matchup.week.date:%A, %B %-d}. Give them a call to lock it in.",
+        )
+    return redirect(
+        f"{reverse('captain_goalie_update', args=[access_code])}#game-{offer.matchup_id}"
+    )
+
+
+@require_POST
+def decline_sub_offer(request, access_code, offer_id):
+    """Captain: pass on a volunteer (the game stays Sub Needed)."""
+    team, offer = _captain_offer(access_code, offer_id)
+    if offer.status == GoalieSubOffer.STATUS_OFFERED:
+        offer.status = GoalieSubOffer.STATUS_DECLINED
+        offer.save(update_fields=["status"])
+        messages.success(request, f"Removed {offer.name} from the volunteers.")
+    return redirect(
+        f"{reverse('captain_goalie_update', args=[access_code])}#game-{offer.matchup_id}"
+    )
 
 
 @require_POST
@@ -300,6 +511,22 @@ def update_goalie_status(request, access_code, matchup_id):
         matchup.away_goalie_status = status
 
     matchup.save()
+    GoalieStatusChange.objects.create(
+        matchup=matchup,
+        team=team,
+        status=status,
+        goalie=goalie,
+        reported_by=f"{team.team_name} captain",
+        source=GoalieStatusChange.SOURCE_CAPTAIN,
+        ip_address=client_ip(request),
+    )
+    if status == 2:
+        when = f"{matchup.week.date:%A, %B %-d} at {matchup.time:%-I:%M %p}"
+        notify_goalie_czar(
+            f"Goalie sub needed: {team.team_name} on {when}",
+            f"The {team.team_name} captain marked their game on {when} as Sub Needed.\n\n"
+            f"Board: {request.build_absolute_uri(reverse('goalie_status_board'))}",
+        )
 
     # Get updated display info
     roster_goalie = get_roster_goalie(team)

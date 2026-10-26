@@ -390,3 +390,187 @@
         width: 100%;
     }
 }
+
+/* ── Messages (after a board or captain action) ───────────────────────── */
+
+.site-messages { margin: 0 0 16px; }
+.site-message {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 15px;
+    line-height: 1.45;
+    background: #e7f3ff;
+    border-left: 4px solid #007bff;
+    color: #1f2937;
+}
+.site-message.success { background: #d4edda; border-left-color: #28a745; }
+.site-message.error { background: #f8d7da; border-left-color: #dc3545; }
+.site-message.info { background: #fff3cd; border-left-color: #ffc107; }
+
+/* ── Board: game cards ────────────────────────────────────────────────── */
+
+.board-intro {
+    margin: 14px auto 0;
+    max-width: 640px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 15px;
+    line-height: 1.5;
+}
+.board-intro strong { color: #fff; }
+
+.game-cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    background: #fff;
+    border-radius: 0 0 8px 8px;
+    padding: 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+@media (min-width: 900px) {
+    .game-cards { grid-template-columns: 1fr 1fr; }
+}
+
+.game-card {
+    border: 1px solid #e2e6e8;
+    border-radius: 8px;
+    overflow: hidden;
+    scroll-margin-top: 90px;
+}
+.game-card-needs-sub { border-color: #f1b0b7; }
+.game-card:target { box-shadow: 0 0 0 3px #ffd97a; }
+
+.game-card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #eee;
+}
+.game-time { font-weight: 700; color: #333; white-space: nowrap; }
+.game-teams { color: #555; font-size: 14px; }
+.game-at { color: #d80000; font-weight: 700; margin: 0 3px; }
+
+.side-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border-top: 1px solid #f0f0f0;
+}
+.side-row:first-of-type { border-top: none; }
+.side-needs-sub { background: #fff8f8; }
+.side-main { min-width: 0; flex: 1; }
+.side-team { font-weight: 600; color: #222; margin-bottom: 4px; }
+.side-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: 4px;
+}
+.side-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.goalie-none { color: #888; font-weight: 400; }
+.reported-by, .volunteer-when { font-size: 12px; color: #777; margin-top: 4px; }
+.volunteer-list { font-size: 14px; color: #333; margin-top: 6px; }
+.volunteer-note { color: #777; font-size: 13px; }
+
+/* Actions: a <details> whose summary is the button, with the form inside. */
+.side-actions { flex-shrink: 0; width: 100%; }
+@media (min-width: 600px) {
+    .side-row { flex-wrap: wrap; }
+    .side-actions { width: auto; }
+    /* An opened form drops below the game info at full width instead of
+       squeezing it into a narrow column. */
+    .side-actions:has(.board-action[open]) { width: 100%; }
+    .side-actions:has(.board-action[open]) > .board-action > summary { width: auto; }
+}
+.board-action > summary { list-style: none; }
+.board-action > summary::-webkit-details-marker { display: none; }
+.board-action[open] > summary { opacity: 0.6; }
+
+.board-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+.board-btn:focus-visible { outline: 2px solid #1a5276; outline-offset: 2px; }
+.board-btn-primary { background: #007bff; color: #fff; }
+.board-btn-primary:hover { background: #0056b3; }
+.board-btn-secondary { background: #fff; color: #444; border-color: #cfd6dc; }
+.board-btn-secondary:hover { border-color: #888; }
+.board-btn-danger { background: #dc3545; color: #fff; }
+.board-btn-danger:hover { background: #b02a37; }
+.board-btn-submit { width: 100%; margin-top: 4px; }
+
+.board-form {
+    margin-top: 10px;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #e2e6e8;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.board-form-title { margin: 0; font-size: 14px; color: #333; font-weight: 600; }
+.board-form label { display: block; }
+.board-form label span { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 4px; }
+.board-form label em { font-weight: 400; color: #999; }
+.board-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 16px; /* stops iOS zooming into the field */
+    background: #fff;
+}
+.board-form input:focus { outline: none; border-color: #007bff; }
+.board-form-help { margin: 0; font-size: 12px; color: #777; line-height: 1.4; }
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* Captain page: volunteers */
+.volunteers-box {
+    margin-top: 15px;
+    padding: 14px;
+    background: #fff8f8;
+    border: 1px solid #f1b0b7;
+    border-radius: 8px;
+}
+.volunteers-box h4 { margin: 0 0 8px; color: #721c24; }
+.volunteer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 0;
+    border-top: 1px solid #f3d3d6;
+}
+.volunteer:first-of-type { border-top: none; }
+.volunteer-info { min-width: 0; }
+.volunteer-actions { display: flex; gap: 8px; }
+.volunteer-empty { margin: 0; color: #555; font-size: 14px; line-height: 1.5; }
+
+@media (max-width: 599px) {
+    .side-row { flex-direction: column; }
+    .board-action > summary.board-btn { width: 100%; }
+    .volunteer-actions { width: 100%; }
+    .volunteer-actions form { flex: 1; }
+    .volunteer-actions .board-btn { width: 100%; }
+}

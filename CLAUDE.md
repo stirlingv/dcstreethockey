@@ -186,6 +186,7 @@ This applies to:
 - **`RENDER_API_KEY`** and **`RENDER_POSTGRES_ID`** — also in `~/.zshrc` and `.env`.
 - **Python / venv** — the project venv is at `venv/bin/python`. Git commits require `PATH="$(pwd)/venv/bin:$PATH"` so pre-commit hooks can find `python`.
 - **Local DB** — `DB_NAME=dcstreethockey`, `DB_USER=dcstreethockey`, `DB_PASSWORD=dcstreethockey` (in `.env`).
+- **`GOALIE_CZAR_NAME`** / **`GOALIE_CZAR_EMAIL`** — the league's goalie coordinator, shown on the Goalie Status Board and captain pages. When the email is set and an email backend is configured, new "Sub Needed" reports and "I can sub" offers are emailed there. Defaults: name "John Romps", no email.
 
 ### Pushing local → production
 

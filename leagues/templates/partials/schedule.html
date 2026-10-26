@@ -47,6 +47,16 @@
                             </td>
                         </tr>
                     </table>
+                    {% if view == "schedule" %}{% with goalie_sides|get_item:match.id as gs %}{% if gs and not match.is_cancelled %}
+                    <div class="goalie-line">
+                        {% for side in gs %}
+                        <a class="goalie-chip {% if side.status == 1 %}gc-confirmed{% elif side.status == 2 %}gc-sub-needed{% else %}gc-unconfirmed{% endif %}" href="{% url 'goalie_status_board' %}#game-{{ match.id }}" title="{{ side.team.team_name }}: update on the Goalie Status Board">
+                            <span class="gc-team">{% if side.side == "home" %}Home{% else %}Away{% endif %} goalie</span>
+                            <span class="gc-status">{% if side.status == 2 %}&#9888; Sub needed{% elif side.status == 1 %}&#10003; Confirmed{% else %}Unconfirmed{% endif %}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}{% endwith %}{% endif %}
                     {% if view == "schedule" and match.hometeam.division.division != 1 %}
                     {% with betting_lines|get_item:match.id as lines %}{% with player_props|get_item:match.id as props %}
                     {% include 'partials/odds_panels.html' %}

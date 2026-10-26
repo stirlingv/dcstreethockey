@@ -303,3 +303,10 @@ if (
     and os.environ.get("S3_BUCKET_NAME")
 ):
     from .aws_settings import *
+
+# Goalie Status Board: who coordinates subs around the league. The name
+# appears on the board and captain pages; when the email is set (and an
+# email backend is configured), new sub-needed reports and sub offers are
+# emailed there too.
+GOALIE_CZAR_NAME = os.environ.get("GOALIE_CZAR_NAME", "John Romps")
+GOALIE_CZAR_EMAIL = os.environ.get("GOALIE_CZAR_EMAIL", "")
