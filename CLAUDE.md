@@ -44,6 +44,10 @@ All tests must pass before committing. The pre-commit hook runs the full suite a
 | Performance / query count regressions | `core/tests/test_performance.py` |
 | `leagues/views.py` goalie views & helpers | `leagues/test_goalie_views.py` |
 | `leagues/models.py` validation | `leagues/tests.py` |
+| `leagues/seasons.py` (which season each division is playing) | `leagues/test_seasons.py` |
+| `leagues/results.py` and `leagues/signals.py` (game results → standings) | `leagues/test_results.py` |
+| Admin pages in `leagues/admin.py` (matchup, week, team, season) | `leagues/tests_matchup_admin.py` |
+| Dashboard widgets (`leagues/templatetags/admin_quick_cancel.py`) | `leagues/tests.py` |
 | Draft league views & state machine | `leagues/test_draft.py` |
 | Project-level views | `dcstreethockey/tests.py` |
 | Every admin page and public URL (smoke sweep) | `dcstreethockey/test_smoke.py` |
@@ -126,6 +130,31 @@ Tests live in `core/tests/test_standings.py`. Always add a case when changing ti
 
 Valid transitions: `SETUP → DRAW → ACTIVE ↔ PAUSED → COMPLETE`.
 Tests live in `leagues/test_draft.py`.
+
+### Standings computed from game results (`leagues/results.py`)
+
+For a season with `standings_from_games` (every season created since Fall 2026),
+`Team_Stat` is a cache rebuilt from the games: score from `Stat` goals, `went_to_overtime`
+and `shootout_winner_is_home` from the game. A tied score with no shootout winner is
+undecided and the admin refuses to save it. Signals on `Stat` and `MatchUp` keep the cache
+fresh; `Week.save()` and the admin's bulk `update()` calls recompute explicitly. Seasons
+before Fall 2026 have `standings_from_games=False` and keep their hand-entered records:
+never backfill them. Tests live in `leagues/test_results.py`.
+
+### Which season is current (`leagues/seasons.py`)
+
+Nothing reads `Season.is_current_season` any more. A division's current season is the
+oldest season that still has an unplayed, uncancelled game in it (so a rain-delayed
+championship keeps its season current), otherwise the newest season it has played in.
+`active_season_ids()` adds any newer season that already has teams or games, for admin
+filters. Tests live in `leagues/test_seasons.py`.
+
+### Teams carry their division and season (`MatchUp.clean()`)
+
+A game's week must agree with its teams' division and season. The check runs for new or
+re-pointed games and for any game in an active season; historical mismatches (Monday A/B
+before the 2022 split, a few Sunday crossover games) are left alone. The matchup page shows
+a banner with a one-click "move to the right division" fix when it finds one.
 
 ### Score aggregation (`core/views/schedule.py` — `add_goals_for_matchups`)
 

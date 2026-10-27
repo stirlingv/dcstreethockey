@@ -126,7 +126,10 @@ class HomeOddsViewTest(TestCase):
     def setUp(self):
         self.client = Client()
         self.season = Season.objects.create(
-            year=datetime.date.today().year, season_type=1, is_current_season=True
+            standings_from_games=False,
+            year=datetime.date.today().year,
+            season_type=1,
+            is_current_season=True,
         )
         self.d2 = Division.objects.create(division=2)
         self.home_team = self._team("Home Odds Team", self.d2, "Red")

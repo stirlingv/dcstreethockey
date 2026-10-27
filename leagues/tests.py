@@ -14,7 +14,7 @@ from django.test.utils import override_settings
 from django.utils.http import urlencode
 
 from leagues.forms import MatchUpForm
-from leagues.models import Division, MatchUp, Player, Season, Team, Week
+from leagues.models import Division, MatchUp, Player, Season, Stat, Team, Week
 
 
 class TeamColorChoicesTest(TestCase):
@@ -1310,8 +1310,10 @@ class MatchUpAdminDefaultFilterTest(TestCase):
         # The existing season selection should be preserved, not overwritten.
         self.assertIn("season_ids=1%2C2%2C3", redirect)
 
-    def test_apply_default_filters_still_redirects_without_current_season(self):
-        """Timeframe redirect fires even when no season has is_current_season=True."""
+    def test_apply_default_filters_ignores_the_old_current_season_flag(self):
+        """The season filter is worked out from the schedule, so clearing the
+        old is_current_season flag changes nothing: the redirect still
+        selects the season being played."""
         from django.test import RequestFactory
         from leagues.admin import _apply_default_matchup_filters
 
@@ -1320,7 +1322,7 @@ class MatchUpAdminDefaultFilterTest(TestCase):
         redirect = _apply_default_matchup_filters(request)
         self.assertIsNotNone(redirect)
         self.assertIn("timeframe=upcoming", redirect)
-        self.assertNotIn("season_ids", redirect)
+        self.assertIn(f"season_ids={self.season.pk}", redirect)
 
     def test_matchup_admin_changelist_defaults_to_past(self):
         """MatchUpAdmin changelist should redirect with timeframe=past by default."""
@@ -1948,7 +1950,10 @@ class StatsEntryWidgetTest(TestCase):
 
     def setUp(self):
         self.season = Season.objects.create(
-            year=datetime.datetime.now().year, season_type=1, is_current_season=True
+            standings_from_games=False,
+            year=datetime.datetime.now().year,
+            season_type=1,
+            is_current_season=True,
         )
         self.division = Division.objects.create(division=1)
         self.today = datetime.date.today()
@@ -2868,3 +2873,262 @@ class GoalieStatusAdminResetTest(GoalieResetFixture):
         self.assertReset(self.game1)
         self.assertContains(response, "This game moved to")
         self.assertContains(response, "reset to Unconfirmed")
+
+
+class MatchUpTeamsMatchWeekValidationTest(TestCase):
+    """A team already carries its division and season, so a game's week
+    must agree with its teams. The old data has a few historical exceptions,
+    which are left alone unless the game is re-pointed."""
+
+    def setUp(self):
+        self.d1 = Division.objects.create(division=1)
+        self.d3 = Division.objects.create(division=3)
+        self.season = Season.objects.create(year=2026, season_type=3)
+        self.home, self.away = (
+            Team.objects.create(
+                team_name=name,
+                team_color="Blue",
+                division=self.d1,
+                season=self.season,
+                is_active=True,
+            )
+            for name in ("Home", "Away")
+        )
+        self.right_week = Week.objects.create(
+            division=self.d1, season=self.season, date=datetime.date(2026, 10, 26)
+        )
+        self.wrong_week = Week.objects.create(
+            division=self.d3, season=self.season, date=datetime.date(2026, 10, 26)
+        )
+
+    def _game(self, week, home=None, away=None):
+        return MatchUp(
+            week=week,
+            hometeam=home or self.home,
+            awayteam=away or self.away,
+            time=datetime.time(19, 0),
+        )
+
+    def test_matching_week_is_fine(self):
+        self._game(self.right_week).full_clean()
+
+    def test_new_game_on_the_wrong_division_week_is_refused(self):
+        with self.assertRaises(ValidationError) as ctx:
+            self._game(self.wrong_week).full_clean()
+        message = " ".join(ctx.exception.message_dict["__all__"])
+        self.assertIn("Home and Away play in Sunday D1", message)
+        self.assertIn("filed under Wednesday Draft League", message)
+        self.assertIn("Change the week's division to Sunday D1", message)
+
+    def test_team_cannot_play_itself(self):
+        with self.assertRaises(ValidationError) as ctx:
+            self._game(self.right_week, away=self.home).full_clean()
+        self.assertIn("can't play itself", str(ctx.exception))
+
+    def test_teams_from_different_seasons_are_refused(self):
+        old = Season.objects.create(year=2025, season_type=3)
+        old_away = Team.objects.create(
+            team_name="Away",
+            team_color="Red",
+            division=self.d1,
+            season=old,
+            is_active=False,
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            self._game(self.right_week, away=old_away).full_clean()
+        self.assertIn("different seasons", str(ctx.exception))
+
+    def test_wrong_season_week_is_refused(self):
+        old = Season.objects.create(year=2025, season_type=3)
+        old_week = Week.objects.create(
+            division=self.d1, season=old, date=datetime.date(2025, 10, 26)
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            self._game(old_week).full_clean()
+        self.assertIn("this week belongs to Fall: 2025", str(ctx.exception))
+
+    def test_historical_mismatch_is_left_alone_until_re_pointed(self):
+        # 2021: Monday A and B shared one division. Those games still load
+        # and save, but moving one to another week triggers the check.
+        old = Season.objects.create(year=2021, season_type=3)
+        d4, d5 = Division.objects.create(division=4), Division.objects.create(
+            division=5
+        )
+        a, b = (
+            Team.objects.create(
+                team_name=name,
+                team_color="Red",
+                division=d5,
+                season=old,
+                is_active=False,
+            )
+            for name in ("Mon A", "Mon B")
+        )
+        shared_week = Week.objects.create(
+            division=d4, season=old, date=datetime.date(2021, 9, 13)
+        )
+        # Monday A has a current-season game, so 2021 is not active for it.
+        new_a, new_b = (
+            Team.objects.create(
+                team_name=name,
+                team_color="Red",
+                division=d4,
+                season=self.season,
+                is_active=True,
+            )
+            for name in ("New A", "New B")
+        )
+        MatchUp.objects.create(
+            week=Week.objects.create(
+                division=d4, season=self.season, date=datetime.date(2026, 10, 26)
+            ),
+            hometeam=new_a,
+            awayteam=new_b,
+            time=datetime.time(19, 0),
+        )
+        legacy = MatchUp.objects.create(
+            week=shared_week, hometeam=a, awayteam=b, time=datetime.time(19, 0)
+        )
+        legacy = MatchUp.objects.get(pk=legacy.pk)
+        legacy.notes = "edited"
+        legacy.full_clean()  # unchanged teams and week: allowed
+
+        other_week = Week.objects.create(
+            division=d4, season=old, date=datetime.date(2021, 9, 20)
+        )
+        legacy.week = other_week
+        with self.assertRaises(ValidationError):
+            legacy.full_clean()
+
+    def test_mismatch_in_an_active_season_is_caught_even_if_unchanged(self):
+        game = MatchUp.objects.create(
+            week=self.wrong_week,
+            hometeam=self.home,
+            awayteam=self.away,
+            time=datetime.time(19, 0),
+        )
+        game = MatchUp.objects.get(pk=game.pk)
+        with self.assertRaises(ValidationError):
+            game.full_clean()
+        self.assertIsNotNone(game._teams_vs_week_problem(force=True))
+
+
+class StatsEntryWidgetComputedSeasonTest(TestCase):
+    """Dashboard flags for a season whose standings come from game results,
+    and the list of older games that still don't count."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            year=datetime.date.today().year, season_type=1
+        )
+        self.division = Division.objects.create(division=1)
+        self.today = datetime.date.today()
+        self.team1, self.team2 = (
+            Team.objects.create(
+                team_name=name,
+                team_color="red",
+                season=self.season,
+                division=self.division,
+                is_active=True,
+            )
+            for name in ("Red Team", "Blue Team")
+        )
+        self.player = Player.objects.create(first_name="Test", last_name="Player")
+
+    def _game(self, days_ago, **kwargs):
+        week = Week.objects.create(
+            division=self.division,
+            season=self.season,
+            date=self.today - datetime.timedelta(days=days_ago),
+        )
+        return MatchUp.objects.create(
+            week=week,
+            time=datetime.time(19, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+            **kwargs,
+        )
+
+    def _score(self, game, home, away):
+        if home:
+            Stat.objects.create(
+                player=self.player, team=self.team2, matchup=game, goals=home
+            )
+        if away:
+            Stat.objects.create(
+                player=self.player, team=self.team1, matchup=game, goals=away
+            )
+
+    def _widget(self):
+        from leagues.templatetags.admin_quick_cancel import stats_entry_widget
+
+        return stats_entry_widget({"csrf_token": "token"})
+
+    def _recent(self, ctx, game):
+        games = [
+            g
+            for info in ctx["grouped_games"].values()
+            for d in info["divisions"]
+            for g in d["games"]
+        ]
+        return next(g for g in games if g.pk == game.pk)
+
+    def test_decided_game_is_not_flagged(self):
+        game = self._game(1)
+        self._score(game, 3, 1)
+        self.assertFalse(self._recent(self._widget(), game).outcome_missing)
+
+    def test_tied_game_without_shootout_is_flagged(self):
+        game = self._game(1)
+        self._score(game, 2, 2)
+        self.assertTrue(self._recent(self._widget(), game).outcome_missing)
+
+    def test_tied_game_with_shootout_winner_is_not_flagged(self):
+        game = self._game(1, shootout_winner_is_home=True)
+        self._score(game, 2, 2)
+        self.assertFalse(self._recent(self._widget(), game).outcome_missing)
+
+    def test_recent_game_rows_offer_cancel_and_move(self):
+        game = self._game(1)
+        ctx = self._widget()
+        row = self._recent(ctx, game)
+        self.assertIn(f"/{game.pk}/", row.cancel_url)
+        self.assertIn("schedule", row.reschedule_url)
+        self.assertIn(game.week.date.isoformat(), row.reschedule_url)
+        self.assertEqual(ctx["csrf_token"], "token")
+
+    def test_older_games_without_stats_stay_listed(self):
+        old = self._game(20)
+        ctx = self._widget()
+        self.assertEqual([g.pk for g in ctx["older_games"]], [old.pk])
+        self.assertEqual(ctx["older_games"][0].reason, "No stats entered")
+        # Not in the recent list.
+        self.assertNotIn(old.week.date, ctx["grouped_games"])
+
+    def test_older_undecided_tie_is_listed(self):
+        old = self._game(20)
+        self._score(old, 1, 1)
+        ctx = self._widget()
+        self.assertEqual(
+            ctx["older_games"][0].reason, "Tied score, no shootout winner picked"
+        )
+
+    def test_older_decided_cancelled_and_playoff_games_are_not_listed(self):
+        decided = self._game(20)
+        self._score(decided, 3, 1)
+        self._game(21, is_cancelled=True)
+        self._game(22, is_postseason=True)
+        self.assertEqual(self._widget()["older_games"], [])
+
+    def test_widget_renders_the_older_list_with_actions(self):
+        from django.template import Context, Template
+
+        old = self._game(20)
+        html = Template("{% load admin_quick_cancel %}{% stats_entry_widget %}").render(
+            Context({"csrf_token": "token"})
+        )
+        self.assertIn("Older games still missing a result", html)
+        self.assertIn("No stats entered", html)
+        self.assertIn(f"/admin/leagues/matchup/{old.pk}/change/", html)
+        self.assertIn(">Cancel<", html)
+        self.assertIn(">Move<", html)

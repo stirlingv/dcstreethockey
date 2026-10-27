@@ -648,7 +648,7 @@ class BettingLinesBase(TestCase):
 
     def setUp(self):
         self.season = Season.objects.create(
-            year=2025, season_type=1, is_current_season=True
+            standings_from_games=False, year=2025, season_type=1, is_current_season=True
         )
         self.division = Division.objects.create(division=1)
         self.home_team = Team.objects.create(
@@ -920,10 +920,13 @@ class PreSeasonFallbackBase(TestCase):
 
     def setUp(self):
         self.season = Season.objects.create(
-            year=2025, season_type=1, is_current_season=True
+            standings_from_games=False, year=2025, season_type=1, is_current_season=True
         )
         self.prior_season = Season.objects.create(
-            year=2024, season_type=1, is_current_season=False
+            standings_from_games=False,
+            year=2024,
+            season_type=1,
+            is_current_season=False,
         )
         self.division = Division.objects.create(division=3)  # Wednesday Draft
 
@@ -1195,7 +1198,7 @@ class ScheduleViewBettingLinesTest(TestCase):
     def setUp(self):
         self.client = Client()
         self.season = Season.objects.create(
-            year=2025, season_type=1, is_current_season=True
+            standings_from_games=False, year=2025, season_type=1, is_current_season=True
         )
         self.division = Division.objects.create(division=2)
         self.home_team = Team.objects.create(
@@ -1302,7 +1305,10 @@ class ScheduleViewBettingLinesTest(TestCase):
         # career history from a prior season — the fallback should kick in
         # and the template should surface the "projected" disclosure.
         prior_season = Season.objects.create(
-            year=2024, season_type=1, is_current_season=False
+            standings_from_games=False,
+            year=2024,
+            season_type=1,
+            is_current_season=False,
         )
         prior_team = Team.objects.create(
             team_name="Prior Schedule Home",

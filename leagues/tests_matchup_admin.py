@@ -20,8 +20,15 @@ from leagues.models import (
 )
 
 
-def _make_fixture():
-    season = Season.objects.create(year=2024, season_type=1, is_current_season=True)
+def _make_fixture(standings_from_games=False):
+    # Hand-kept standings by default: most of these tests cover the way
+    # every season before Fall 2026 was entered.
+    season = Season.objects.create(
+        standings_from_games=standings_from_games,
+        year=2024,
+        season_type=1,
+        is_current_season=True,
+    )
     division = Division.objects.create(division=1)
     week = Week.objects.create(
         division=division, season=season, date=datetime.date(2024, 4, 1)
@@ -169,7 +176,8 @@ class MatchUpAdminGameOutcomeSaveTest(TestCase):
         self.assertIsNotNone(away_stat)
         self.assertEqual(home_stat.win, 2)
         self.assertEqual(home_stat.loss, 1)
-        self.assertEqual(home_stat.goals_for, 10)
+        # GF/GA are summed from player stats, never taken from the form.
+        self.assertEqual(home_stat.goals_for, 0)
         self.assertEqual(away_stat.win, 1)
         self.assertEqual(away_stat.loss, 2)
 
@@ -188,7 +196,9 @@ class MatchUpAdminGameOutcomeSaveTest(TestCase):
             team=self.home_team, division=self.division, season=self.season
         )
         self.assertEqual(home_stat.win, 2)
-        self.assertEqual(home_stat.goals_for, 10)
+        # GF/GA are not taken from the form: with no player stats on this
+        # game, the stored value stays as it was.
+        self.assertEqual(home_stat.goals_for, 5)
         # Exactly one record — no duplicate created
         self.assertEqual(
             Team_Stat.objects.filter(
@@ -377,13 +387,19 @@ class MatchUpAdminGFGAAutoComputeTest(TestCase):
         base.update(overrides)
         return base
 
-    def test_gf_ga_from_form_when_no_stats(self):
+    def test_gf_ga_are_never_taken_from_the_form(self):
+        # GF/GA are summed from player stats; a posted value is ignored.
         self.client.post(self._url(), self._post())
         home = Team_Stat.objects.get(
             team=self.home_team, division=self.division, season=self.season
         )
-        self.assertEqual(home.goals_for, 99)
-        self.assertEqual(home.goals_against, 99)
+        self.assertEqual(home.goals_for, 0)
+        self.assertEqual(home.goals_against, 0)
+
+    def test_gf_ga_shown_read_only_on_hand_kept_season(self):
+        html = self.client.get(self._url()).content.decode()
+        self.assertNotIn('name="home_stat-goals_for"', html)
+        self.assertIn("summed from player stats when you save", html)
 
     def test_gf_ga_auto_computed_when_stats_exist(self):
         p = self._player()
@@ -534,7 +550,7 @@ class TeamAdminAutoCreateTeamStatTest(TestCase):
         self.client.force_login(self.superuser)
         self.division = Division.objects.create(division=1)
         self.season = Season.objects.create(
-            year=2025, season_type=1, is_current_season=True
+            standings_from_games=False, year=2025, season_type=1, is_current_season=True
         )
         self.team_photo = TeamPhoto.objects.create()
 
@@ -576,12 +592,13 @@ class TeamAdminAutoCreateTeamStatTest(TestCase):
         self.assertEqual(ts.win, 0)
         self.assertEqual(ts.goals_for, 0)
 
-    def test_no_duplicate_when_inline_also_saves_team_stat(self):
+    def test_record_row_cannot_be_added_by_hand(self):
+        """The season record is created from the team's own division and
+        season, so the inline no longer asks for either or lets a row be
+        added: a posted new row is ignored and exactly one record exists."""
         data = self._post(
             **{
                 "team_stat_set-TOTAL_FORMS": "1",
-                "team_stat_set-0-division": self.division.pk,
-                "team_stat_set-0-season": self.season.pk,
                 "team_stat_set-0-win": "2",
                 "team_stat_set-0-otw": "0",
                 "team_stat_set-0-loss": "1",
@@ -593,18 +610,23 @@ class TeamAdminAutoCreateTeamStatTest(TestCase):
         )
         self.client.post(self._add_url(), data)
         team = Team.objects.get(team_name="New Team")
+        rows = Team_Stat.objects.filter(team=team)
+        self.assertEqual(rows.count(), 1)
         self.assertEqual(
-            Team_Stat.objects.filter(
-                team=team, division=self.division, season=self.season
-            ).count(),
-            1,
+            (rows[0].division, rows[0].season), (self.division, self.season)
         )
-        # Inline's values should be preserved (get_or_create found the inline-created record)
-        ts = Team_Stat.objects.get(
-            team=team, division=self.division, season=self.season
-        )
-        self.assertEqual(ts.win, 2)
-        self.assertEqual(ts.goals_for, 6)
+        self.assertEqual(rows[0].win, 0)
+
+    def test_inline_does_not_ask_for_division_or_season(self):
+        self.client.post(self._add_url(), self._post())
+        team = Team.objects.get(team_name="New Team")
+        html = self.client.get(
+            reverse("admin:leagues_team_change", args=[team.pk])
+        ).content.decode()
+        self.assertNotIn('name="team_stat_set-0-division"', html)
+        self.assertNotIn('name="team_stat_set-0-season"', html)
+        # Hand-kept season: the record itself is still editable.
+        self.assertIn('name="team_stat_set-0-win"', html)
 
 
 class MatchUpAdminShootoutSaveTest(TestCase):
@@ -1333,3 +1355,499 @@ class StatRosterAdminTest(TestCase):
         from leagues.admin import MatchUpAdmin
 
         self.assertEqual(MatchUpAdmin.formatted_time.admin_order_field, "time")
+
+
+# ---------------------------------------------------------------------------
+# Seasons whose standings are computed from game results
+# ---------------------------------------------------------------------------
+
+
+def _computed_fixture():
+    """A computed-standings season with one rostered player per team."""
+    season, division, week, away_team, home_team, matchup = _make_fixture(
+        standings_from_games=True
+    )
+    home_player = Player.objects.create(first_name="Harper", last_name="Home")
+    away_player = Player.objects.create(first_name="Avery", last_name="Away")
+    Roster.objects.create(player=home_player, team=home_team, position1=1)
+    Roster.objects.create(player=away_player, team=away_team, position1=1)
+    return {
+        "season": season,
+        "division": division,
+        "week": week,
+        "away_team": away_team,
+        "home_team": home_team,
+        "matchup": matchup,
+        "home_player": home_player,
+        "away_player": away_player,
+    }
+
+
+class ComputedStandingsMatchupAdminTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        self.f = _computed_fixture()
+
+    def _url(self):
+        return reverse("admin:leagues_matchup_change", args=[self.f["matchup"].pk])
+
+    def _post(self, home_goals="", away_goals="", **overrides):
+        f = self.f
+        data = {
+            "week": f["week"].pk,
+            "time": "10:00 AM",
+            "awayteam": f["away_team"].pk,
+            "hometeam": f["home_team"].pk,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+            "ss-player-ids": f"{f['home_player'].pk},{f['away_player'].pk}",
+            f"ss-{f['home_player'].pk}-goals": home_goals,
+            f"ss-{f['away_player'].pk}-goals": away_goals,
+        }
+        data.update(overrides)
+        return data
+
+    def _record(self, team):
+        row = Team_Stat.objects.filter(
+            team=team, division=self.f["division"], season=self.f["season"]
+        ).first()
+        if row is None:
+            return None
+        return (row.win, row.otw, row.otl, row.loss, row.goals_for, row.goals_against)
+
+    def test_change_view_asks_only_for_overtime(self):
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn('name="went_to_overtime"', html)
+        self.assertIn('id="result-line"', html)
+        self.assertIn("Season records so far", html)
+        self.assertNotIn('name="home_stat-win"', html)
+        self.assertNotIn('id="qo-home"', html)
+        self.assertNotIn('name="home_stat-goals_for"', html)
+
+    def test_save_computes_records_from_the_score(self):
+        resp = self.client.post(self._url(), self._post("3", "1"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self._record(self.f["home_team"]), (1, 0, 0, 0, 3, 1))
+        self.assertEqual(self._record(self.f["away_team"]), (0, 0, 0, 1, 1, 3))
+
+    def test_overtime_box_makes_it_an_overtime_result(self):
+        self.client.post(self._url(), self._post("3", "2", went_to_overtime="on"))
+        self.assertTrue(MatchUp.objects.get(pk=self.f["matchup"].pk).went_to_overtime)
+        self.assertEqual(self._record(self.f["home_team"])[:4], (0, 1, 0, 0))
+        self.assertEqual(self._record(self.f["away_team"])[:4], (0, 0, 1, 0))
+
+    def test_tie_without_shootout_winner_is_refused(self):
+        resp = self.client.post(self._url(), self._post("2", "2"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Goals are tied 2-2")
+        self.assertContains(resp, "pick who won the shootout")
+        # Nothing was saved: no stat rows, no games in the standings.
+        self.assertEqual(Stat.objects.filter(matchup=self.f["matchup"]).count(), 0)
+        self.assertIn(self._record(self.f["home_team"]), (None, (0, 0, 0, 0, 0, 0)))
+
+    def test_tie_with_shootout_winner_counts_as_overtime(self):
+        self.client.post(
+            self._url(),
+            self._post(
+                "2", "2", went_to_overtime="on", shootout_winner_is_home="false"
+            ),
+        )
+        game = MatchUp.objects.get(pk=self.f["matchup"].pk)
+        self.assertIs(game.shootout_winner_is_home, False)
+        self.assertTrue(game.went_to_overtime)
+        self.assertEqual(self._record(self.f["away_team"])[:4], (0, 1, 0, 0))
+        self.assertEqual(self._record(self.f["home_team"])[:4], (0, 0, 1, 0))
+
+    def test_shootout_pick_implies_overtime_even_without_the_box(self):
+        self.client.post(
+            self._url(), self._post("1", "1", shootout_winner_is_home="true")
+        )
+        self.assertTrue(MatchUp.objects.get(pk=self.f["matchup"].pk).went_to_overtime)
+        self.assertEqual(self._record(self.f["home_team"])[:4], (0, 1, 0, 0))
+
+    def test_saving_twice_never_double_counts(self):
+        self.client.post(self._url(), self._post("3", "1"))
+        self.client.post(self._url(), self._post("3", "1"))
+        self.assertEqual(self._record(self.f["home_team"]), (1, 0, 0, 0, 3, 1))
+
+    def test_correcting_the_score_moves_the_win(self):
+        self.client.post(self._url(), self._post("3", "1"))
+        self.client.post(self._url(), self._post("1", "3"))
+        self.assertEqual(self._record(self.f["home_team"])[:4], (0, 0, 0, 1))
+        self.assertEqual(self._record(self.f["away_team"])[:4], (1, 0, 0, 0))
+
+    def test_save_with_no_stats_is_allowed(self):
+        # Refs, notes or goalie status can be saved before the game is played.
+        resp = self.client.post(self._url(), self._post())
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(self._record(self.f["home_team"]), (None, (0, 0, 0, 0, 0, 0)))
+
+    def test_postseason_game_is_not_counted(self):
+        self.client.post(self._url(), self._post("3", "1", is_postseason="on"))
+        self.assertIn(self._record(self.f["home_team"]), (None, (0, 0, 0, 0, 0, 0)))
+
+    def test_record_shown_after_save(self):
+        self.client.post(self._url(), self._post("3", "1"))
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn("1-0-0-0", html)
+        self.assertIn("0-0-0-1", html)
+
+    def test_sub_stats_count_toward_the_score(self):
+        sub = Player.objects.create(first_name="Sam", last_name="Sub")
+        Roster.objects.create(
+            player=sub, team=self.f["away_team"], position1=2, is_substitute=True
+        )
+        self.client.post(
+            self._url(),
+            self._post(
+                "1",
+                "",
+                **{
+                    "stat_set-TOTAL_FORMS": "1",
+                    "stat_set-0-player": sub.pk,
+                    "stat_set-0-team": self.f["away_team"].pk,
+                    "stat_set-0-goals": "2",
+                    "stat_set-0-assists": "0",
+                    "stat_set-0-goals_against": "0",
+                    "stat_set-0-empty_net": "0",
+                },
+            ),
+        )
+        self.assertEqual(self._record(self.f["away_team"])[:4], (1, 0, 0, 0))
+
+
+class WrongDivisionWeekTest(TestCase):
+    """A week filed under the wrong division: the game page says so and
+    offers a one-click fix, and the game can't be saved until it is fixed."""
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            username="admin", password="password", email="admin@example.com"
+        )
+        self.client.force_login(self.superuser)
+        self.f = _computed_fixture()
+        self.wrong_division = Division.objects.create(division=3)
+        self.wrong_week = Week.objects.create(
+            division=self.wrong_division,
+            season=self.f["season"],
+            date=datetime.date(2024, 4, 8),
+        )
+        # objects.create() skips validation, like the old admin did.
+        self.game = MatchUp.objects.create(
+            week=self.wrong_week,
+            awayteam=self.f["away_team"],
+            hometeam=self.f["home_team"],
+            time=datetime.time(19, 0),
+        )
+
+    def _change(self):
+        return reverse("admin:leagues_matchup_change", args=[self.game.pk])
+
+    def _fix(self):
+        return reverse("admin:leagues_matchup_fix_week_division", args=[self.game.pk])
+
+    def test_change_view_warns_and_offers_the_fix(self):
+        resp = self.client.get(self._change())
+        self.assertContains(resp, "filed under the wrong division")
+        self.assertContains(resp, "Change the week&#x27;s division to Sunday D1")
+        self.assertContains(resp, self._fix())
+
+    def test_right_week_shows_no_warning(self):
+        resp = self.client.get(
+            reverse("admin:leagues_matchup_change", args=[self.f["matchup"].pk])
+        )
+        self.assertNotContains(resp, "filed under the wrong division")
+
+    def test_saving_is_refused_until_fixed(self):
+        resp = self.client.post(
+            self._change(),
+            {
+                "week": self.wrong_week.pk,
+                "time": "07:00 PM",
+                "awayteam": self.f["away_team"].pk,
+                "hometeam": self.f["home_team"].pk,
+                "stat_set-TOTAL_FORMS": "0",
+                "stat_set-INITIAL_FORMS": "0",
+                "stat_set-MIN_NUM_FORMS": "0",
+                "stat_set-MAX_NUM_FORMS": "1000",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "play in Sunday D1, but this week is filed under")
+
+    def test_fix_refiles_the_week_when_every_game_belongs(self):
+        resp = self.client.post(self._fix())
+        self.assertRedirects(resp, self._change())
+        self.wrong_week.refresh_from_db()
+        self.assertEqual(self.wrong_week.division, self.f["division"])
+        self.assertNotContains(self.client.get(self._change()), "wrong division")
+
+    def test_fix_moves_the_games_when_the_right_week_exists(self):
+        right_week = Week.objects.create(
+            division=self.f["division"],
+            season=self.f["season"],
+            date=self.wrong_week.date,
+        )
+        self.client.post(self._fix())
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.week, right_week)
+        self.assertFalse(Week.objects.filter(pk=self.wrong_week.pk).exists())
+
+    def test_fix_leaves_other_divisions_games_on_the_week(self):
+        other_a, other_b = (
+            Team.objects.create(
+                team_name=name,
+                team_color="Red",
+                division=self.wrong_division,
+                season=self.f["season"],
+                is_active=True,
+            )
+            for name in ("Wed A", "Wed B")
+        )
+        real_wednesday_game = MatchUp.objects.create(
+            week=self.wrong_week,
+            awayteam=other_a,
+            hometeam=other_b,
+            time=datetime.time(20, 0),
+        )
+        self.client.post(self._fix())
+        self.game.refresh_from_db()
+        real_wednesday_game.refresh_from_db()
+        self.assertEqual(self.game.week.division, self.f["division"])
+        self.assertEqual(real_wednesday_game.week, self.wrong_week)
+        self.wrong_week.refresh_from_db()
+        self.assertEqual(self.wrong_week.division, self.wrong_division)
+
+    def test_fix_ignores_get(self):
+        resp = self.client.get(self._fix())
+        self.assertRedirects(resp, self._change())
+        self.wrong_week.refresh_from_db()
+        self.assertEqual(self.wrong_week.division, self.wrong_division)
+
+    def test_fix_rebuilds_the_standings(self):
+        Stat.objects.create(
+            matchup=self.game,
+            team=self.f["home_team"],
+            player=self.f["home_player"],
+            goals=2,
+        )
+        self.client.post(self._fix())
+        row = Team_Stat.objects.get(
+            team=self.f["home_team"], division=self.f["division"]
+        )
+        self.assertEqual(row.win, 1)
+
+
+class MatchUpAddFormWeekChoicesTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        self.f = _computed_fixture()
+
+    def test_week_dropdown_offers_only_seasons_in_play(self):
+        old_season = Season.objects.create(year=2019, season_type=1)
+        old_week = Week.objects.create(
+            division=self.f["division"],
+            season=old_season,
+            date=datetime.date(2019, 4, 1),
+        )
+        resp = self.client.get(reverse("admin:leagues_matchup_add"))
+        weeks = list(resp.context["adminform"].form.fields["week"].queryset)
+        self.assertIn(self.f["week"], weeks)
+        self.assertNotIn(old_week, weeks)
+
+
+class WeekAdminSeasonInferenceTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        self.f = _computed_fixture()
+
+    def _post(self, **overrides):
+        data = {
+            "division": self.f["division"].pk,
+            "season": "",
+            "date": "2024-04-15",
+            "matchup_set-TOTAL_FORMS": "0",
+            "matchup_set-INITIAL_FORMS": "0",
+            "matchup_set-MIN_NUM_FORMS": "0",
+            "matchup_set-MAX_NUM_FORMS": "1000",
+        }
+        data.update(overrides)
+        return data
+
+    def _game_row(self, away, home, i=0):
+        return {
+            "matchup_set-TOTAL_FORMS": str(i + 1),
+            f"matchup_set-{i}-time": "07:00 PM",
+            f"matchup_set-{i}-awayteam": away.pk,
+            f"matchup_set-{i}-hometeam": home.pk,
+            f"matchup_set-{i}-away_goalie_status": 3,
+            f"matchup_set-{i}-home_goalie_status": 3,
+        }
+
+    def test_season_is_not_required(self):
+        resp = self.client.get(reverse("admin:leagues_week_add"))
+        self.assertFalse(resp.context["adminform"].form.fields["season"].required)
+        self.assertContains(resp, "Leave blank")
+
+    def test_season_comes_from_the_teams_in_the_games(self):
+        other_season = Season.objects.create(year=2030, season_type=1)
+        Team.objects.create(
+            team_name="Future",
+            team_color="Blue",
+            division=self.f["division"],
+            season=other_season,
+            is_active=True,
+        )
+        resp = self.client.post(
+            reverse("admin:leagues_week_add"),
+            self._post(**self._game_row(self.f["away_team"], self.f["home_team"])),
+        )
+        self.assertEqual(resp.status_code, 302)
+        week = Week.objects.get(date=datetime.date(2024, 4, 15))
+        # The teams are 2024 teams, so the week is 2024 even though a newer
+        # season has teams in this division.
+        self.assertEqual(week.season, self.f["season"])
+        self.assertEqual(week.matchup_set.count(), 1)
+
+    def test_empty_week_takes_newest_season_with_teams(self):
+        other_season = Season.objects.create(year=2030, season_type=1)
+        Team.objects.create(
+            team_name="Future",
+            team_color="Blue",
+            division=self.f["division"],
+            season=other_season,
+            is_active=True,
+        )
+        self.client.post(reverse("admin:leagues_week_add"), self._post())
+        week = Week.objects.get(date=datetime.date(2024, 4, 15))
+        self.assertEqual(week.season, other_season)
+
+    def test_games_from_the_wrong_division_are_refused(self):
+        other = Division.objects.create(division=3)
+        resp = self.client.post(
+            reverse("admin:leagues_week_add"),
+            self._post(
+                division=other.pk,
+                **self._game_row(self.f["away_team"], self.f["home_team"]),
+            ),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "but this week is filed under Wednesday Draft League")
+        self.assertFalse(Week.objects.filter(date=datetime.date(2024, 4, 15)).exists())
+
+    def test_games_mixing_divisions_are_refused(self):
+        other = Division.objects.create(division=3)
+        a, b = (
+            Team.objects.create(
+                team_name=name,
+                team_color="Red",
+                division=other,
+                season=self.f["season"],
+                is_active=True,
+            )
+            for name in ("Wed A", "Wed B")
+        )
+        data = self._post(**self._game_row(self.f["away_team"], self.f["home_team"]))
+        data.update(self._game_row(a, b, i=1))
+        resp = self.client.post(reverse("admin:leagues_week_add"), data)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "These games mix divisions")
+
+
+class TeamAdminDefaultsTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        self.f = _computed_fixture()
+
+    def test_new_team_defaults_to_newest_season_and_active(self):
+        newest = Season.objects.create(year=2031, season_type=2)
+        form = (
+            self.client.get(reverse("admin:leagues_team_add")).context["adminform"].form
+        )
+        self.assertEqual(form.initial["season"], newest.pk)
+        self.assertIs(form.initial["is_active"], True)
+
+    def test_record_is_read_only_for_computed_seasons(self):
+        Stat.objects.create(
+            matchup=self.f["matchup"],
+            team=self.f["home_team"],
+            player=self.f["home_player"],
+            goals=2,
+        )
+        html = self.client.get(
+            reverse("admin:leagues_team_change", args=[self.f["home_team"].pk])
+        ).content.decode()
+        self.assertNotIn('name="team_stat_set-0-win"', html)
+        self.assertIn("Season record", html)
+
+
+class SeasonAdminTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        self.f = _computed_fixture()
+
+    def test_current_season_flag_is_hidden(self):
+        resp = self.client.get(reverse("admin:leagues_season_add"))
+        self.assertNotContains(resp, 'name="is_current_season"')
+        self.assertNotContains(resp, 'name="standings_from_games"')
+
+    def test_list_shows_which_divisions_play_each_season(self):
+        resp = self.client.get(reverse("admin:leagues_season_changelist"))
+        self.assertContains(resp, "Playing now")
+        self.assertContains(resp, "Sunday D1")
+        self.assertContains(resp, "From game results")
+
+
+class ScheduleManagerFilesGamesByTeamDivisionTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        self.f = _computed_fixture()
+        self.wrong_division = Division.objects.create(division=3)
+        # The dropdown only lists divisions with upcoming weeks.
+        Week.objects.create(
+            division=self.wrong_division,
+            season=self.f["season"],
+            date=datetime.date.today() + datetime.timedelta(days=3),
+        )
+
+    def test_new_game_is_filed_under_the_teams_division(self):
+        on = datetime.date.today() + datetime.timedelta(days=7)
+        self.client.post(
+            reverse("admin:leagues_matchup_schedule_manager"),
+            {
+                "division_id": self.wrong_division.pk,
+                "filter_date": "",
+                "matchup_pks": "",
+                "new_row_count": "1",
+                "new_0_division_id": self.wrong_division.pk,
+                "new_0_date": on.isoformat(),
+                "new_0_time": "19:00",
+                "new_0_away": self.f["away_team"].pk,
+                "new_0_home": self.f["home_team"].pk,
+            },
+        )
+        game = MatchUp.objects.get(week__date=on)
+        self.assertEqual(game.week.division, self.f["division"])
+        self.assertEqual(game.week.season, self.f["season"])

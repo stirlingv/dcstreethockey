@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.core.cache import cache
+from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import models
 import datetime
 import uuid
@@ -114,7 +115,19 @@ class Season(models.Model):
     year = models.IntegerField(
         db_index=True, choices=YEAR_CHOICES, default=datetime.datetime.now().year
     )
+    # Informational only. The site works out which season each division is
+    # playing from the schedule (see leagues/seasons.py), so this flag is
+    # never read and never needs to be set by hand.
     is_current_season = models.BooleanField(null=True)
+    # True: the standings record for every team is computed from each game's
+    # result (score, overtime, shootout). False: the record was typed in by
+    # hand on each game, the way every season before Fall 2026 was kept.
+    standings_from_games = models.BooleanField(
+        default=True,
+        verbose_name="standings computed from game results",
+        help_text="Team records come from the score of each game. Seasons "
+        "before this was introduced keep the records that were entered by hand.",
+    )
 
     class Meta:
         ordering = [
@@ -359,6 +372,11 @@ class Week(models.Model):
             # it — no separate per-game step required.
             self.matchup_set.update(is_cancelled=self.is_cancelled)
             cache.delete("cancelled_games_ctx")
+            # A bulk update() skips the per-game signals, so refresh the
+            # computed standings for this week's season here.
+            from leagues.results import recompute_team_stats
+
+            recompute_team_stats(self.season_id, self.division_id)
         if self.rescheduled_from is not None:
             # A rescheduled slate is a new game day: confirmations and subs
             # arranged for the old date no longer hold, so ask again.
@@ -436,6 +454,11 @@ class MatchUp(models.Model):
         help_text="Set when a regular-season OT game is decided by shootout. "
         "True = home team won; False = away team won; null = no shootout.",
     )
+    went_to_overtime = models.BooleanField(
+        default=False,
+        help_text="The game was decided in overtime or a shootout, so the "
+        "result counts as an overtime win and an overtime loss.",
+    )
     # Goalie status fields
     away_goalie = models.ForeignKey(
         "Player",
@@ -480,15 +503,90 @@ class MatchUp(models.Model):
                 "shootout_winner_is_home"
             ] = "Postseason games cannot have a shootout winner."
 
+        problem = self._teams_vs_week_problem()
+        if problem:
+            errors[NON_FIELD_ERRORS] = problem
+
         if errors:
             raise ValidationError(errors)
+
+    def _teams_vs_week_problem(self, force=False):
+        """A plain-language reason this game's teams don't belong on its week.
+
+        A team already carries its division and season, so the week it plays
+        on must agree with both. Older seasons were kept before this rule
+        existed (Monday A/B shared one division until 2022, and there were a
+        few Sunday crossover games), so games from those seasons are left
+        alone unless they are being re-pointed at a different week or team.
+        """
+        home = getattr(self, "hometeam", None) if self.hometeam_id else None
+        away = getattr(self, "awayteam", None) if self.awayteam_id else None
+        if home is None or away is None:
+            return None
+        if home.pk == away.pk:
+            return "A team can't play itself. Pick two different teams."
+        try:
+            week = self.week
+        except Week.DoesNotExist:
+            week = None
+        if week is None:
+            return None
+
+        loaded_week = getattr(self, "_loaded_week_id", None)
+        loaded_teams = getattr(self, "_loaded_team_ids", None) or (None, None)
+        week_changed = loaded_week is not None and loaded_week != self.week_id
+        teams_changed = None not in loaded_teams and loaded_teams != (
+            self.hometeam_id,
+            self.awayteam_id,
+        )
+        changed = force or not self.pk or week_changed or teams_changed
+        if not changed:
+            from leagues.seasons import active_season_ids
+
+            if week.season_id not in active_season_ids():
+                return None
+
+        if home.division_id != away.division_id:
+            return (
+                f"{home.team_name} ({home.division}) and {away.team_name} "
+                f"({away.division}) are in different divisions. Pick two teams "
+                "from the same division."
+            )
+        if week.division_id and home.division_id != week.division_id:
+            return (
+                f"{home.team_name} and {away.team_name} play in {home.division}, "
+                f"but this week is filed under {week.division}. Change the "
+                f"week's division to {home.division}, or pick teams from "
+                f"{week.division}."
+            )
+        if home.season_id != away.season_id:
+            return (
+                f"{home.team_name} ({home.season}) and {away.team_name} "
+                f"({away.season}) are from different seasons. Pick the two "
+                "teams from the same season."
+            )
+        if week.season_id and home.season_id != week.season_id:
+            return (
+                f"{home.team_name} and {away.team_name} are {home.season} teams, "
+                f"but this week belongs to {week.season}. Pick the {week.season} "
+                f"versions of these teams, or put the game on a {home.season} week."
+            )
+        return None
 
     @classmethod
     def from_db(cls, db, field_names, values):
         instance = super().from_db(db, field_names, values)
         # Remembered so save() can tell whether the game moved to another
-        # week without an extra query.
-        instance._loaded_week_id = instance.week_id
+        # week without an extra query, and so clean() knows whether the
+        # teams or week were changed.
+        # Read from __dict__ so a deferred field (.only()/.defer()) is not
+        # fetched just to remember it; a deferred value is simply None.
+        loaded = instance.__dict__
+        instance._loaded_week_id = loaded.get("week_id")
+        instance._loaded_team_ids = (
+            loaded.get("hometeam_id"),
+            loaded.get("awayteam_id"),
+        )
         return instance
 
     def _moved_to_new_date(self):
