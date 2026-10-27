@@ -170,6 +170,47 @@
 
         updateGameScore(homeTonight, awayTonight);
         updateGoalieWarning(homeTonight, awayTonight);
+        updateResultLine(homeTonight, awayTonight);
+    }
+
+    // ── Result line (seasons whose standings come from game results) ──────
+    //
+    // Says in words what the standings will record for this game, and
+    // warns when a tied score still needs a shootout winner picked.
+
+    function updateResultLine(homeGoals, awayGoals) {
+        var el = document.getElementById('result-line');
+        if (!el) return;
+        if (typeof homeGoals === 'undefined' || typeof awayGoals === 'undefined') {
+            var totals = computeGoalTotals();
+            homeGoals = totals[homeTeamId] || 0;
+            awayGoals = totals[awayTeamId] || 0;
+        }
+        var otBox = document.getElementById('went_to_overtime');
+        var ot = !!(otBox && otBox.checked);
+        var checked = document.querySelector('[name="shootout_winner_is_home"]:checked');
+        var so = checked ? checked.value : '';
+        var text, cls = 'result-line';
+
+        if (homeGoals === awayGoals) {
+            if (so === 'true' || so === 'false') {
+                var w = so === 'true' ? homeTeamName : awayTeamName;
+                text = w + ' win in a shootout, ' + homeGoals + '\u2013' + awayGoals + ' after overtime.';
+            } else if (homeGoals === 0 && awayGoals === 0) {
+                text = 'Enter the player stats above \u2014 the score decides the winner.';
+                cls += ' result-pending';
+            } else {
+                text = 'Tied ' + homeGoals + '\u2013' + awayGoals + '. Tick \u201cwent to OT / shootout\u201d and pick who won the shootout.';
+                cls += ' result-warning';
+            }
+        } else {
+            var homeWon = homeGoals > awayGoals;
+            var winner = homeWon ? homeTeamName : awayTeamName;
+            var hi = Math.max(homeGoals, awayGoals), lo = Math.min(homeGoals, awayGoals);
+            text = winner + ' win ' + hi + '\u2013' + lo + (ot ? ' in overtime (OTW / OTL).' : '.');
+        }
+        el.textContent = text;
+        el.className = cls;
     }
 
     // ── This game's score (from player stats) ─────────────────────────────
@@ -296,6 +337,17 @@
     function updateShootoutVisibility() {
         var section = document.getElementById('shootout-section');
         if (!section) return;
+        var otBox = document.getElementById('went_to_overtime');
+        if (otBox) {
+            // Computed standings: the OT box decides.
+            section.style.display = otBox.checked ? 'flex' : 'none';
+            if (!otBox.checked) {
+                // A hidden shootout pick must not be saved by accident.
+                var none = document.querySelector('[name="shootout_winner_is_home"][value=""]');
+                if (none) none.checked = true;
+            }
+            return;
+        }
         var homeOtwEl = document.querySelector('[name="home_stat-otw"]');
         var awayOtwEl = document.querySelector('[name="away_stat-otw"]');
         var homeOtw = homeOtwEl ? (parseInt(homeOtwEl.value, 10) || 0) : 0;
@@ -336,9 +388,14 @@
             updateSuggestions();
         } else if (name === 'home_stat-otw' || name === 'away_stat-otw') {
             updateShootoutVisibility();
+        } else if (name === 'went_to_overtime') {
+            updateShootoutVisibility();
+            updateGameScore();
+            updateResultLine();
         } else if (name === 'shootout_winner_is_home') {
             // Recompute the "final score with shootout" line.
             updateGameScore();
+            updateResultLine();
         }
     });
 

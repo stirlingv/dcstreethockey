@@ -319,9 +319,11 @@ class RealLinksTest(TemplateFixtureBase):
         self.assertIn(f'href="/teams/{self.home_team.id}/" class="cell-link"', content)
 
     def test_scores_page_record_uses_current_format(self):
-        # Post-2022 season: four-number W-OTW-OTL-L record (was W-L-T).
+        # Post-2022 season: four-number W-OTW-OTL-L record (was W-L-T). The
+        # records come from the game itself (home won 2-0), not a typed row.
         content = self._get(reverse("scores"))
-        self.assertIn("(0-0-0-0)", content)
+        self.assertIn("(1-0-0-0)", content)
+        self.assertIn("(0-0-0-1)", content)
         self.assertIn("Team records: W-OTW-OTL-L", content)
 
 

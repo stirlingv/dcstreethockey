@@ -24,15 +24,15 @@ class MatchUpForm(forms.ModelForm):
 class TeamStatForm(forms.ModelForm):
     class Meta:
         model = Team_Stat
-        fields = ["win", "otw", "loss", "otl", "tie", "goals_for", "goals_against"]
+        # Goals for/against are summed from the player stats on save, so
+        # they are shown read-only on the game page rather than typed in.
+        fields = ["win", "otw", "loss", "otl", "tie"]
         labels = {
             "win": "W",
             "otw": "OTW",
             "loss": "L",
             "otl": "OTL",
             "tie": "T",
-            "goals_for": "GF",
-            "goals_against": "GA",
         }
 
     def __init__(self, *args, **kwargs):

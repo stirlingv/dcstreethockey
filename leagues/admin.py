@@ -4,8 +4,8 @@ import csv
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
-from django.db import models
-from django.db.models import Q, Max, Prefetch, Sum
+from django.db import models, transaction
+from django.db.models import Q, Prefetch, Sum
 from django.utils.http import urlencode
 from django.utils.html import format_html
 from django.utils import timezone
@@ -23,6 +23,21 @@ from .filters import (
     _default_signup_season_id,
 )
 from .forms import MatchUpForm, TeamStatForm
+from leagues.results import (
+    recompute_team_stats,
+    standings_from_games,
+    standings_recompute_deferred,
+    tied_without_shootout_message,
+)
+from leagues.seasons import (
+    active_season_ids,
+    current_season,
+    current_season_for_division,
+    current_seasons,
+    newest_active_season,
+    newest_season,
+    season_for_new_week,
+)
 from .fields import TwelveHourTimeField
 from .widgets import Time12HourWidget
 from leagues.models import (
@@ -118,11 +133,8 @@ class _DCHockeyAdminSite(admin.AdminSite):
 
 
 def get_current_season():
-    try:
-        current_season_instance = Season.objects.filter(is_current_season=True).first()
-        return current_season_instance
-    except Season.DoesNotExist:
-        return None
+    """The season being played right now, worked out from the schedule."""
+    return current_season()
 
 
 class SeasonMultiFilter(SimpleListFilter):
@@ -170,21 +182,8 @@ class SeasonMultiFilter(SimpleListFilter):
 
 
 def get_current_season_for_division(division_id):
-    try:
-        max_year = Season.objects.filter(team__division_id=division_id).aggregate(
-            max_year=Max("year")
-        )["max_year"]
-
-        max_season_type = Season.objects.filter(
-            team__division_id=division_id, year=max_year
-        ).aggregate(max_season_type=Max("season_type"))["max_season_type"]
-
-        current_season_instance = Season.objects.get(
-            year=max_year, season_type=max_season_type
-        )
-        return current_season_instance
-    except Season.DoesNotExist:
-        return None
+    """The season this division is playing right now, from its schedule."""
+    return current_season_for_division(division_id)
 
 
 class RosterInlineForm(forms.ModelForm):
@@ -210,21 +209,30 @@ class RosterInline(admin.TabularInline):
 
 
 class TeamStatInline(admin.TabularInline):
+    """The team's season record. Division and season are the team's own, so
+    they are never asked for; the row is created automatically when the team
+    is saved. For seasons whose standings are computed from game results the
+    whole row is read-only."""
+
     model = Team_Stat
-    extra = 1
+    extra = 0
+    max_num = 1
+    verbose_name = "season record"
+    verbose_name_plural = "Season record"
     readonly_fields = ["goals_from_stat_records"]
-    fields = [
-        "division",
-        "season",
-        "win",
-        "otw",
-        "loss",
-        "otl",
-        "tie",
-        "goals_for",
-        "goals_against",
-        "goals_from_stat_records",
-    ]
+    _record_fields = ["win", "otw", "loss", "otl", "tie", "goals_for", "goals_against"]
+    fields = _record_fields + ["goals_from_stat_records"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None and standings_from_games(obj.season):
+            return self._record_fields + ["goals_from_stat_records"]
+        return self.readonly_fields
 
     def goals_from_stat_records(self, obj):
         total, delta = _stat_record_goals(obj)
@@ -358,6 +366,26 @@ def _stat_record_goals(obj):
     return total, obj.goals_for - total
 
 
+def _record_summary(season, team_stat):
+    """What the game page shows as a team's season record."""
+    if team_stat is None:
+        return {"text": "0-0-0-0", "gf": 0, "ga": 0, "gp": 0}
+    if season and season.year and season.year < 2022:
+        text = f"{team_stat.win}-{team_stat.loss}-{team_stat.tie}"
+    else:
+        text = f"{team_stat.win}-{team_stat.otw}-{team_stat.otl}-{team_stat.loss}"
+    return {
+        "text": text,
+        "gf": team_stat.goals_for,
+        "ga": team_stat.goals_against,
+        "gp": team_stat.win
+        + team_stat.otw
+        + team_stat.loss
+        + team_stat.otl
+        + team_stat.tie,
+    }
+
+
 def _apply_default_matchup_filters(request, default_timeframe="upcoming"):
     # Only skip the redirect when the user has already chosen a timeframe.
     # Having season_ids without a timeframe still needs a redirect so the
@@ -370,12 +398,9 @@ def _apply_default_matchup_filters(request, default_timeframe="upcoming"):
     # Only inject default season_ids if the user hasn't already selected
     # seasons; preserves an explicit season choice made in the sidebar.
     if not query.get("season_ids"):
-        current_seasons = Season.objects.filter(is_current_season=True)
-        if current_seasons.exists():
-            query["season_ids"] = ",".join(
-                str(season_id)
-                for season_id in current_seasons.values_list("id", flat=True)
-            )
+        season_ids = sorted(active_season_ids())
+        if season_ids:
+            query["season_ids"] = ",".join(str(pk) for pk in season_ids)
     return f"{request.path}?{query.urlencode()}"
 
 
@@ -630,17 +655,138 @@ class MatchUpAdmin(admin.ModelAdmin):
             )
         elif db_field.name == "week":
             matchup_id = request.resolver_match.kwargs.get("object_id")
+            week_qs = None
             if matchup_id:
                 try:
                     matchup = MatchUp.objects.select_related(
                         "week__season", "hometeam__division"
                     ).get(id=matchup_id)
-                    kwargs["queryset"] = Week.objects.filter(
-                        division=matchup.hometeam.division, season=matchup.week.season
-                    ).select_related("season", "division")
+                    # The game's own week is always offered, even when it is
+                    # filed under another division, so the field never shows
+                    # blank and the wrong-division banner can explain it.
+                    week_qs = Week.objects.filter(
+                        Q(
+                            division=matchup.hometeam.division,
+                            season=matchup.week.season,
+                        )
+                        | Q(pk=matchup.week_id)
+                    )
                 except MatchUp.DoesNotExist:
-                    print("Could not find the matchup to filter weeks.")
+                    logger.warning("Could not find the matchup to filter weeks.")
+            if week_qs is None:
+                # Adding a game: only the seasons being played or set up,
+                # not every week since 2005.
+                week_qs = Week.objects.filter(season_id__in=active_season_ids())
+            kwargs["queryset"] = week_qs.select_related("season", "division").order_by(
+                "-date", "division__division"
+            )
         return super().formfield_for_foreignkey(db_field, request=request, **kwargs)
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        form_class = super().get_form(request, obj, change=change, **kwargs)
+        if (
+            obj is None
+            or obj.week_id is None
+            or not standings_from_games(obj.week.season)
+        ):
+            return form_class
+        model_admin = self
+
+        class GameResultForm(form_class):
+            """Refuses a tied score with no shootout winner, so a game can
+            never be saved in a state the standings can't count."""
+
+            def clean(self):
+                cleaned = super().clean()
+                if cleaned.get("is_postseason"):
+                    return cleaned
+                home_goals, away_goals, any_stats = model_admin._posted_goals(
+                    request, obj
+                )
+                shootout = request.POST.get("shootout_winner_is_home", "")
+                if (
+                    any_stats
+                    and home_goals == away_goals
+                    and shootout
+                    not in (
+                        "true",
+                        "false",
+                    )
+                ):
+                    raise forms.ValidationError(
+                        tied_without_shootout_message(
+                            obj.hometeam.team_name,
+                            obj.awayteam.team_name,
+                            home_goals,
+                            away_goals,
+                        )
+                    )
+                return cleaned
+
+        return GameResultForm
+
+    def _posted_goals(self, request, match):
+        """(home goals, away goals, any stats at all) as they will stand after
+        this save: the scoresheet grid, the sub rows, and any existing stat
+        rows neither of those covers."""
+        post = request.POST
+        totals = {match.hometeam_id: 0, match.awayteam_id: 0}
+        any_stats = False
+        covered = set()
+
+        def _int(raw):
+            try:
+                return max(int((raw or "").strip()), 0)
+            except ValueError:
+                return 0
+
+        raw_ids = post.get("ss-player-ids", "")
+        if raw_ids:
+            team_by_player = {
+                r["player_id"]: r["team_id"]
+                for r in Roster.objects.filter(
+                    team__in=[match.hometeam_id, match.awayteam_id],
+                    is_substitute=False,
+                ).values("player_id", "team_id")
+            }
+            for raw in raw_ids.split(","):
+                if not raw.strip().isdigit():
+                    continue
+                pid = int(raw)
+                covered.add(pid)
+                team_id = team_by_player.get(pid)
+                if team_id not in totals:
+                    continue
+                cells = [
+                    post.get(f"ss-{pid}-{f}", "").strip() for f in self._SHEET_FIELDS
+                ]
+                if any(cells):
+                    any_stats = True
+                totals[team_id] += _int(post.get(f"ss-{pid}-goals"))
+
+        try:
+            total_forms = int(post.get("stat_set-TOTAL_FORMS", "0") or 0)
+        except ValueError:
+            total_forms = 0
+        for i in range(total_forms):
+            prefix = f"stat_set-{i}-"
+            player = (post.get(prefix + "player") or "").strip()
+            if player.isdigit():
+                covered.add(int(player))
+            if post.get(prefix + "DELETE") or not player:
+                continue
+            any_stats = True
+            team = (post.get(prefix + "team") or "").strip()
+            team_id = int(team) if team.isdigit() else None
+            if team_id in totals:
+                totals[team_id] += _int(post.get(prefix + "goals"))
+
+        for row in Stat.objects.filter(matchup=match).exclude(player_id__in=covered):
+            any_stats = True
+            if row.team_id in totals:
+                totals[row.team_id] += row.goals or 0
+
+        return totals[match.hometeam_id], totals[match.awayteam_id], any_stats
 
     def render_change_list(self, request, *args, **kwargs):
         extra_context = kwargs.get("extra_context", {})
@@ -667,6 +813,11 @@ class MatchUpAdmin(admin.ModelAdmin):
                 obj.shootout_winner_is_home = False
             else:
                 obj.shootout_winner_is_home = None
+        # The OT box is rendered in the Game Outcome section, not the form.
+        obj.went_to_overtime = (
+            bool(request.POST.get("went_to_overtime"))
+            or obj.shootout_winner_is_home is not None
+        )
         super().save_model(request, obj, form, change)
         if getattr(obj, "goalie_status_reset", False):
             messages.info(
@@ -713,21 +864,45 @@ class MatchUpAdmin(admin.ModelAdmin):
                 season=match.week.season,
             ).first()
 
-            if request.method == "POST":
-                home_stat_form = TeamStatForm(
-                    request.POST, instance=home_stat, prefix="home_stat"
-                )
-                away_stat_form = TeamStatForm(
-                    request.POST, instance=away_stat, prefix="away_stat"
-                )
-                if home_stat_form.is_valid() and away_stat_form.is_valid():
-                    request._home_stat_form = home_stat_form
-                    request._away_stat_form = away_stat_form
-                    request._matchup_for_stat = match
-            else:
-                home_stat_form = TeamStatForm(instance=home_stat, prefix="home_stat")
-                away_stat_form = TeamStatForm(instance=away_stat, prefix="away_stat")
+            # The teams carry their own division and season, so a week that
+            # disagrees means the records below won't match and the result
+            # would land in the wrong standings. Say so, with a one-click fix.
+            extra_context["week_problem"] = match._teams_vs_week_problem(force=True)
 
+            derived = standings_from_games(match.week.season)
+            extra_context["standings_from_games"] = derived
+            if derived:
+                home_stat_form = away_stat_form = None
+                if request.method == "POST":
+                    went_to_overtime = bool(request.POST.get("went_to_overtime"))
+                else:
+                    went_to_overtime = match.went_to_overtime
+                extra_context["went_to_overtime"] = went_to_overtime
+            else:
+                if request.method == "POST":
+                    home_stat_form = TeamStatForm(
+                        request.POST, instance=home_stat, prefix="home_stat"
+                    )
+                    away_stat_form = TeamStatForm(
+                        request.POST, instance=away_stat, prefix="away_stat"
+                    )
+                    if home_stat_form.is_valid() and away_stat_form.is_valid():
+                        request._home_stat_form = home_stat_form
+                        request._away_stat_form = away_stat_form
+                        request._matchup_for_stat = match
+                else:
+                    home_stat_form = TeamStatForm(
+                        instance=home_stat, prefix="home_stat"
+                    )
+                    away_stat_form = TeamStatForm(
+                        instance=away_stat, prefix="away_stat"
+                    )
+
+            # The season records shown at the bottom of the page. Computed
+            # seasons show them read-only; hand-kept seasons show GF/GA
+            # read-only (they are summed from player stats on save).
+            extra_context["home_record"] = _record_summary(match.week.season, home_stat)
+            extra_context["away_record"] = _record_summary(match.week.season, away_stat)
             extra_context["home_stat_form"] = home_stat_form
             extra_context["away_stat_form"] = away_stat_form
             extra_context["home_team_name"] = match.hometeam.team_name
@@ -905,6 +1080,11 @@ class MatchUpAdmin(admin.ModelAdmin):
                 dup.delete()
 
     def save_related(self, request, form, formsets, change):
+        # One standings rebuild per save instead of one per stat row.
+        with standings_recompute_deferred():
+            self._save_related(request, form, formsets, change)
+
+    def _save_related(self, request, form, formsets, change):
         match = getattr(request, "_matchup_for_stat", None)
         season = match.week.season if match else None
         division = match.week.division if match else None
@@ -995,9 +1175,82 @@ class MatchUpAdmin(admin.ModelAdmin):
     class Media:
         js = ("admin/js/stat_autofill_team.js",)
 
+    def fix_week_division_view(self, request, matchup_id):
+        """Move a game whose week is filed under the wrong division onto a
+        week in the teams' own division (the one-click fix for the banner on
+        the game page)."""
+        match = get_object_or_404(
+            MatchUp.objects.select_related(
+                "week__division", "week__season", "hometeam__division", "awayteam"
+            ),
+            pk=matchup_id,
+        )
+        change_url = reverse("admin:leagues_matchup_change", args=[match.pk])
+        if request.method != "POST":
+            return redirect(change_url)
+        home, away, week = match.hometeam, match.awayteam, match.week
+        if home.division_id != away.division_id:
+            messages.error(
+                request,
+                f"{home.team_name} and {away.team_name} are in different "
+                "divisions, so there is no single division to move this game to. "
+                "Change one of the teams instead.",
+            )
+            return redirect(change_url)
+        if home.division_id == week.division_id:
+            messages.info(request, "This game is already on the right week.")
+            return redirect(change_url)
+
+        to_move = MatchUp.objects.filter(
+            week=week, hometeam__division_id=home.division_id
+        )
+        with transaction.atomic():
+            target = (
+                Week.objects.filter(
+                    date=week.date, season=week.season, division=home.division
+                )
+                .exclude(pk=week.pk)
+                .first()
+            )
+            others_remain = (
+                MatchUp.objects.filter(week=week)
+                .exclude(pk__in=to_move.values_list("pk", flat=True))
+                .exists()
+            )
+            if target is None and not others_remain:
+                # Every game on the week belongs to the teams' division, so
+                # the week itself was simply filed wrongly.
+                old_division = week.division
+                week.division = home.division
+                week.save()
+                target = week
+            else:
+                old_division = week.division
+                if target is None:
+                    target = Week.objects.create(
+                        date=week.date, season=week.season, division=home.division
+                    )
+                to_move.update(week=target)
+                if not MatchUp.objects.filter(week=week).exists():
+                    week.delete()
+        # update() skips the per-game signals, so refresh both standings.
+        recompute_team_stats(target.season_id, old_division.pk)
+        recompute_team_stats(target.season_id, target.division_id)
+        messages.success(
+            request,
+            f"Moved the {week.date:%A, %B %-d} games for {home.division} from "
+            f"{old_division} to {home.division}. The records below now match.",
+        )
+        return redirect(change_url)
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
+            path(
+                "<int:matchup_id>/fix-week-division/",
+                self.admin_site.admin_view(self.fix_week_division_view),
+                name="leagues_matchup_fix_week_division",
+            ),
             path(
                 "schedule/",
                 self.admin_site.admin_view(self.schedule_manager_view),
@@ -1083,10 +1336,11 @@ class MatchUpAdmin(admin.ModelAdmin):
                     division_obj = Division.objects.get(pk=int(div_id))
                 except (ValueError, Team.DoesNotExist, Division.DoesNotExist):
                     continue
-                season = (
-                    get_current_season_for_division(division_obj.pk)
-                    or get_current_season()
-                )
+                # The teams already know their division and season, so the
+                # week is filed where they play rather than where the page's
+                # dropdown happened to be left.
+                division_obj = home_team.division or division_obj
+                season = home_team.season or away_team.season or newest_season()
                 if not season:
                     continue
                 week, _ = Week.objects.get_or_create(
@@ -1615,9 +1869,46 @@ class MatchUpGoalieStatusAdmin(admin.ModelAdmin):
         return super().lookup_allowed(lookup, value)
 
 
+class WeekGamesFormSet(forms.BaseInlineFormSet):
+    """Every game on a week must be between teams of one division and one
+    season, so the week can take both from them."""
+
+    def clean(self):
+        super().clean()
+        divisions, seasons = {}, {}
+        for form in self.forms:
+            data = getattr(form, "cleaned_data", None) or {}
+            if data.get("DELETE"):
+                continue
+            for team in (data.get("hometeam"), data.get("awayteam")):
+                if team is None:
+                    continue
+                divisions.setdefault(team.division_id, team)
+                seasons.setdefault(team.season_id, team)
+        problems = []
+        if len(divisions) > 1:
+            names = " and ".join(
+                f"{t.team_name} ({t.division})" for t in divisions.values()
+            )
+            problems.append(
+                f"These games mix divisions: {names}. A week holds one "
+                "division's games, so make a separate week for the other division."
+            )
+        if len(seasons) > 1:
+            names = " and ".join(
+                f"{t.team_name} ({t.season})" for t in seasons.values()
+            )
+            problems.append(
+                f"These games mix seasons: {names}. Pick teams from one season."
+            )
+        if problems:
+            raise forms.ValidationError(problems)
+
+
 class MatchUpInline(admin.TabularInline):
     model = MatchUp
     form = MatchUpForm
+    formset = WeekGamesFormSet
     extra = 4
     raw_id_fields = ["awayteam", "hometeam"]
 
@@ -1642,7 +1933,24 @@ class MatchUpInline(admin.TabularInline):
         return qs
 
 
+class WeekAdminForm(forms.ModelForm):
+    """Season is optional: it is taken from the teams in the week's games."""
+
+    class Meta:
+        model = Week
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["season"].required = False
+        self.fields["season"].help_text = (
+            "Leave blank: the season comes from the teams in the games below "
+            "(or the newest season with teams in this division)."
+        )
+
+
 class WeekAdmin(admin.ModelAdmin):
+    form = WeekAdminForm
     list_select_related = (
         "division",
         "season",
@@ -1650,6 +1958,39 @@ class WeekAdmin(admin.ModelAdmin):
     inlines = [
         MatchUpInline,
     ]
+
+    @staticmethod
+    def _season_from_posted_games(request):
+        """The season of the first team in the posted inline games."""
+        post = request.POST
+        try:
+            total = int(post.get("matchup_set-TOTAL_FORMS", "0") or 0)
+        except ValueError:
+            return None
+        for i in range(total):
+            prefix = f"matchup_set-{i}-"
+            if post.get(prefix + "DELETE"):
+                continue
+            for field in ("hometeam", "awayteam"):
+                raw = (post.get(prefix + field) or "").strip()
+                if raw.isdigit():
+                    season = (
+                        Team.objects.filter(pk=int(raw))
+                        .exclude(season__isnull=True)
+                        .values_list("season", flat=True)
+                        .first()
+                    )
+                    if season:
+                        return Season.objects.get(pk=season)
+        return None
+
+    def save_model(self, request, obj, form, change):
+        if obj.season_id is None:
+            obj.season = self._season_from_posted_games(request) or season_for_new_week(
+                obj.division_id
+            )
+        super().save_model(request, obj, form, change)
+
     list_display = ["__str__", "is_cancelled"]
     list_editable = ["is_cancelled"]
     list_display_links = ["__str__"]
@@ -1698,9 +2039,9 @@ class WeekAdmin(admin.ModelAdmin):
 
     def changelist_view(self, request, extra_context=None):
         if not request.GET.get("season__id__exact"):
-            current_season = get_current_season()
-            if current_season:
-                query_string = urlencode({"season__id__exact": current_season.id})
+            season = newest_active_season()
+            if season:
+                query_string = urlencode({"season__id__exact": season.id})
                 url = f"{request.path}?{query_string}"
                 return redirect(url)
         return super().changelist_view(request, extra_context=extra_context)
@@ -1818,6 +2159,15 @@ class TeamAdmin(admin.ModelAdmin):
     save_as = True
     raw_id_fields = ["division", "season"]
 
+    def get_changeform_initial_data(self, request):
+        """A new team is almost always for the newest season and active."""
+        initial = super().get_changeform_initial_data(request)
+        newest = newest_season()
+        if newest is not None and not initial.get("season"):
+            initial["season"] = newest.pk
+        initial.setdefault("is_active", True)
+        return initial
+
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         obj = form.instance
@@ -1834,7 +2184,30 @@ class TeamAdmin(admin.ModelAdmin):
 
 
 class SeasonAdmin(admin.ModelAdmin):
+    """The current season is worked out from the schedule, so the old
+    "is current season" checkbox is hidden; the list shows which divisions
+    are playing each season instead."""
+
     list_filter = ("year",)
+    list_display = ("__str__", "playing_now", "standings_source")
+    exclude = ("is_current_season",)
+    readonly_fields = ("standings_from_games",)
+
+    def changelist_view(self, request, extra_context=None):
+        self._playing_now = {season.pk: [] for season in Season.objects.all()}
+        for division, season in current_seasons().items():
+            name = dict(Division.DIVISION_TYPE).get(division, str(division))
+            self._playing_now.setdefault(season.pk, []).append(name)
+        return super().changelist_view(request, extra_context=extra_context)
+
+    @admin.display(description="Playing now")
+    def playing_now(self, obj):
+        names = getattr(self, "_playing_now", {}).get(obj.pk) or []
+        return ", ".join(names) if names else "—"
+
+    @admin.display(description="Standings", boolean=False)
+    def standings_source(self, obj):
+        return "From game results" if obj.standings_from_games else "Entered by hand"
 
 
 @admin.register(Ref)
