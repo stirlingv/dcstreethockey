@@ -140,6 +140,49 @@
   .se-btn-enter:hover { background: #2c5f73; color: #fff; }
   .se-btn-edit { background: #79aec8; color: #fff; }
   .se-btn-edit:hover { background: #5e9ab8; color: #fff; }
+  .se-btn-cancel { background: #fff; color: #ba2121; border: 1px solid #ba2121; }
+  .se-btn-cancel:hover { background: #fce4e4; }
+  .se-btn-move { background: #fff; color: #417690; border: 1px solid #417690; }
+  .se-btn-move:hover { background: #eef5f9; }
+  .se-inline-form { display: inline; margin: 0; }
+  .se-older-heading {
+    font-size: 13px;
+    font-weight: bold;
+    color: #b45309;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px 12px 6px;
+    margin: 0;
+    border-top: 2px solid #fcd9a3;
+    background: #fffbeb;
+  }
+  .se-older-hint {
+    font-size: 12px;
+    color: #92400e;
+    padding: 0 12px 8px;
+    margin: 0;
+    background: #fffbeb;
+    line-height: 1.5;
+  }
+  .se-older-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 7px 12px;
+    border-top: 1px solid #f5f5f5;
+  }
+  .se-older-when { font-size: 12px; font-weight: 600; color: #555; min-width: 120px; }
+  .se-older-reason {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: #fff8e1;
+    color: #b45309;
+    white-space: nowrap;
+  }
+  .se-older-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 
   .se-no-games {
     padding: 10px 12px;
@@ -192,7 +235,9 @@
     <summary class="se-legend-summary">&#8505;&#65039; What do these labels mean?</summary>
     <dl class="se-legend-body">
       <dt>Stats Needed</dt>
-      <dd>No player stats have been entered for one or more games yet.</dd>
+      <dd>No player stats have been entered for one or more games yet. If a game
+        wasn't played (rain), use <strong>Cancel</strong> so it leaves the
+        standings, or <strong>Move</strong> to put it on another date.</dd>
       <dt>Outcome Needed / Outcome &#9888;</dt>
       <dd>Player stats are entered, but a game's result wasn't saved in the Game
         Outcome section — so the standings don't include that game yet. Open the
@@ -247,6 +292,14 @@
           {% if game.stat_count == 0 %}
             <span class="se-stat-count se-stat-count-zero">0 stats</span>
             <a href="{% url 'admin:leagues_matchup_change' game.pk %}" class="se-btn se-btn-enter">Enter Stats</a>
+            {% if csrf_token %}
+            <form method="post" action="{{ game.cancel_url }}" class="se-inline-form"
+                  onsubmit="return confirm('Cancel {{ game.awayteam.team_name|escapejs }} vs {{ game.hometeam.team_name|escapejs }}? It will not count in the standings.');">
+              <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+              <button type="submit" class="se-btn se-btn-cancel" title="The game wasn't played: take it out of the standings">Cancel</button>
+            </form>
+            {% endif %}
+            <a href="{{ game.reschedule_url }}" class="se-btn se-btn-move" title="Put this game on another date">Move</a>
           {% else %}
             <span class="se-stat-count se-stat-count-has">{{ game.stat_count }} stat{{ game.stat_count|pluralize }}</span>
             {% if game.is_playoff %}
@@ -276,5 +329,28 @@
   {% endfor %}
   {% else %}
   <div class="se-no-games">No completed games in the past week.</div>
+  {% endif %}
+  {% if older_games %}
+  <p class="se-older-heading">&#9888; Older games still missing a result</p>
+  <p class="se-older-hint">These games are more than a week old and don't count in the standings yet.
+    Enter their stats, or if they weren't played, cancel or move them.</p>
+  {% for game in older_games %}
+  <div class="se-older-row">
+    <span class="se-older-when">{{ game.week.date|date:"D, M j" }} {{ game.time|date:"g:i A" }}</span>
+    <span class="se-game-matchup">{{ game.awayteam.team_name }} vs {{ game.hometeam.team_name }} <span style="color:#888;font-size:11px;">({{ game.week.division }})</span></span>
+    <span class="se-older-reason">{{ game.reason }}</span>
+    <span class="se-older-actions">
+      <a href="{% url 'admin:leagues_matchup_change' game.pk %}" class="se-btn se-btn-enter">Enter Stats</a>
+      {% if csrf_token %}
+      <form method="post" action="{{ game.cancel_url }}" class="se-inline-form"
+            onsubmit="return confirm('Cancel {{ game.awayteam.team_name|escapejs }} vs {{ game.hometeam.team_name|escapejs }}? It will not count in the standings.');">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <button type="submit" class="se-btn se-btn-cancel">Cancel</button>
+      </form>
+      {% endif %}
+      <a href="{{ game.reschedule_url }}" class="se-btn se-btn-move">Move</a>
+    </span>
+  </div>
+  {% endfor %}
   {% endif %}
 </div>

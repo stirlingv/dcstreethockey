@@ -3,8 +3,12 @@ from datetime import date, timedelta
 
 from django import template
 from django.db.models import Count, F, Sum
+from django.urls import reverse
+from django.utils.http import urlencode
 
 from leagues.models import MatchUp, Stat, Team_Stat, Week
+from leagues.results import game_result, standings_from_games
+from leagues.seasons import active_season_ids
 
 register = template.Library()
 
@@ -65,8 +69,69 @@ def quick_cancel_widget(context):
     }
 
 
-@register.inclusion_tag("admin/stats_entry_widget.html")
-def stats_entry_widget():
+def _attach_actions(matchup):
+    """Links for a game that wasn't played or still needs its stats: cancel
+    it on the spot (rain) or jump to the schedule manager to move it."""
+    matchup.cancel_url = reverse(
+        "admin:leagues_matchup_quick_cancel", args=[matchup.pk]
+    )
+    matchup.reschedule_url = (
+        reverse("admin:leagues_matchup_schedule_manager")
+        + "?"
+        + urlencode(
+            {
+                "division_id": matchup.week.division_id or "",
+                "filter_date": matchup.week.date.isoformat(),
+            }
+        )
+    )
+
+
+def _older_games_needing_attention(today, since):
+    """Regular-season games older than the recent window, in a season still
+    being played, that have no stats or an undecided result. They stay here
+    until stats are entered, the game is cancelled, or it is rescheduled, so
+    a forgotten scoresheet can't quietly drop out of the standings."""
+    games = list(
+        MatchUp.objects.filter(
+            week__date__lt=since,
+            week__season_id__in=active_season_ids(today=today),
+            is_cancelled=False,
+            is_postseason=False,
+            week__is_cancelled=False,
+        )
+        .select_related("hometeam", "awayteam", "week__division", "week__season")
+        .annotate(stat_count=Count("stat"))
+        .order_by("week__date", "week__division__division", "time")
+    )
+    flagged = []
+    with_stats = [g for g in games if g.stat_count]
+    goals = {}
+    if with_stats:
+        for row in (
+            Stat.objects.filter(matchup_id__in=[g.pk for g in with_stats])
+            .values("matchup_id", "team_id")
+            .annotate(total=Sum("goals"))
+        ):
+            goals[(row["matchup_id"], row["team_id"])] = row["total"] or 0
+    for game in games:
+        if game.stat_count == 0:
+            game.reason = "No stats entered"
+        elif standings_from_games(game.week.season):
+            home = goals.get((game.pk, game.hometeam_id), 0)
+            away = goals.get((game.pk, game.awayteam_id), 0)
+            if game_result(game, home, away) is not None:
+                continue
+            game.reason = "Tied score, no shootout winner picked"
+        else:
+            continue
+        _attach_actions(game)
+        flagged.append(game)
+    return flagged
+
+
+@register.inclusion_tag("admin/stats_entry_widget.html", takes_context=True)
+def stats_entry_widget(context=None):
     today = date.today()
     since = today - timedelta(days=7)
 
@@ -80,6 +145,8 @@ def stats_entry_widget():
         .annotate(stat_count=Count("stat"))
         .order_by("week__date", "week__division__division", "time")
     )
+    for m in matchups:
+        _attach_actions(m)
 
     # Bulk-compute outcome status for all matchups in two queries.
     #
@@ -168,6 +235,9 @@ def stats_entry_widget():
             if m.is_postseason:
                 m.outcome_missing = False
                 continue
+            if standings_from_games(m.week.season):
+                m.outcome_missing = game_result(m, home_gf, away_gf) is None
+                continue
             key_home = (m.hometeam_id, m.week.division_id, m.week.season_id)
             key_away = (m.awayteam_id, m.week.division_id, m.week.season_id)
             home_gp = ts_gp.get(key_home, 0)
@@ -211,5 +281,7 @@ def stats_entry_widget():
 
     return {
         "grouped_games": grouped,
+        "older_games": _older_games_needing_attention(today, since),
         "today": today,
+        "csrf_token": (context or {}).get("csrf_token"),
     }

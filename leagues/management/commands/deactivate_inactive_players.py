@@ -46,8 +46,10 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("DRY RUN - no changes will be made"))
 
         # Get players on current season rosters (these should never be deactivated)
+        from leagues.seasons import active_season_ids
+
         current_season_players = set(
-            Roster.objects.filter(team__season__is_current_season=True).values_list(
+            Roster.objects.filter(team__season_id__in=active_season_ids()).values_list(
                 "player_id", flat=True
             )
         )

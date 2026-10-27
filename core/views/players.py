@@ -784,7 +784,9 @@ class PlayerStatDetailView(ListView):
     template_name = "stat_list.html"
 
     def get_queryset(self):
-        return Stat.objects.filter(team__season__is_current_season=True)
+        from leagues.seasons import active_season_ids
+
+        return Stat.objects.filter(team__season_id__in=active_season_ids())
 
     def get_context_data(self, **kwargs):
         context = super(PlayerStatDetailView, self).get_context_data(**kwargs)

@@ -155,6 +155,7 @@ class AdminSmokeTest(TestCase):
         "leagues_week_quick_cancel",
         "leagues_week_quick_cancel_date",
         "leagues_matchup_quick_cancel",
+        "leagues_matchup_fix_week_division",
         "leagues_pendingplayerphoto_approve_single",
         "leagues_pendingplayerphoto_reject_single",
         "leagues_pendingteamphoto_approve_single",
