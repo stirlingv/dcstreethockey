@@ -30,8 +30,8 @@
                 {% endif %}
                 <p class="board-intro">
                     Anyone can update this board &mdash; no login needed.
-                    Goalie out? Tap <strong>Can&rsquo;t make it?</strong> on your team&rsquo;s game.
-                    Able to fill in? Tap <strong>I can sub</strong>.
+                    Each game asks whether the goalie is playing: answer <strong>Yes, confirmed</strong> or <strong>No, need a sub</strong>.
+                    Able to fill in where a sub is needed? Tap <strong>I can sub</strong>.
                     {{ czar_name }} watches this board and helps teams find subs.
                 </p>
             </div>
@@ -83,7 +83,14 @@
                                         <p class="board-form-title">Fill in for {{ side.team.team_name }} on {{ match_data.matchup.week.date|date:"D, M j" }} at {{ match_data.matchup.time|time:"g:i A" }}</p>
                                         <label>
                                             <span>Your name</span>
-                                            <input type="text" name="name" list="goalie-names" required maxlength="100" autocomplete="name" placeholder="First Last">
+                                            {% if goalie_choices %}
+                                            <select name="player_id" class="board-person">
+                                                <option value="">Choose your name</option>
+                                                {% for p in goalie_choices %}<option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>{% endfor %}
+                                                <option value="other">I&rsquo;m not on the list&hellip;</option>
+                                            </select>
+                                            {% endif %}
+                                            <input type="text" name="name" maxlength="100" autocomplete="name" placeholder="First Last"{% if goalie_choices %} class="board-other-name" hidden{% endif %}>
                                         </label>
                                         <label>
                                             <span>Phone</span>
@@ -97,24 +104,21 @@
                                         <p class="board-form-help">The captain and {{ czar_name }} will see your offer and reach out to confirm.</p>
                                     </form>
                                 </details>
-                                {% else %}
                                 <details class="board-action">
-                                    <summary class="board-btn board-btn-secondary">Can&rsquo;t make it?</summary>
-                                    <form method="post" action="{% url 'report_sub_needed' match_data.matchup.id side.side %}" class="board-form">
-                                        {% csrf_token %}
-                                        <input type="text" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
-                                        <p class="board-form-title">Mark {{ side.team.team_name }} as needing a goalie sub on {{ match_data.matchup.week.date|date:"D, M j" }}</p>
-                                        <label>
-                                            <span>Your name</span>
-                                            <input type="text" name="name" required maxlength="100" autocomplete="name" placeholder="First Last">
-                                        </label>
-                                        <label>
-                                            <span>Note <em>(optional)</em></span>
-                                            <input type="text" name="note" maxlength="300" placeholder="e.g. Pat is out of town">
-                                        </label>
-                                        <button type="submit" class="board-btn board-btn-danger board-btn-submit">Mark Sub Needed</button>
-                                        <p class="board-form-help">This tells the captain and {{ czar_name }} that a sub is needed, and lets goalies volunteer.</p>
-                                    </form>
+                                    <summary class="board-btn board-btn-quiet">{{ side.prompt_name|capfirst }} can play after all</summary>
+                                    {% include 'partials/goalie_board_confirm_form.html' %}
+                                </details>
+                                {% elif side.status == 1 %}
+                                <details class="board-action">
+                                    <summary class="board-btn board-btn-secondary">Need a sub</summary>
+                                    {% include 'partials/goalie_board_report_form.html' %}
+                                </details>
+                                {% else %}
+                                <p class="side-prompt">Is {{ side.prompt_name }} playing?</p>
+                                {% include 'partials/goalie_board_confirm_form.html' %}
+                                <details class="board-action">
+                                    <summary class="board-btn board-btn-secondary">No, need a sub</summary>
+                                    {% include 'partials/goalie_board_report_form.html' %}
                                 </details>
                                 {% endif %}
                             </div>
@@ -132,10 +136,6 @@
                 <p>No upcoming games scheduled.</p>
             </div>
             {% endfor %}
-
-            <datalist id="goalie-names">
-                {% for name in goalie_names %}<option value="{{ name }}">{% endfor %}
-            </datalist>
 
             <div class="legend">
                 <div class="legend-item">
@@ -166,8 +166,20 @@ document.querySelectorAll('.board-action').forEach(function (details) {
         details.closest('.game-card').querySelectorAll('.board-action[open]').forEach(function (other) {
             if (other !== details) other.open = false;
         });
-        var first = details.querySelector('input:not([type="hidden"]):not(.hp-field)');
+        var first = details.querySelector('select, input:not([type="hidden"]):not(.hp-field)');
         if (first) first.focus();
+    });
+});
+// "Someone else…" / "I'm not on the list…" reveals a name field; picking a
+// listed name hides it again (and the typed name is ignored by the server).
+document.querySelectorAll('.board-person').forEach(function (select) {
+    var other = select.parentElement.querySelector('.board-other-name');
+    if (!other) return;
+    select.addEventListener('change', function () {
+        var show = select.value === 'other';
+        other.hidden = !show;
+        other.required = show;
+        if (show) other.focus();
     });
 });
 </script>

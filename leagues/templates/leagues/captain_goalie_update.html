@@ -93,6 +93,8 @@
                             <span id="goalie-display-{{ match_data.matchup.id }}">
                                 {% if match_data.current_goalie %}
                                     - {{ match_data.current_goalie.first_name }} {{ match_data.current_goalie.last_name }}
+                                {% elif match_data.sub_name %}
+                                    - {{ match_data.sub_name }} (Sub)
                                 {% endif %}
                             </span>
                             {% if match_data.reported_by %}

@@ -717,6 +717,14 @@ class GoalieStatusChange(models.Model):
         Player, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     reported_by = models.CharField(max_length=100, blank=True)
+    reported_by_player = models.ForeignKey(
+        Player,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Set when the reporter picked their name from the team's roster.",
+    )
     note = models.CharField(max_length=300, blank=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
     ip_address = models.GenericIPAddressField(null=True, blank=True)

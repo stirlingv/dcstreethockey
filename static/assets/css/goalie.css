@@ -480,13 +480,25 @@
 .volunteer-note { color: #777; font-size: 13px; }
 
 /* Actions: a <details> whose summary is the button, with the form inside. */
-.side-actions { flex-shrink: 0; width: 100%; }
+.side-actions {
+    flex-shrink: 0;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.side-prompt { flex-basis: 100%; margin: 0; font-size: 14px; font-weight: 600; color: #333; }
+.board-action[open] { flex-basis: 100%; }
 @media (min-width: 600px) {
     .side-row { flex-wrap: wrap; }
     .side-actions { width: auto; }
     /* An opened form drops below the game info at full width instead of
        squeezing it into a narrow column. */
     .side-actions:has(.board-action[open]) { width: 100%; }
+    /* The "Is Pat playing?" question and its two answers sit on their own
+       line under the team, rather than squeezing the goalie's name. */
+    .side-actions:has(.side-prompt) { width: 100%; }
     .side-actions:has(.board-action[open]) > .board-action > summary { width: auto; }
 }
 .board-action > summary { list-style: none; }
@@ -515,6 +527,11 @@
 .board-btn-secondary:hover { border-color: #888; }
 .board-btn-danger { background: #dc3545; color: #fff; }
 .board-btn-danger:hover { background: #b02a37; }
+.board-btn-success { background: #1e7e34; color: #fff; }
+.board-btn-success:hover { background: #155d26; }
+/* A low-key text button for the rare reversal ("Pat can play after all"). */
+.board-btn-quiet { background: transparent; color: #1a5276; text-decoration: underline; padding: 0 8px; font-size: 14px; }
+.board-btn-quiet:hover { color: #0d2f44; }
 .board-btn-submit { width: 100%; margin-top: 4px; }
 
 .board-form {
@@ -541,6 +558,21 @@
     background: #fff;
 }
 .board-form input:focus { outline: none; border-color: #007bff; }
+.board-form select {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 16px;
+    background: #fff;
+    color: #222;
+}
+.board-form select:focus { outline: none; border-color: #007bff; }
+.board-form select + .board-other-name { margin-top: 8px; }
+.board-form input[hidden] { display: none; }
+/* A one-tap answer: the form is just its button. */
+.board-tap { display: inline; }
 .board-form-help { margin: 0; font-size: 12px; color: #777; line-height: 1.4; }
 .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 
@@ -569,6 +601,7 @@
 
 @media (max-width: 599px) {
     .side-row { flex-direction: column; }
+    .board-action { flex: 1 1 45%; }
     .board-action > summary.board-btn { width: 100%; }
     .volunteer-actions { width: 100%; }
     .volunteer-actions form { flex: 1; }

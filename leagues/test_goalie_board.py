@@ -1,5 +1,5 @@
 """
-Goalie Status Board: public "Can't make it?" and "I can sub" actions,
+Goalie Status Board: public "Yes, confirmed" / "No, need a sub" / "I can sub" actions,
 captain confirmation of volunteers, goalie chips on the schedule and game
 pages, and the admin for volunteers and status changes.
 
@@ -52,6 +52,7 @@ class BoardFixture(TestCase):
         self.home = self._team("Lumber Kings", "Red")
         self.away_goalie = self._goalie(self.away, "Pat", "Pads")
         self.home_goalie = self._goalie(self.home, "Sam", "Stopper")
+        self.home_captain = self._player(self.home, "Casey", "Captain", captain=True)
         self.date = datetime.date.today() + datetime.timedelta(days=3)
         self.week = Week.objects.create(
             division=self.division, season=self.season, date=self.date
@@ -80,6 +81,11 @@ class BoardFixture(TestCase):
         Roster.objects.create(
             player=player, team=team, position1=4, is_primary_goalie=True
         )
+        return player
+
+    def _player(self, team, first, last, captain=False):
+        player = Player.objects.create(first_name=first, last_name=last)
+        Roster.objects.create(player=player, team=team, position1=1, is_captain=captain)
         return player
 
     def _report(self, side="home", **data):
@@ -178,7 +184,9 @@ class GoalieSidesForMatchupsTest(BoardFixture):
                 hometeam=self.away,
             )
         games = list(MatchUp.objects.select_related("awayteam", "hometeam"))
-        with self.assertNumQueries(4):
+        # roster goalies, rosters (for the "who's reporting?" picker),
+        # players, offers, status changes: one query each however many games.
+        with self.assertNumQueries(5):
             goalie_sides_for_matchups(games)
 
 
@@ -225,25 +233,84 @@ class BoardPageTest(BoardFixture):
         response = self.client.get(self.board_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'id="game-{self.game.id}"')
-        # Away needs a sub: volunteer form posts to the away side.
+        # Away needs a sub: volunteer form posts to the away side, and the
+        # roster goalie can be confirmed back in.
         self.assertContains(response, "I can sub")
         self.assertContains(response, reverse("offer_sub", args=[self.game.id, "away"]))
-        # Home is confirmed: report form posts to the home side.
-        self.assertContains(response, "Can&rsquo;t make it?")
+        self.assertContains(response, "Pat Pads can play after all")
+        self.assertContains(
+            response, reverse("confirm_goalie", args=[self.game.id, "away"])
+        )
+        # Home is confirmed: only "Need a sub", posting to the home side.
+        self.assertContains(response, "Need a sub")
+        self.assertNotContains(response, "Is Sam Stopper playing?")
         self.assertContains(
             response, reverse("report_sub_needed", args=[self.game.id, "home"])
         )
         self.assertNotContains(
             response, reverse("offer_sub", args=[self.game.id, "home"])
         )
+        self.assertNotContains(
+            response, reverse("confirm_goalie", args=[self.game.id, "home"])
+        )
         self.assertContains(response, "Sam Stopper")
         self.assertContains(response, "John Romps")
         self.assertContains(response, "1 game needs a goalie sub")
 
-    def test_goalie_name_suggestions_listed(self):
+    def test_unconfirmed_side_asks_whether_the_goalie_is_playing(self):
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
         response = self.client.get(self.board_url)
-        self.assertContains(response, 'id="goalie-names"')
-        self.assertContains(response, '<option value="Pat Pads">')
+        self.assertContains(response, "Is Sam Stopper playing?")
+        self.assertContains(response, "Yes, confirmed")
+        self.assertContains(response, "No, need a sub")
+        self.assertContains(
+            response, reverse("confirm_goalie", args=[self.game.id, "home"])
+        )
+        self.assertContains(
+            response, reverse("report_sub_needed", args=[self.game.id, "home"])
+        )
+
+    def test_question_falls_back_when_the_team_has_no_roster_goalie(self):
+        Roster.objects.filter(team=self.home).delete()
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        response = self.client.get(self.board_url)
+        self.assertContains(response, "Is your goalie playing?")
+        self.game.home_goalie_status = SUB_NEEDED
+        self.game.save()
+        response = self.client.get(self.board_url)
+        self.assertContains(response, "Your goalie can play after all")
+
+    def test_volunteer_form_lists_the_goalies_with_a_not_listed_option(self):
+        response = self.client.get(self.board_url)
+        self.assertContains(
+            response, f'<option value="{self.away_goalie.id}">Pat Pads</option>'
+        )
+        self.assertContains(response, "I&rsquo;m not on the list")
+        # Non-goalies appear once, in the home row's "who's reporting?"
+        # roster picker, and not again as volunteers.
+        self.assertContains(
+            response,
+            f'<option value="{self.home_captain.id}">Casey Captain</option>',
+            count=1,
+        )
+
+    def test_report_form_lists_the_teams_roster(self):
+        response = self.client.get(self.board_url)
+        self.assertContains(
+            response, f'<option value="{self.home_captain.id}">Casey Captain</option>'
+        )
+        self.assertContains(response, "Someone else")
+
+    def test_report_form_without_a_roster_asks_for_a_name(self):
+        Roster.objects.filter(team=self.home).delete()
+        response = self.client.get(self.board_url)
+        self.assertNotContains(response, '<option value="other">Someone else')
+        self.assertContains(
+            response,
+            'name="name" maxlength="100" autocomplete="name" placeholder="First Last">',
+        )
 
     def test_volunteers_and_reporter_shown(self):
         GoalieSubOffer.objects.create(
@@ -306,18 +373,46 @@ class ReportSubNeededTest(BoardFixture):
     def test_success_message_shown_on_the_board(self):
         response = self.client.post(
             reverse("report_sub_needed", args=[self.game.id, "home"]),
-            {"name": "Casey Captain"},
+            {"player_id": str(self.home_captain.id)},
             follow=True,
         )
         self.assertContains(response, "Thanks, Casey Captain.")
         self.assertContains(response, "Lumber Kings is now marked Sub Needed")
         self.assertContains(response, "John Romps and the captain can see it")
 
-    def test_name_required(self):
-        response = self._report("home", name="   ")
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(self._reload().home_goalie_status, CONFIRMED)
-        self.assertFalse(GoalieStatusChange.objects.exists())
+    def test_reporter_is_optional(self):
+        response = self.client.post(
+            reverse("report_sub_needed", args=[self.game.id, "home"]),
+            {"note": "no idea who"},
+            follow=True,
+        )
+        self.assertEqual(self._reload().home_goalie_status, SUB_NEEDED)
+        change = GoalieStatusChange.objects.get()
+        self.assertEqual(change.reported_by, "")
+        self.assertIsNone(change.reported_by_player)
+        self.assertContains(response, "Thanks. Lumber Kings is now marked Sub Needed")
+        self.assertNotContains(response, "Reported by")
+
+    def test_reporter_picked_from_the_roster_is_linked(self):
+        self._report("home", player_id=str(self.home_captain.id), name="ignored")
+        change = GoalieStatusChange.objects.get()
+        self.assertEqual(change.reported_by_player, self.home_captain)
+        self.assertEqual(change.reported_by, "Casey Captain")
+        self.assertContains(
+            self.client.get(self.board_url), "Reported by Casey Captain"
+        )
+
+    def test_someone_else_types_a_name(self):
+        self._report("home", player_id="other", name="Guest Gary")
+        change = GoalieStatusChange.objects.get()
+        self.assertIsNone(change.reported_by_player)
+        self.assertEqual(change.reported_by, "Guest Gary")
+
+    def test_a_player_from_another_team_is_not_accepted_as_reporter(self):
+        self._report("home", player_id=str(self.away_goalie.id), name="")
+        change = GoalieStatusChange.objects.get()
+        self.assertIsNone(change.reported_by_player)
+        self.assertEqual(change.reported_by, "")
 
     def test_honeypot_discards_silently(self):
         response = self._report("home", website="http://spam.example")
@@ -374,6 +469,122 @@ class ReportSubNeededTest(BoardFixture):
 
 
 # ---------------------------------------------------------------------------
+# Public: "Yes, confirmed" / "can play after all"
+# ---------------------------------------------------------------------------
+
+
+class ConfirmGoalieTest(BoardFixture):
+    def _confirm(self, side="home", **data):
+        return self.client.post(
+            reverse("confirm_goalie", args=[self.game.id, side]), data
+        )
+
+    def test_get_not_allowed(self):
+        response = self.client.get(
+            reverse("confirm_goalie", args=[self.game.id, "home"])
+        )
+        self.assertEqual(response.status_code, 405)
+
+    def test_confirms_an_unconfirmed_side_in_one_tap(self):
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        response = self._confirm("home")
+        self.assertRedirects(
+            response,
+            f"{self.board_url}#game-{self.game.id}",
+            fetch_redirect_response=False,
+        )
+        game = self._reload()
+        self.assertEqual(game.home_goalie_status, CONFIRMED)
+        self.assertIsNone(game.home_goalie)  # roster goalie stands
+        change = GoalieStatusChange.objects.get()
+        self.assertEqual(change.team, self.home)
+        self.assertEqual(change.status, CONFIRMED)
+        self.assertEqual(change.goalie, self.home_goalie)
+        self.assertEqual(change.reported_by, "")
+        self.assertEqual(change.source, GoalieStatusChange.SOURCE_BOARD)
+        board = self.client.get(self.board_url)
+        self.assertContains(board, "Sam Stopper is confirmed in goal for Lumber Kings")
+
+    def test_unconfirmed_row_confirms_without_opening_a_form(self):
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        response = self.client.get(self.board_url)
+        self.assertContains(response, 'class="board-tap"')
+        self.assertNotContains(response, "Yes, Sam Stopper is playing")
+        # A Sub Needed row asks once more before releasing volunteers.
+        self.assertContains(response, "Yes, Pat Pads is playing")
+
+    def test_confirming_a_sub_needed_side_releases_open_volunteers(self):
+        kept = GoalieSubOffer.objects.create(
+            matchup=self.game,
+            team=self.away,
+            name="Alex Wall",
+            phone="202-555-0199",
+            status=GoalieSubOffer.STATUS_DECLINED,
+        )
+        open_offer = GoalieSubOffer.objects.create(
+            matchup=self.game, team=self.away, name="Jo Glove", phone="202-555-0198"
+        )
+        other_side = GoalieSubOffer.objects.create(
+            matchup=self.game, team=self.home, name="Sam Stopper", phone="1"
+        )
+        response = self._confirm("away")
+        self.assertEqual(response.status_code, 302)
+        game = self._reload()
+        self.assertEqual(game.away_goalie_status, CONFIRMED)
+        open_offer.refresh_from_db()
+        self.assertEqual(open_offer.status, GoalieSubOffer.STATUS_DECLINED)
+        kept.refresh_from_db()
+        self.assertEqual(kept.status, GoalieSubOffer.STATUS_DECLINED)
+        other_side.refresh_from_db()
+        self.assertEqual(other_side.status, GoalieSubOffer.STATUS_OFFERED)
+        board = self.client.get(self.board_url)
+        self.assertContains(board, "Pat Pads is confirmed in goal for Iced Out")
+        self.assertContains(board, "1 volunteer marked not needed")
+        self.assertNotContains(board, "Jo Glove")
+
+    def test_keeps_an_arranged_sub_in_goal(self):
+        sub = Player.objects.create(first_name="Robin", last_name="Relief")
+        self.game.home_goalie = sub
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        self._confirm("home")
+        game = self._reload()
+        self.assertEqual(game.home_goalie, sub)
+        self.assertEqual(game.home_goalie_status, CONFIRMED)
+        self.assertEqual(GoalieStatusChange.objects.get().goalie, sub)
+
+    def test_honeypot_discards_silently(self):
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        self._confirm("home", website="http://spam")
+        self.assertEqual(self._reload().home_goalie_status, UNCONFIRMED)
+        self.assertFalse(GoalieStatusChange.objects.exists())
+
+    def test_unknown_side_past_and_cancelled_games_rejected(self):
+        self.assertEqual(self._confirm("left").status_code, 404)
+        self.game.is_cancelled = True
+        self.game.save()
+        self.assertEqual(self._confirm("home").status_code, 404)
+        self.game.is_cancelled = False
+        self.game.save()
+        self.week.date = datetime.date.today() - datetime.timedelta(days=1)
+        self.week.save()
+        self.assertEqual(self._confirm("home").status_code, 404)
+
+    def test_rate_limit_blocks_a_flood(self):
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        for _ in range(RATE_LIMIT_POSTS):
+            self._confirm("home")
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        self._confirm("home")
+        self.assertEqual(self._reload().home_goalie_status, UNCONFIRMED)
+
+
+# ---------------------------------------------------------------------------
 # Public: "I can sub"
 # ---------------------------------------------------------------------------
 
@@ -402,6 +613,12 @@ class OfferSubTest(BoardFixture):
         self.assertEqual(offer.status, GoalieSubOffer.STATUS_OFFERED)
         # Offering doesn't change the status: the captain confirms.
         self.assertEqual(self._reload().away_goalie_status, SUB_NEEDED)
+
+    def test_picked_goalie_is_linked_and_typed_name_ignored(self):
+        self._offer(player_id=str(self.home_goalie.id), name="Whoever")
+        offer = GoalieSubOffer.objects.get()
+        self.assertEqual(offer.player, self.home_goalie)
+        self.assertEqual(offer.name, "Sam Stopper")
 
     def test_unlisted_name_is_kept_as_text(self):
         self._offer(name="Riley Newcomer")
@@ -514,11 +731,18 @@ class CaptainVolunteersTest(BoardFixture):
         self.assertContains(board, "Sam Stopper")
         self.assertContains(board, "Sub</span>")
 
-    def test_confirming_an_unlisted_volunteer_creates_a_goalie(self):
+    def test_confirming_an_unlisted_volunteer_shows_them_by_name(self):
         self.client.post(reverse("confirm_sub_offer", args=[self.code, self.other.id]))
-        player = Player.objects.get(first_name="Riley", last_name="Newcomer")
-        self.assertTrue(player.can_play_goalie)
-        self.assertEqual(self._reload().away_goalie, player)
+        self.assertFalse(Player.objects.filter(last_name="Newcomer").exists())
+        game = self._reload()
+        self.assertIsNone(game.away_goalie)
+        self.assertEqual(game.away_goalie_status, CONFIRMED)
+        board = self.client.get(self.board_url)
+        self.assertContains(board, "Riley Newcomer")
+        self.assertContains(board, 'class="goalie-name is-sub">Riley Newcomer')
+        self.assertNotContains(board, 'class="goalie-name ">Pat Pads')
+        page = self.client.get(self.page)
+        self.assertContains(page, "Riley Newcomer (Sub)")
 
     def test_decline_removes_the_volunteer_only(self):
         self.client.post(reverse("decline_sub_offer", args=[self.code, self.offer.id]))
@@ -644,10 +868,40 @@ class GoalieBoardAdminTest(BoardFixture):
         self.assertContains(response, "Confirmed 1 volunteer as goalie")
         game = self._reload()
         self.assertEqual(game.away_goalie_status, CONFIRMED)
-        self.assertEqual(game.away_goalie.last_name, "Newcomer")
+        # Riley isn't a player yet, so the game shows the name without a link.
+        self.assertIsNone(game.away_goalie)
+        self.assertContains(self.client.get(self.board_url), "Riley Newcomer")
         self.assertEqual(
             GoalieStatusChange.objects.get().source, GoalieStatusChange.SOURCE_ADMIN
         )
+
+    def test_linking_a_player_to_a_confirmed_offer_names_them_as_goalie(self):
+        offer = GoalieSubOffer.objects.create(
+            matchup=self.game,
+            team=self.away,
+            name="Riley Newcomer",
+            phone="1",
+            status=GoalieSubOffer.STATUS_CONFIRMED,
+        )
+        riley = Player.objects.create(
+            first_name="Riley", last_name="Newcomer", can_play_goalie=True
+        )
+        response = self.client.post(
+            reverse("admin:leagues_goaliesuboffer_change", args=[offer.id]),
+            {
+                "matchup": self.game.id,
+                "team": self.away.id,
+                "player": riley.id,
+                "name": "Riley Newcomer",
+                "phone": "1",
+                "note": "",
+                "status": GoalieSubOffer.STATUS_CONFIRMED,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._reload().away_goalie, riley)
+        self.assertContains(response, "now named as goalie")
 
     def test_goalie_status_page_shows_volunteers_inline(self):
         response = self.client.get(

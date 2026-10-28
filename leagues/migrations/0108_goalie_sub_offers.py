@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("leagues", "0105_normalize_team_color"),
+        ("leagues", "0107_existing_seasons_keep_hand_entered_standings"),
     ]
 
     operations = [
@@ -63,6 +63,17 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="goalie_status_changes",
                         to="leagues.matchup",
+                    ),
+                ),
+                (
+                    "reported_by_player",
+                    models.ForeignKey(
+                        blank=True,
+                        help_text="Set when the reporter picked their name from the team's roster.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to="leagues.player",
                     ),
                 ),
                 (

@@ -17,7 +17,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from leagues.goalie_of_record import _roster_goalies
-from leagues.models import GoalieStatusChange, GoalieSubOffer, MatchUp, Player
+from leagues.models import GoalieStatusChange, GoalieSubOffer, MatchUp, Player, Roster
 
 logger = logging.getLogger(__name__)
 
@@ -35,20 +35,48 @@ def side_fields(side):
     return f"{side}team", f"{side}_goalie", f"{side}_goalie_status"
 
 
+def full_name(player):
+    return f"{player.first_name} {player.last_name}" if player else ""
+
+
+def team_rosters(team_ids):
+    """{team_id: [Player, ...]} of each team's active, non-substitute roster."""
+    rosters = {}
+    for entry in (
+        Roster.objects.filter(
+            team_id__in=team_ids,
+            is_substitute=False,
+            player__isnull=False,
+            player__is_active=True,
+        )
+        .select_related("player")
+        .order_by("player__last_name", "player__first_name")
+    ):
+        rosters.setdefault(entry.team_id, []).append(entry.player)
+    return rosters
+
+
 def goalie_sides_for_matchups(matchups):
     """
     Batched goalie info for many games: {matchup_id: {"away": info, "home": info}}.
 
     Each info dict has: team, goalie (Player or None), goalie_name, status,
     status_display, is_sub, needs_sub, volunteers (open GoalieSubOffer list),
-    reported_by (name on the latest board/captain change, or ""), and
-    reported_at.
+    reported_by (name on the latest board/captain change, or ""),
+    reported_at, roster (the team's players, for the "who's reporting?"
+    picker), roster_goalie_name and prompt_name (the goalie the board's
+    questions are about: "Is Pat Pads playing?", or "your goalie" when the
+    team has nobody in goal on its roster).
+
+    A confirmed volunteer the site has no Player for is shown by the name
+    they gave, as a sub, until an admin links them to a player.
     """
     matchups = list(matchups)
     if not matchups:
         return {}
     team_ids = {m.awayteam_id for m in matchups} | {m.hometeam_id for m in matchups}
     roster_goalie_ids = _roster_goalies(team_ids)
+    rosters = team_rosters(team_ids)
     needed_player_ids = set(roster_goalie_ids.values())
     for m in matchups:
         needed_player_ids.update(i for i in (m.away_goalie_id, m.home_goalie_id) if i)
@@ -56,10 +84,16 @@ def goalie_sides_for_matchups(matchups):
 
     matchup_ids = [m.id for m in matchups]
     offers = {}
+    confirmed_unlinked = {}
     for offer in GoalieSubOffer.objects.filter(
-        matchup_id__in=matchup_ids, status=GoalieSubOffer.STATUS_OFFERED
+        matchup_id__in=matchup_ids,
+        status__in=(GoalieSubOffer.STATUS_OFFERED, GoalieSubOffer.STATUS_CONFIRMED),
     ).order_by("created_at"):
-        offers.setdefault((offer.matchup_id, offer.team_id), []).append(offer)
+        key = (offer.matchup_id, offer.team_id)
+        if offer.status == GoalieSubOffer.STATUS_OFFERED:
+            offers.setdefault(key, []).append(offer)
+        elif offer.player_id is None:
+            confirmed_unlinked[key] = offer
 
     latest_change = {}
     for change in GoalieStatusChange.objects.filter(
@@ -82,16 +116,26 @@ def goalie_sides_for_matchups(matchups):
             if not needs_sub:
                 goalie = players.get(explicit_id or roster_id)
             is_sub = bool(explicit_id and roster_id and explicit_id != roster_id)
+            goalie_name = full_name(goalie)
+            unlinked = confirmed_unlinked.get((m.id, team.id))
+            if (
+                unlinked
+                and explicit_id is None
+                and status == MatchUp.GOALIE_STATUS_CONFIRMED
+            ):
+                goalie, goalie_name, is_sub = None, unlinked.name, True
             change = latest_change.get((m.id, team.id))
             # Only credit the report if it produced the status now shown.
             reported = change if change and change.status == status else None
+            roster_goalie_name = full_name(players.get(roster_id))
             result[m.id][side] = {
                 "side": side,
                 "team": team,
                 "goalie": goalie,
-                "goalie_name": (
-                    f"{goalie.first_name} {goalie.last_name}" if goalie else ""
-                ),
+                "goalie_name": goalie_name,
+                "roster_goalie_name": roster_goalie_name,
+                "prompt_name": goalie_name or roster_goalie_name or "your goalie",
+                "roster": rosters.get(team.id, []),
                 "status": status,
                 "status_display": status_labels.get(status, "Unknown"),
                 "is_sub": is_sub,
@@ -148,28 +192,38 @@ def match_listed_goalie(name):
     )
 
 
-def split_name(name):
-    parts = name.strip().split()
-    if not parts:
-        return "", ""
-    return parts[0], " ".join(parts[1:])
+def resolve_person(request, candidates):
+    """
+    Who a board post says they are: (Player or None, display name).
+
+    The form offers a picker of ``candidates`` (a team's roster, or the
+    listed goalies) with a "someone else" option that reveals a text field.
+    A picked id that isn't a candidate is ignored rather than trusted.
+    """
+    picked = request.POST.get("player_id", "").strip()
+    if picked.isdigit():
+        for player in candidates:
+            if player.id == int(picked):
+                return player, full_name(player)
+    return None, request.POST.get("name", "").strip()[:100]
+
+
+def offer_side(offer):
+    matchup = offer.matchup
+    return "home" if matchup.hometeam_id == offer.team_id else "away"
 
 
 def confirm_offer(offer, reported_by, source, ip=None):
     """
-    Name the volunteer as the goalie for their side of the game and mark the
-    game Confirmed. A volunteer the site didn't know becomes a player who
-    can play goalie, so they can be picked again next time.
+    Mark the volunteer's side of the game Confirmed with them in goal. A
+    volunteer the site knows is named as the game's goalie; one it doesn't
+    is shown by the name they gave until an admin links them to a player
+    (see ``link_offer_player``), so a typo never becomes a permanent player.
     """
-    if offer.player_id is None:
-        first, last = split_name(offer.name)
-        offer.player = Player.objects.create(
-            first_name=first, last_name=last or first, can_play_goalie=True
-        )
     matchup = offer.matchup
-    side = "home" if matchup.hometeam_id == offer.team_id else "away"
-    _, goalie_field, status_field = side_fields(side)
-    setattr(matchup, goalie_field, offer.player)
+    _, goalie_field, status_field = side_fields(offer_side(offer))
+    if offer.player_id is not None:
+        setattr(matchup, goalie_field, offer.player)
     setattr(matchup, status_field, MatchUp.GOALIE_STATUS_CONFIRMED)
     matchup.save()
     offer.status = GoalieSubOffer.STATUS_CONFIRMED
@@ -188,6 +242,22 @@ def confirm_offer(offer, reported_by, source, ip=None):
         source=source,
         ip_address=ip,
     )
+
+
+def link_offer_player(offer):
+    """
+    An admin linked a confirmed volunteer to a player: name that player as
+    the game's goalie if nobody else has been named since.
+    """
+    if offer.status != GoalieSubOffer.STATUS_CONFIRMED or offer.player_id is None:
+        return False
+    matchup = offer.matchup
+    _, goalie_field, status_field = side_fields(offer_side(offer))
+    if getattr(matchup, f"{goalie_field}_id") is not None:
+        return False
+    setattr(matchup, goalie_field, offer.player)
+    matchup.save()
+    return True
 
 
 def notify_goalie_czar(subject, body):

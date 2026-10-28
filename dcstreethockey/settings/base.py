@@ -310,3 +310,24 @@ if (
 # emailed there too.
 GOALIE_CZAR_NAME = os.environ.get("GOALIE_CZAR_NAME", "John Romps")
 GOALIE_CZAR_EMAIL = os.environ.get("GOALIE_CZAR_EMAIL", "")
+
+# Outgoing email is off unless EMAIL_HOST is set, in which case mail goes out
+# over SMTP (Gmail: smtp.gmail.com with an app password). Without a host the
+# console backend just logs, so nothing is ever attempted against localhost.
+# The only sender today is the goalie coordinator notification above, which
+# is sent fail-silently with this timeout so a slow mail server can't stall
+# a board post.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_TIMEOUT = 5
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@dcstreethockey.com"
+)

@@ -66,7 +66,7 @@ from leagues.models import (
     GoalieSubOffer,
     reset_goalie_statuses,
 )
-from leagues.goalie_board import confirm_offer
+from leagues.goalie_board import confirm_offer, link_offer_player
 import json
 import logging
 from datetime import timedelta, date
@@ -3698,6 +3698,14 @@ class GoalieSubOfferAdmin(admin.ModelAdmin):
     def game(self, obj):
         return f"{obj.matchup.week.date:%a %b %-d} {obj.matchup.time:%-I:%M %p}"
 
+    def save_model(self, request, obj, form, change):
+        """Linking a confirmed volunteer to a player names them as goalie."""
+        super().save_model(request, obj, form, change)
+        if "player" in form.changed_data and link_offer_player(obj):
+            messages.info(
+                request, f"{obj.player} is now named as goalie for that game."
+            )
+
     @admin.action(description="Confirm as goalie for their game")
     def confirm_offers(self, request, queryset):
         confirmed = 0
@@ -3727,10 +3735,10 @@ class GoalieStatusChangeAdmin(admin.ModelAdmin):
         "reported_by",
         "source",
     )
+    list_select_related = ("matchup__week", "team", "goalie", "reported_by_player")
     list_filter = ("source", "status", "team__division")
     date_hierarchy = "created_at"
     search_fields = ("reported_by", "team__team_name", "note")
-    list_select_related = ("matchup__week", "team", "goalie")
 
     def has_add_permission(self, request):
         return False
