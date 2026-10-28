@@ -4,7 +4,6 @@ from .views import (
     captain_goalie_update,
     update_goalie_status,
     report_sub_needed,
-    offer_sub,
     confirm_goalie,
     confirm_sub_offer,
     decline_sub_offer,
@@ -80,11 +79,6 @@ urlpatterns = [
         "goalie-status/<int:matchup_id>/<str:side>/sub-needed/",
         report_sub_needed,
         name="report_sub_needed",
-    ),
-    path(
-        "goalie-status/<int:matchup_id>/<str:side>/offer/",
-        offer_sub,
-        name="offer_sub",
     ),
     path(
         "goalie-status/<int:matchup_id>/<str:side>/confirm/",

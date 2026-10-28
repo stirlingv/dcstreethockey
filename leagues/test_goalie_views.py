@@ -8,6 +8,7 @@ Covers:
   - captain_goalie_update view — valid/invalid access code, past matchups excluded
   - update_goalie_status endpoint — confirmed, sub-needed, unauthorized, invalid inputs
 """
+
 import datetime
 import uuid
 
@@ -16,7 +17,6 @@ from django.urls import reverse
 
 from leagues.models import Division, MatchUp, Player, Roster, Season, Team, Week
 from leagues.views import get_goalie_display_info, get_roster_goalie
-
 
 # ---------------------------------------------------------------------------
 # Shared fixture helper

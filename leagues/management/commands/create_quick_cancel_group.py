@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.management.base import BaseCommand, CommandError
 
-
 GROUP_NAME = "Quick Cancel Operators"
 QUICK_CANCEL_PERMISSION = "can_quick_cancel_games"
 

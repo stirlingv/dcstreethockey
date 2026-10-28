@@ -7,7 +7,6 @@ from django.db.models import Count
 
 from leagues.models import Player, Roster
 
-
 # Common nickname mappings
 NICKNAME_MAP = {
     "richard": ["rich", "rick", "ricky", "dick"],

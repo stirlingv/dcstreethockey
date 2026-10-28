@@ -1,5 +1,5 @@
 """
-Goalie Status Board: public "Yes, confirmed" / "No, need a sub" / "I can sub" actions,
+Goalie Status Board: public "Yes, confirmed" / "No, need a sub" / "Select a goalie" actions,
 captain confirmation of volunteers, goalie chips on the schedule and game
 pages, and the admin for volunteers and status changes.
 
@@ -17,7 +17,6 @@ from django.urls import reverse
 
 from leagues.goalie_board import (
     goalie_sides_for_matchups,
-    match_listed_goalie,
     over_rate_limit,
     RATE_LIMIT_POSTS,
 )
@@ -93,13 +92,6 @@ class BoardFixture(TestCase):
         payload.update(data)
         return self.client.post(
             reverse("report_sub_needed", args=[self.game.id, side]), payload
-        )
-
-    def _offer(self, side="away", **data):
-        payload = {"name": "Sam Stopper", "phone": "202-555-0100", "note": ""}
-        payload.update(data)
-        return self.client.post(
-            reverse("offer_sub", args=[self.game.id, side]), payload
         )
 
     def _reload(self):
@@ -190,26 +182,6 @@ class GoalieSidesForMatchupsTest(BoardFixture):
             goalie_sides_for_matchups(games)
 
 
-class MatchListedGoalieTest(BoardFixture):
-    def test_matches_a_listed_goalie_ignoring_case(self):
-        self.assertEqual(match_listed_goalie("sam STOPPER"), self.home_goalie)
-
-    def test_non_goalie_is_not_matched(self):
-        wing = Player.objects.create(first_name="Wally", last_name="Wing")
-        Roster.objects.create(player=wing, team=self.home, position1=2)
-        self.assertIsNone(match_listed_goalie("Wally Wing"))
-
-    def test_can_play_goalie_flag_counts(self):
-        fill_in = Player.objects.create(
-            first_name="Fill", last_name="In", can_play_goalie=True
-        )
-        self.assertEqual(match_listed_goalie("Fill In"), fill_in)
-
-    def test_single_word_or_unknown_name(self):
-        self.assertIsNone(match_listed_goalie("Sam"))
-        self.assertIsNone(match_listed_goalie("Nobody Here"))
-
-
 class RateLimitTest(TestCase):
     def test_limit_counts_posts_per_address(self):
         cache.clear()
@@ -233,11 +205,9 @@ class BoardPageTest(BoardFixture):
         response = self.client.get(self.board_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'id="game-{self.game.id}"')
-        # Away needs a sub: volunteer form posts to the away side, and the
-        # roster goalie can be confirmed back in.
-        self.assertContains(response, "I can sub")
-        self.assertContains(response, reverse("offer_sub", args=[self.game.id, "away"]))
-        self.assertContains(response, "Found a goalie?")
+        # Away needs a sub: "Select a goalie" posts to the away side.
+        self.assertNotContains(response, "I can sub")
+        self.assertContains(response, "Select a goalie")
         self.assertContains(response, "Pat Pads (roster goalie)")
         self.assertContains(
             response, reverse("confirm_goalie", args=[self.game.id, "away"])
@@ -247,9 +217,6 @@ class BoardPageTest(BoardFixture):
         self.assertNotContains(response, "Is Sam Stopper playing?")
         self.assertContains(
             response, reverse("report_sub_needed", args=[self.game.id, "home"])
-        )
-        self.assertNotContains(
-            response, reverse("offer_sub", args=[self.game.id, "home"])
         )
         self.assertNotContains(
             response, reverse("confirm_goalie", args=[self.game.id, "home"])
@@ -281,22 +248,19 @@ class BoardPageTest(BoardFixture):
         self.game.home_goalie_status = SUB_NEEDED
         self.game.save()
         response = self.client.get(self.board_url)
-        self.assertContains(response, "Found a goalie?")
+        self.assertContains(response, "Select a goalie")
         self.assertNotContains(response, "Sam Stopper (roster goalie)")
 
-    def test_volunteer_form_lists_the_goalies_with_a_not_listed_option(self):
+    def test_goalie_pickers_list_goalies_not_other_players(self):
         response = self.client.get(self.board_url)
-        self.assertContains(
-            response, f'<option value="{self.away_goalie.id}">Pat Pads</option>'
+        html = response.content.decode()
+        picker = html[html.index('name="goalie"') :]
+        picker = picker[: picker.index("</select>")]
+        self.assertIn(
+            f'<option value="{self.away_goalie.id}">Pat Pads</option>', picker
         )
-        self.assertContains(response, "I&rsquo;m not on the list")
-        # Non-goalies appear once, in the home row's "who's reporting?"
-        # roster picker, and not again as volunteers.
-        self.assertContains(
-            response,
-            f'<option value="{self.home_captain.id}">Casey Captain</option>',
-            count=1,
-        )
+        self.assertNotIn("Casey Captain", picker)
+        self.assertIn("Someone else", picker)
 
     def test_report_form_lists_the_teams_roster(self):
         response = self.client.get(self.board_url)
@@ -719,90 +683,6 @@ class ConfirmGoalieTest(BoardFixture):
         self.game.save()
         self._confirm("home")
         self.assertEqual(self._reload().home_goalie_status, UNCONFIRMED)
-
-
-# ---------------------------------------------------------------------------
-# Public: "I can sub"
-# ---------------------------------------------------------------------------
-
-
-class OfferSubTest(BoardFixture):
-    def test_get_not_allowed(self):
-        self.assertEqual(
-            self.client.get(
-                reverse("offer_sub", args=[self.game.id, "away"])
-            ).status_code,
-            405,
-        )
-
-    def test_listed_goalie_offer_links_the_player(self):
-        response = self._offer(name="sam stopper", note="Can do 7pm")
-        self.assertRedirects(
-            response,
-            f"{self.board_url}#game-{self.game.id}",
-            fetch_redirect_response=False,
-        )
-        offer = GoalieSubOffer.objects.get()
-        self.assertEqual(offer.player, self.home_goalie)
-        self.assertEqual(offer.team, self.away)
-        self.assertEqual(offer.phone, "202-555-0100")
-        self.assertEqual(offer.note, "Can do 7pm")
-        self.assertEqual(offer.status, GoalieSubOffer.STATUS_OFFERED)
-        # Offering doesn't change the status: the captain confirms.
-        self.assertEqual(self._reload().away_goalie_status, SUB_NEEDED)
-
-    def test_picked_goalie_is_linked_and_typed_name_ignored(self):
-        self._offer(player_id=str(self.home_goalie.id), name="Whoever")
-        offer = GoalieSubOffer.objects.get()
-        self.assertEqual(offer.player, self.home_goalie)
-        self.assertEqual(offer.name, "Sam Stopper")
-
-    def test_unlisted_name_is_kept_as_text(self):
-        self._offer(name="Riley Newcomer")
-        offer = GoalieSubOffer.objects.get()
-        self.assertIsNone(offer.player)
-        self.assertEqual(offer.name, "Riley Newcomer")
-
-    def test_repeat_offer_updates_instead_of_duplicating(self):
-        self._offer(name="Sam Stopper", phone="111")
-        self._offer(name="Sam Stopper", phone="222")
-        self._offer(name="Riley Newcomer", phone="333")
-        self._offer(name="riley newcomer", phone="444")
-        offers = {o.name.lower(): o.phone for o in GoalieSubOffer.objects.all()}
-        self.assertEqual(offers, {"sam stopper": "222", "riley newcomer": "444"})
-
-    def test_name_and_phone_required(self):
-        self._offer(phone="")
-        self._offer(name="")
-        self.assertFalse(GoalieSubOffer.objects.exists())
-
-    def test_side_that_does_not_need_a_sub_gets_no_offer(self):
-        response = self.client.post(
-            reverse("offer_sub", args=[self.game.id, "home"]),
-            {"name": "Sam Stopper", "phone": "1"},
-            follow=True,
-        )
-        self.assertFalse(GoalieSubOffer.objects.exists())
-        self.assertContains(response, "marked as needing a sub for this game anymore")
-
-    def test_success_message(self):
-        response = self.client.post(
-            reverse("offer_sub", args=[self.game.id, "away"]),
-            {"name": "Sam Stopper", "phone": "1"},
-            follow=True,
-        )
-        self.assertContains(response, "Thanks, Sam Stopper!")
-        self.assertContains(response, "Iced Out&#x27;s captain and John Romps")
-
-    @override_settings(
-        GOALIE_CZAR_EMAIL="czar@example.com",
-        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-    )
-    def test_emails_the_goalie_czar(self):
-        self._offer(name="Sam Stopper", phone="202-555-0100")
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("Goalie sub offered", mail.outbox[0].subject)
-        self.assertIn("202-555-0100", mail.outbox[0].body)
 
 
 # ---------------------------------------------------------------------------

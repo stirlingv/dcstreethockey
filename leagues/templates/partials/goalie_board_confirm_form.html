@@ -1,9 +1,9 @@
 {% comment %}
 Confirming a side of one game on the Goalie Status Board.
 - Unconfirmed row: "Yes, confirmed" is a single tap (no form).
-- Sub Needed row: "Found a goalie?" asks who's in goal: a volunteer from the
-  board, the roster goalie (they can play after all), another listed goalie,
-  or someone the site doesn't know yet.
+- Sub Needed row: "Select a goalie" asks who's in goal: the roster goalie
+  (they can play after all), another listed goalie, or someone the site
+  doesn't know yet. Volunteers (offers an admin entered) come first.
 Expects: side, match_data, goalie_choices.
 {% endcomment %}
 <form method="post" action="{% url 'confirm_goalie' match_data.matchup.id side.side %}" class="{% if side.needs_sub %}board-form{% else %}board-tap{% endif %}">
