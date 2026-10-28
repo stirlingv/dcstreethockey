@@ -529,9 +529,6 @@
 .board-btn-danger:hover { background: #b02a37; }
 .board-btn-success { background: #1e7e34; color: #fff; }
 .board-btn-success:hover { background: #155d26; }
-/* A low-key text button for the rare reversal ("Pat can play after all"). */
-.board-btn-quiet { background: transparent; color: #1a5276; text-decoration: underline; padding: 0 8px; font-size: 14px; }
-.board-btn-quiet:hover { color: #0d2f44; }
 .board-btn-submit { width: 100%; margin-top: 4px; }
 
 .board-form {

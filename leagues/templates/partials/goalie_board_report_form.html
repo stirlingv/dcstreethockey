@@ -1,13 +1,28 @@
 {% comment %}
 "No, need a sub" / "Need a sub" form for one side of one game on the
-Goalie Status Board. Expects: side, match_data, czar_name.
+Goalie Status Board. If the reporter already has a sub lined up they can
+name them here, which confirms the game instead of marking it Sub Needed.
+Expects: side, match_data, goalie_choices, czar_name.
 {% endcomment %}
 <form method="post" action="{% url 'report_sub_needed' match_data.matchup.id side.side %}" class="board-form">
     {% csrf_token %}
     <input type="text" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
-    <p class="board-form-title">Mark {{ side.team.team_name }} as needing a goalie sub on {{ match_data.matchup.week.date|date:"D, M j" }}</p>
+    <p class="board-form-title">{{ side.team.team_name }} needs a goalie sub on {{ match_data.matchup.week.date|date:"D, M j" }}</p>
     <label>
-        <span>Who&rsquo;s reporting? <em>(optional)</em></span>
+        <span>Already found a sub? <em>(optional)</em></span>
+        <select name="sub" class="board-person board-sub-pick">
+            <option value="">No, still looking</option>
+            {% for p in goalie_choices %}<option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>{% endfor %}
+            <option value="other">Someone else&hellip;</option>
+        </select>
+        <input type="text" name="sub_name" maxlength="100" placeholder="Sub's name" class="board-other-name" hidden>
+    </label>
+    <label>
+        <span>Note <em>(optional)</em></span>
+        <input type="text" name="note" maxlength="300" placeholder="e.g. {{ side.prompt_name|capfirst }} is out of town">
+    </label>
+    <label>
+        <span>Your name <em>(optional, so the captain knows who reported it)</em></span>
         {% if side.roster %}
         <select name="player_id" class="board-person">
             <option value="">Choose your name</option>
@@ -17,10 +32,6 @@ Goalie Status Board. Expects: side, match_data, czar_name.
         {% endif %}
         <input type="text" name="name" maxlength="100" autocomplete="name" placeholder="First Last"{% if side.roster %} class="board-other-name" hidden{% endif %}>
     </label>
-    <label>
-        <span>Note <em>(optional)</em></span>
-        <input type="text" name="note" maxlength="300" placeholder="e.g. {{ side.prompt_name|capfirst }} is out of town">
-    </label>
-    <button type="submit" class="board-btn board-btn-danger board-btn-submit">Mark Sub Needed</button>
-    <p class="board-form-help">This tells the captain and {{ czar_name }} that a sub is needed, and lets goalies volunteer.</p>
+    <button type="submit" class="board-btn board-btn-danger board-btn-submit" data-default-label="Mark Sub Needed" data-sub-label="Confirm the sub">Mark Sub Needed</button>
+    <p class="board-form-help">Marks the game Sub Needed so goalies can volunteer and {{ czar_name }} can help find one. If you name a sub, the game is confirmed with them in goal instead.</p>
 </form>

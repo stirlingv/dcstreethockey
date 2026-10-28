@@ -32,6 +32,7 @@
                     Anyone can update this board &mdash; no login needed.
                     Each game asks whether the goalie is playing: answer <strong>Yes, confirmed</strong> or <strong>No, need a sub</strong>.
                     Able to fill in where a sub is needed? Tap <strong>I can sub</strong>.
+                    Lined up a goalie for a game that needs one? Tap <strong>Found a goalie?</strong> to confirm them.
                     {{ czar_name }} watches this board and helps teams find subs.
                 </p>
             </div>
@@ -105,7 +106,7 @@
                                     </form>
                                 </details>
                                 <details class="board-action">
-                                    <summary class="board-btn board-btn-quiet">{{ side.prompt_name|capfirst }} can play after all</summary>
+                                    <summary class="board-btn board-btn-secondary">Found a goalie?</summary>
                                     {% include 'partials/goalie_board_confirm_form.html' %}
                                 </details>
                                 {% elif side.status == 1 %}
@@ -180,6 +181,17 @@ document.querySelectorAll('.board-person').forEach(function (select) {
         other.hidden = !show;
         other.required = show;
         if (show) other.focus();
+    });
+});
+// Naming a sub on the "need a sub" form confirms the game instead, so the
+// button says so.
+document.querySelectorAll('.board-sub-pick').forEach(function (select) {
+    var button = select.closest('form').querySelector('button[type="submit"]');
+    select.addEventListener('change', function () {
+        var picked = select.value !== '';
+        button.textContent = picked ? button.dataset.subLabel : button.dataset.defaultLabel;
+        button.classList.toggle('board-btn-danger', !picked);
+        button.classList.toggle('board-btn-success', picked);
     });
 });
 </script>
