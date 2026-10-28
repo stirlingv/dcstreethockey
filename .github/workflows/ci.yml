@@ -26,15 +26,15 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: 3.11
 
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v6
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -94,10 +94,10 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Python 3.11 (matches Render)
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
@@ -116,10 +116,10 @@ jobs:
     # requirements.txt doesn't pin (Dependabot only sees pinned ones).
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
@@ -141,6 +141,9 @@ jobs:
       # - CVE-2026-115778: unbounded telnet subnegotiation buffer in twisted.conch.
       # - CVE-2026-115877: bare CR/LF in a header value accepted by the
       #   twisted.web HTTP server, which only serves `manage.py runserver` here.
+      # - CVE-2026-83813: twisted.names DNS client accepts a forged UDP response
+      #   that matches only the transaction ID. The site never resolves names
+      #   through twisted.names.
       run: |
         SITE=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
         pipx run pip-audit --path "$SITE" --desc on \
@@ -149,4 +152,5 @@ jobs:
           --ignore-vuln CVE-2026-115775 \
           --ignore-vuln CVE-2026-115776 \
           --ignore-vuln CVE-2026-115778 \
-          --ignore-vuln CVE-2026-115877
+          --ignore-vuln CVE-2026-115877 \
+          --ignore-vuln CVE-2026-83813
