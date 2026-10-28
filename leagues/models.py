@@ -641,6 +641,106 @@ class MatchUpGoalieStatus(MatchUp):
         verbose_name_plural = "Goalie Statuses"
 
 
+class GoalieSubOffer(models.Model):
+    """
+    A goalie volunteering to fill in for one team in one game, posted from
+    the public Goalie Status Board. The team's captain (or an admin) confirms
+    it, which names the volunteer as that game's goalie.
+    """
+
+    STATUS_OFFERED = 1
+    STATUS_CONFIRMED = 2
+    STATUS_DECLINED = 3
+    STATUS_CHOICES = (
+        (STATUS_OFFERED, "Offered"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_DECLINED, "Not needed"),
+    )
+
+    matchup = models.ForeignKey(
+        MatchUp, on_delete=models.CASCADE, related_name="sub_offers"
+    )
+    team = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name="sub_offers",
+        help_text="The team that needs the sub.",
+    )
+    player = models.ForeignKey(
+        Player,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Set when the name matched a goalie the site knows.",
+    )
+    name = models.CharField(max_length=100)
+    phone = models.CharField(max_length=30, blank=True)
+    note = models.CharField(max_length=300, blank=True)
+    status = models.PositiveSmallIntegerField(
+        choices=STATUS_CHOICES, default=STATUS_OFFERED
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("created_at",)
+        verbose_name = "Goalie sub offer"
+
+    def __str__(self):
+        return f"{self.name} for {self.team} on {self.matchup.week.date}"
+
+
+class GoalieStatusChange(models.Model):
+    """
+    Who changed a team's goalie status for a game, and when. Written for
+    changes made from the public board and the captain page so the board
+    can show "Sub needed, reported by Pat" and the commissioner can see
+    where a status came from.
+    """
+
+    SOURCE_BOARD = "board"
+    SOURCE_CAPTAIN = "captain"
+    SOURCE_ADMIN = "admin"
+    SOURCE_CHOICES = (
+        (SOURCE_BOARD, "Goalie Status Board"),
+        (SOURCE_CAPTAIN, "Captain page"),
+        (SOURCE_ADMIN, "Admin"),
+    )
+
+    matchup = models.ForeignKey(
+        MatchUp, on_delete=models.CASCADE, related_name="goalie_status_changes"
+    )
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="+")
+    status = models.PositiveSmallIntegerField(choices=MatchUp.GOALIE_STATUS_CHOICES)
+    goalie = models.ForeignKey(
+        Player, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    reported_by = models.CharField(max_length=100, blank=True)
+    reported_by_player = models.ForeignKey(
+        Player,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Set when the reporter picked their name from the team's roster.",
+    )
+    note = models.CharField(max_length=300, blank=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        verbose_name = "Goalie status change"
+
+    def __str__(self):
+        return (
+            f"{self.team} {self.get_status_display()} by "
+            f"{self.reported_by or self.get_source_display()}"
+        )
+
+
 class Stat(models.Model):
     player = models.ForeignKey(Player, on_delete=models.PROTECT, db_index=True)
     team = models.ForeignKey(

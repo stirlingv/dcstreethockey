@@ -1,4 +1,5 @@
 import importlib
+import os
 
 from django.core.cache import cache
 from django.test import RequestFactory, SimpleTestCase, TestCase
@@ -208,6 +209,57 @@ class CurrentDraftBoardUrlContextProcessorTest(TestCase):
 
         ctx = current_draft_board_url(self._make_request())
         self.assertIn(str(session_2027.pk), ctx["current_draft_board_url"])
+
+
+class EmailSettingsTest(SimpleTestCase):
+    """
+    Outgoing email is opt-in: nothing is attempted unless EMAIL_HOST is set,
+    and when it is, sends go over SMTP with a short timeout so a slow mail
+    server can't stall a Goalie Status Board post.
+    """
+
+    ENV_KEYS = ("EMAIL_HOST", "EMAIL_HOST_USER", "GOALIE_CZAR_EMAIL")
+
+    def _base_settings(self, env):
+        from unittest.mock import patch
+
+        from dcstreethockey.settings import base
+
+        with patch.dict("os.environ", env, clear=False):
+            for key in self.ENV_KEYS:
+                if key not in env:
+                    os.environ.pop(key, None)
+            module = importlib.reload(base)
+            values = {
+                "backend": module.EMAIL_BACKEND,
+                "timeout": module.EMAIL_TIMEOUT,
+                "from": module.DEFAULT_FROM_EMAIL,
+                "czar": module.GOALIE_CZAR_EMAIL,
+            }
+        importlib.reload(base)  # restore the real environment's values
+        return values
+
+    def test_off_by_default(self):
+        values = self._base_settings({})
+        self.assertEqual(
+            values["backend"], "django.core.mail.backends.console.EmailBackend"
+        )
+        self.assertEqual(values["czar"], "")
+
+    def test_smtp_with_timeout_when_a_host_is_set(self):
+        values = self._base_settings(
+            {
+                "EMAIL_HOST": "smtp.gmail.com",
+                "EMAIL_HOST_USER": "league@example.com",
+                "GOALIE_CZAR_EMAIL": "czar@example.com",
+            }
+        )
+        self.assertEqual(
+            values["backend"], "django.core.mail.backends.smtp.EmailBackend"
+        )
+        self.assertEqual(values["timeout"], 5)
+        self.assertEqual(values["from"], "league@example.com")
+        self.assertEqual(values["czar"], "czar@example.com")
 
 
 class ProductionStaticStorageTest(SimpleTestCase):

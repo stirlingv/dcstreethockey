@@ -62,8 +62,11 @@ from leagues.models import (
     DraftTeam,
     DraftRound,
     DraftPick,
+    GoalieStatusChange,
+    GoalieSubOffer,
     reset_goalie_statuses,
 )
+from leagues.goalie_board import confirm_offer, link_offer_player
 import json
 import logging
 from datetime import timedelta, date
@@ -1445,6 +1448,22 @@ class MatchUpAdmin(admin.ModelAdmin):
         return super().lookup_allowed(lookup, value)
 
 
+class GoalieSubOfferInline(admin.TabularInline):
+    """Volunteers from the public board, shown on a game's goalie status page."""
+
+    model = GoalieSubOffer
+    extra = 0
+    fields = ("name", "phone", "note", "status", "created_at")
+    readonly_fields = ("name", "phone", "note", "created_at")
+    verbose_name = "volunteer from the board"
+    verbose_name_plural = (
+        "Volunteers from the board (confirm one to name them as goalie)"
+    )
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 class MatchUpGoalieStatusAdmin(admin.ModelAdmin):
     """
     Dedicated admin for managing goalie statuses.
@@ -1498,6 +1517,29 @@ class MatchUpGoalieStatusAdmin(admin.ModelAdmin):
     # Lets an admin narrow the list to one game day, then reset or edit it.
     date_hierarchy = "week__date"
     actions = ["reset_goalie_statuses_action"]
+    inlines = [GoalieSubOfferInline]
+
+    def save_formset(self, request, form, formset, change):
+        """Setting a volunteer to Confirmed names them as the goalie."""
+        instances = formset.save(commit=False)
+        for obj in formset.deleted_objects:
+            obj.delete()
+        for offer in instances:
+            if (
+                isinstance(offer, GoalieSubOffer)
+                and offer.status == GoalieSubOffer.STATUS_CONFIRMED
+                and offer.confirmed_at is None
+            ):
+                offer.status = GoalieSubOffer.STATUS_OFFERED
+                offer.save()
+                confirm_offer(
+                    offer,
+                    reported_by=request.user.get_username(),
+                    source=GoalieStatusChange.SOURCE_ADMIN,
+                )
+            else:
+                offer.save()
+        formset.save_m2m()
 
     @admin.action(description="Reset goalie status to Unconfirmed (clears subs)")
     def reset_goalie_statuses_action(self, request, queryset):
@@ -3637,3 +3679,69 @@ class DraftPickAdmin(admin.ModelAdmin):
 # All existing admin.site.register() / @admin.register() calls remain valid —
 # we're changing the class of the existing singleton, not creating a new one.
 admin.site.__class__ = _DCHockeyAdminSite
+
+
+@admin.register(GoalieSubOffer)
+class GoalieSubOfferAdmin(admin.ModelAdmin):
+    """Goalies who volunteered on the public board."""
+
+    list_display = ("created_at", "game", "team", "name", "phone", "status")
+    list_filter = ("status", "team__division")
+    date_hierarchy = "matchup__week__date"
+    search_fields = ("name", "phone", "team__team_name")
+    raw_id_fields = ("matchup", "team", "player")
+    readonly_fields = ("created_at", "confirmed_at", "ip_address")
+    list_select_related = ("matchup__week", "team")
+    actions = ["confirm_offers"]
+
+    @admin.display(description="Game", ordering="matchup__week__date")
+    def game(self, obj):
+        return f"{obj.matchup.week.date:%a %b %-d} {obj.matchup.time:%-I:%M %p}"
+
+    def save_model(self, request, obj, form, change):
+        """Linking a confirmed volunteer to a player names them as goalie."""
+        super().save_model(request, obj, form, change)
+        if "player" in form.changed_data and link_offer_player(obj):
+            messages.info(
+                request, f"{obj.player} is now named as goalie for that game."
+            )
+
+    @admin.action(description="Confirm as goalie for their game")
+    def confirm_offers(self, request, queryset):
+        confirmed = 0
+        for offer in queryset.filter(status=GoalieSubOffer.STATUS_OFFERED):
+            confirm_offer(
+                offer,
+                reported_by=request.user.get_username(),
+                source=GoalieStatusChange.SOURCE_ADMIN,
+            )
+            confirmed += 1
+        messages.success(
+            request,
+            f"Confirmed {confirmed} volunteer{'s' if confirmed != 1 else ''} as goalie.",
+        )
+
+
+@admin.register(GoalieStatusChange)
+class GoalieStatusChangeAdmin(admin.ModelAdmin):
+    """Who changed a goalie status from the board or captain page, and when."""
+
+    list_display = (
+        "created_at",
+        "matchup",
+        "team",
+        "status",
+        "goalie",
+        "reported_by",
+        "source",
+    )
+    list_select_related = ("matchup__week", "team", "goalie", "reported_by_player")
+    list_filter = ("source", "status", "team__division")
+    date_hierarchy = "created_at"
+    search_fields = ("reported_by", "team__team_name", "note")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

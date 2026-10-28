@@ -21,19 +21,21 @@
                 {% endif %}
             </div>
 
+            {% include 'partials/messages.html' %}
+
             <div class="help-text">
                 <h4>How to use this page:</h4>
                 <ul>
                     <li><strong>Confirmed:</strong> Your goalie is available and will play</li>
-                    <li><strong>Sub Needed:</strong> Your regular goalie is unavailable - we need to find a sub</li>
+                    <li><strong>Sub Needed:</strong> Your regular goalie is unavailable - we need to find a sub. {{ czar_name }} sees this and helps find one, and goalies can volunteer on the public board.</li>
                     <li><strong>Unconfirmed:</strong> You haven't checked with your goalie yet</li>
                 </ul>
-                <p style="margin-top: 10px;">Select a different goalie from the dropdown if you've arranged your own sub.</p>
+                <p style="margin-top: 10px;">Select a different goalie from the dropdown if you've arranged your own sub. Volunteers from the board show up under the game with a <strong>Confirm</strong> button.</p>
             </div>
 
             {% if matchups_data %}
                 {% for match_data in matchups_data %}
-                <div class="matchup-card" data-matchup-id="{{ match_data.matchup.id }}">
+                <div class="matchup-card" data-matchup-id="{{ match_data.matchup.id }}" id="game-{{ match_data.matchup.id }}">
                     <div class="matchup-header">
                         <div class="matchup-date">
                             {{ match_data.matchup.week.date|date:"l, F j" }} @ {{ match_data.matchup.time|time:"g:i A" }}
@@ -91,9 +93,41 @@
                             <span id="goalie-display-{{ match_data.matchup.id }}">
                                 {% if match_data.current_goalie %}
                                     - {{ match_data.current_goalie.first_name }} {{ match_data.current_goalie.last_name }}
+                                {% elif match_data.sub_name %}
+                                    - {{ match_data.sub_name }} (Sub)
                                 {% endif %}
                             </span>
+                            {% if match_data.reported_by %}
+                            <span class="reported-by">Reported by {{ match_data.reported_by }}{% if match_data.reported_at %} &middot; {{ match_data.reported_at|date:"D g:i A" }}{% endif %}</span>
+                            {% endif %}
                         </div>
+                        {% if match_data.current_status == 2 %}
+                        <div class="volunteers-box">
+                            <h4>Volunteers{% if match_data.volunteers %} ({{ match_data.volunteers|length }}){% endif %}</h4>
+                            {% for v in match_data.volunteers %}
+                            <div class="volunteer">
+                                <div class="volunteer-info">
+                                    <strong>{{ v.name }}</strong>
+                                    {% if v.phone %}&middot; <a href="tel:{{ v.phone|cut:' ' }}">{{ v.phone }}</a>{% endif %}
+                                    {% if v.note %}<div class="volunteer-note">&ldquo;{{ v.note }}&rdquo;</div>{% endif %}
+                                    <div class="volunteer-when">Offered {{ v.created_at|date:"D g:i A" }}</div>
+                                </div>
+                                <div class="volunteer-actions">
+                                    <form method="post" action="{% url 'confirm_sub_offer' team.captain_access_code v.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="board-btn board-btn-primary">Confirm as goalie</button>
+                                    </form>
+                                    <form method="post" action="{% url 'decline_sub_offer' team.captain_access_code v.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="board-btn board-btn-secondary">No thanks</button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <p class="volunteer-empty">No volunteers yet. This game shows as Sub Needed on the <a href="{% url 'goalie_status_board' %}#game-{{ match_data.matchup.id }}">public board</a>, where goalies can offer to fill in, and {{ czar_name }} can help find one.</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}

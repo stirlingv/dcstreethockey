@@ -3,6 +3,11 @@ from .views import (
     goalie_status_board,
     captain_goalie_update,
     update_goalie_status,
+    report_sub_needed,
+    offer_sub,
+    confirm_goalie,
+    confirm_sub_offer,
+    decline_sub_offer,
     captain_urls_list,
     upload_player_photo,
     upload_team_photo,
@@ -60,6 +65,31 @@ urlpatterns = [
         "goalie-status/captain/<uuid:access_code>/update/<int:matchup_id>/",
         update_goalie_status,
         name="update_goalie_status",
+    ),
+    path(
+        "goalie-status/captain/<uuid:access_code>/offer/<int:offer_id>/confirm/",
+        confirm_sub_offer,
+        name="confirm_sub_offer",
+    ),
+    path(
+        "goalie-status/captain/<uuid:access_code>/offer/<int:offer_id>/decline/",
+        decline_sub_offer,
+        name="decline_sub_offer",
+    ),
+    path(
+        "goalie-status/<int:matchup_id>/<str:side>/sub-needed/",
+        report_sub_needed,
+        name="report_sub_needed",
+    ),
+    path(
+        "goalie-status/<int:matchup_id>/<str:side>/offer/",
+        offer_sub,
+        name="offer_sub",
+    ),
+    path(
+        "goalie-status/<int:matchup_id>/<str:side>/confirm/",
+        confirm_goalie,
+        name="confirm_goalie",
     ),
     path("captain-urls/", captain_urls_list, name="captain_urls_list"),
     # -----------------------------------------------------------------------

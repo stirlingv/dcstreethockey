@@ -215,6 +215,8 @@ This applies to:
 - **`RENDER_API_KEY`** and **`RENDER_POSTGRES_ID`** — also in `~/.zshrc` and `.env`.
 - **Python / venv** — the project venv is at `venv/bin/python`. Git commits require `PATH="$(pwd)/venv/bin:$PATH"` so pre-commit hooks can find `python`.
 - **Local DB** — `DB_NAME=dcstreethockey`, `DB_USER=dcstreethockey`, `DB_PASSWORD=dcstreethockey` (in `.env`).
+- **`GOALIE_CZAR_NAME`** / **`GOALIE_CZAR_EMAIL`** — the league's goalie coordinator, shown on the Goalie Status Board and captain pages. When the email is set, new "Sub Needed" reports and "I can sub" offers are emailed there. Defaults: name "John Romps", no email.
+- **Outgoing email** is off until `EMAIL_HOST` is set on Render (then SMTP with `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, optional `EMAIL_PORT` and `DEFAULT_FROM_EMAIL`). For Gmail: `smtp.gmail.com` and an app password. Sends are fail-silent with a 5-second timeout, so a dead mail server never breaks a page. The coordinator notification is the only thing that sends.
 
 ### Pushing local → production
 
