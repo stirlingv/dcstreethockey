@@ -213,12 +213,13 @@ def offer_side(offer):
     return "home" if matchup.hometeam_id == offer.team_id else "away"
 
 
-def confirm_offer(offer, reported_by, source, ip=None):
+def _place_offer(offer):
     """
-    Mark the volunteer's side of the game Confirmed with them in goal. A
-    volunteer the site knows is named as the game's goalie; one it doesn't
-    is shown by the name they gave until an admin links them to a player
-    (see ``link_offer_player``), so a typo never becomes a permanent player.
+    Put a volunteer in goal: their side goes Confirmed, a volunteer the site
+    knows is named as the game's goalie, one it doesn't is shown by the name
+    they gave until an admin links them to a player (``link_offer_player``),
+    so a typo never becomes a permanent player. Other open volunteers for
+    that side are told they're not needed. Returns how many were released.
     """
     matchup = offer.matchup
     _, goalie_field, status_field = side_fields(offer_side(offer))
@@ -229,9 +230,66 @@ def confirm_offer(offer, reported_by, source, ip=None):
     offer.status = GoalieSubOffer.STATUS_CONFIRMED
     offer.confirmed_at = timezone.now()
     offer.save()
-    GoalieSubOffer.objects.filter(
-        matchup=matchup, team_id=offer.team_id, status=GoalieSubOffer.STATUS_OFFERED
-    ).exclude(pk=offer.pk).update(status=GoalieSubOffer.STATUS_DECLINED)
+    return (
+        GoalieSubOffer.objects.filter(
+            matchup=matchup,
+            team_id=offer.team_id,
+            status=GoalieSubOffer.STATUS_OFFERED,
+        )
+        .exclude(pk=offer.pk)
+        .update(status=GoalieSubOffer.STATUS_DECLINED)
+    )
+
+
+def confirm_side(matchup, side, choice="roster", other_name="", goalies=()):
+    """
+    Mark one side of a game Confirmed with a chosen goalie in goal, from the
+    board's "Found a goalie?" picker or the "already found a sub" field:
+
+    - "roster": the roster goalie plays (keeps a sub the captain already set).
+    - "offer-<id>": one of the side's open volunteers.
+    - "<player id>": a listed goalie (``goalies``); if they also volunteered,
+      their offer is the one confirmed.
+    - "other" with ``other_name``: a sub the site doesn't know, kept as a
+      confirmed offer by name so nothing invents a player.
+
+    Anything else behaves as "roster". Returns (goalie Player or None,
+    goalie name shown on the board, released volunteer count).
+    """
+    team_field, goalie_field, status_field = side_fields(side)
+    team_id = getattr(matchup, f"{team_field}_id")
+    open_offers = GoalieSubOffer.objects.filter(
+        matchup=matchup, team_id=team_id, status=GoalieSubOffer.STATUS_OFFERED
+    )
+    offer = None
+    player = None
+    if choice.startswith("offer-") and choice[6:].isdigit():
+        offer = open_offers.filter(pk=int(choice[6:])).first()
+    elif choice.isdigit():
+        player = next((p for p in goalies if p.id == int(choice)), None)
+        if player is not None:
+            offer = open_offers.filter(player=player).first()
+    elif choice == "other" and other_name:
+        offer = GoalieSubOffer.objects.create(
+            matchup=matchup, team_id=team_id, name=other_name[:100]
+        )
+    if offer is not None:
+        offer.matchup = matchup  # update the caller's instance, not a fresh one
+        released = _place_offer(offer)
+        return offer.player, (full_name(offer.player) or offer.name), released
+    if player is not None:
+        setattr(matchup, goalie_field, player)
+    setattr(matchup, status_field, MatchUp.GOALIE_STATUS_CONFIRMED)
+    matchup.save()
+    released = open_offers.update(status=GoalieSubOffer.STATUS_DECLINED)
+    info = goalie_sides_for_matchups([matchup])[matchup.id][side]
+    return info["goalie"], info["goalie_name"], released
+
+
+def confirm_offer(offer, reported_by, source, ip=None):
+    """A captain or admin confirms a volunteer: place them and log it."""
+    matchup = offer.matchup
+    _place_offer(offer)
     GoalieStatusChange.objects.create(
         matchup=matchup,
         team_id=offer.team_id,

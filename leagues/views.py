@@ -25,6 +25,7 @@ from .goalie_board import (
     SIDES,
     client_ip,
     confirm_offer,
+    confirm_side,
     goalie_sides_for_matchups,
     listed_goalies,
     match_listed_goalie,
@@ -245,12 +246,13 @@ def _game_when(matchup):
 @require_POST
 def confirm_goalie(request, matchup_id, side):
     """
-    Public: answer "Is Pat playing?" with yes, in one tap. The goalie, their
-    captain or a teammate can confirm, so the board asks about the goalie by
-    name rather than assuming the person tapping is the goalie, and asks for
-    nothing else. Marks the side Confirmed, keeps whoever is named in goal
-    (the roster goalie unless a sub was set), and tells any open volunteers
-    they're not needed.
+    Public: on an Unconfirmed row, "Yes, confirmed" in one tap. On a Sub
+    Needed row, "Found a goalie?" names who's in goal: a volunteer, the
+    roster goalie after all, another listed goalie, or someone new. The
+    goalie, their captain, a teammate or the coordinator can do this, so the
+    board asks about the goalie by name rather than assuming the tapper is
+    the goalie. Open volunteers who weren't picked are told they're not
+    needed.
     """
     matchup = _board_game(matchup_id, side)
     team_field, _, status_field = side_fields(side)
@@ -260,27 +262,34 @@ def confirm_goalie(request, matchup_id, side):
     if rejected:
         return rejected
 
-    setattr(matchup, status_field, MatchUp.GOALIE_STATUS_CONFIRMED)
-    matchup.save()
-    released = GoalieSubOffer.objects.filter(
-        matchup=matchup, team=team, status=GoalieSubOffer.STATUS_OFFERED
-    ).update(status=GoalieSubOffer.STATUS_DECLINED)
+    choice = _clean(request, "goalie", 20) or "roster"
+    goalie, goalie_name, released = confirm_side(
+        matchup,
+        side,
+        choice,
+        other_name=_clean(request, "goalie_name", 100),
+        goalies=listed_goalies(),
+    )
     info = goalie_sides_for_matchups([matchup])[matchup.id][side]
+    reporter, name = resolve_person(request, info["roster"])
     GoalieStatusChange.objects.create(
         matchup=matchup,
         team=team,
         status=MatchUp.GOALIE_STATUS_CONFIRMED,
-        goalie=info["goalie"],
+        goalie=goalie,
+        reported_by=name,
+        reported_by_player=reporter,
+        note=f"Sub: {goalie_name}" if info["is_sub"] else "",
         source=GoalieStatusChange.SOURCE_BOARD,
         ip_address=client_ip(request),
     )
-    who = info["goalie_name"] or f"{team.team_name}'s goalie"
+    who = goalie_name or f"{team.team_name}'s goalie"
     messages.success(
         request,
-        f"Thanks. {who} is confirmed in goal for {team.team_name} on "
-        f"{_game_when(matchup)}."
+        f"Thanks{', ' + name if name else ''}. {who} is confirmed in goal for "
+        f"{team.team_name} on {_game_when(matchup)}."
         + (
-            f" {released} volunteer{'s' if released != 1 else ''} marked not needed."
+            f" {released} other volunteer{'s' if released != 1 else ''} marked not needed."
             if released
             else ""
         ),
@@ -294,7 +303,8 @@ def report_sub_needed(request, matchup_id, side):
     Public: anyone (a goalie, a captain, a teammate) can flag that a team
     needs a goalie sub for a game. Marks the side Sub Needed and, when the
     reporter picked their name from the roster or typed one, records who so
-    the board shows "reported by".
+    the board shows "reported by". If they already have a sub lined up they
+    can name them instead, and the game is confirmed with that sub in goal.
     """
     matchup = _board_game(matchup_id, side)
     team_field, goalie_field, status_field = side_fields(side)
@@ -306,6 +316,34 @@ def report_sub_needed(request, matchup_id, side):
         return rejected
     info = goalie_sides_for_matchups([matchup])[matchup.id][side]
     reporter, name = resolve_person(request, info["roster"])
+    when = _game_when(matchup)
+
+    sub_choice = _clean(request, "sub", 20)
+    if sub_choice:
+        goalie, goalie_name, _ = confirm_side(
+            matchup,
+            side,
+            sub_choice,
+            other_name=_clean(request, "sub_name", 100),
+            goalies=listed_goalies(),
+        )
+        GoalieStatusChange.objects.create(
+            matchup=matchup,
+            team=team,
+            status=MatchUp.GOALIE_STATUS_CONFIRMED,
+            goalie=goalie,
+            reported_by=name,
+            reported_by_player=reporter,
+            note=f"Sub: {goalie_name}" + (f". {note}" if note else ""),
+            source=GoalieStatusChange.SOURCE_BOARD,
+            ip_address=client_ip(request),
+        )
+        messages.success(
+            request,
+            f"Thanks{', ' + name if name else ''}. {goalie_name} is confirmed in "
+            f"goal for {team.team_name} on {when} as a sub.",
+        )
+        return _back_to_board(matchup)
 
     setattr(matchup, goalie_field, None)
     setattr(matchup, status_field, MatchUp.GOALIE_STATUS_SUB_NEEDED)
@@ -320,7 +358,6 @@ def report_sub_needed(request, matchup_id, side):
         source=GoalieStatusChange.SOURCE_BOARD,
         ip_address=client_ip(request),
     )
-    when = _game_when(matchup)
     emailed = notify_goalie_czar(
         f"Goalie sub needed: {team.team_name} on {when}",
         f"{name or 'Someone'} reported that {team.team_name} needs a goalie sub on {when}"
@@ -338,8 +375,8 @@ def report_sub_needed(request, matchup_id, side):
             if emailed
             else f"{czar} and the captain can see it on the board."
         )
-        + " Goalies who can fill in can tap “I can sub” on that game, and if "
-        f"{team.team_name}'s goalie can play after all, anyone can confirm them.",
+        + " Goalies who can fill in can tap “I can sub” on that game. Once a "
+        "goalie is lined up, tap “Found a goalie?” to confirm them.",
     )
     return _back_to_board(matchup)
 
