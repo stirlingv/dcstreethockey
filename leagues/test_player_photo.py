@@ -21,7 +21,6 @@ from leagues.admin import (
 )
 from leagues.models import PendingPlayerPhoto, Player, PlayerPhoto
 
-
 # Use local filesystem storage during tests so uploads don't hit S3.
 _TEST_STORAGE = {
     "default": {

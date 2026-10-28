@@ -28,7 +28,6 @@ from .goalie_board import (
     confirm_side,
     goalie_sides_for_matchups,
     listed_goalies,
-    match_listed_goalie,
     notify_goalie_czar,
     over_rate_limit,
     resolve_person,
@@ -247,7 +246,7 @@ def _game_when(matchup):
 def confirm_goalie(request, matchup_id, side):
     """
     Public: on an Unconfirmed row, "Yes, confirmed" in one tap. On a Sub
-    Needed row, "Found a goalie?" names who's in goal: a volunteer, the
+    Needed row, "Select a goalie" names who's in goal: a volunteer, the
     roster goalie after all, another listed goalie, or someone new. The
     goalie, their captain, a teammate or the coordinator can do this, so the
     board asks about the goalie by name rather than assuming the tapper is
@@ -375,72 +374,8 @@ def report_sub_needed(request, matchup_id, side):
             if emailed
             else f"{czar} and the captain can see it on the board."
         )
-        + " Goalies who can fill in can tap “I can sub” on that game. Once a "
-        "goalie is lined up, tap “Found a goalie?” to confirm them.",
-    )
-    return _back_to_board(matchup)
-
-
-@require_POST
-def offer_sub(request, matchup_id, side):
-    """
-    Public: a goalie volunteers to fill in for a team that needs a sub. The
-    captain (or an admin) confirms the volunteer, which names them as goalie.
-    """
-    matchup = _board_game(matchup_id, side)
-    team_field, _, status_field = side_fields(side)
-    team = getattr(matchup, team_field)
-    player, name = resolve_person(request, listed_goalies())
-    phone = _clean(request, "phone", 30)
-    note = _clean(request, "note", 300)
-
-    rejected = _board_post_rejected(
-        request,
-        matchup,
-        name and phone,
-        "Please add your name and a phone number so the captain can reach you.",
-    )
-    if rejected:
-        return rejected
-    if getattr(matchup, status_field) != MatchUp.GOALIE_STATUS_SUB_NEEDED:
-        messages.info(
-            request,
-            f"{team.team_name} isn't marked as needing a sub for this game anymore, "
-            "so your offer wasn't posted. Thanks for checking!",
-        )
-        return _back_to_board(matchup)
-
-    player = player or match_listed_goalie(name)
-    existing = GoalieSubOffer.objects.filter(
-        matchup=matchup, team=team, status=GoalieSubOffer.STATUS_OFFERED
-    )
-    existing = (
-        existing.filter(player=player) if player else existing.filter(name__iexact=name)
-    ).first()
-    if existing:
-        existing.phone, existing.note = phone, note
-        existing.save(update_fields=["phone", "note"])
-    else:
-        GoalieSubOffer.objects.create(
-            matchup=matchup,
-            team=team,
-            player=player,
-            name=name,
-            phone=phone,
-            note=note,
-            ip_address=client_ip(request),
-        )
-    when = _game_when(matchup)
-    notify_goalie_czar(
-        f"Goalie sub offered: {name} for {team.team_name} on {when}",
-        f"{name} ({phone}) can play goalie for {team.team_name} on {when}."
-        f"{' Note: ' + note if note else ''}\n\n"
-        f"The captain can confirm from their goalie page, or you can from the admin.",
-    )
-    messages.success(
-        request,
-        f"Thanks, {name}! {team.team_name}'s captain and {settings.GOALIE_CZAR_NAME} "
-        "can see you're available and will reach out to confirm.",
+        + " Once a sub is lined up, tap “Select a goalie” on that game to put "
+        "them in.",
     )
     return _back_to_board(matchup)
 

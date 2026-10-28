@@ -168,7 +168,7 @@ def over_rate_limit(request):
 
 
 def listed_goalies():
-    """Players offered in the "I can sub" name suggestions and goalie pickers."""
+    """Players offered in the board's goalie pickers."""
     return (
         Player.objects.filter(
             Q(roster__position1=4) | Q(roster__position2=4) | Q(can_play_goalie=True),
@@ -176,19 +176,6 @@ def listed_goalies():
         )
         .distinct()
         .order_by("last_name", "first_name")
-    )
-
-
-def match_listed_goalie(name):
-    """The listed goalie whose full name matches ``name``, ignoring case."""
-    parts = name.strip().split()
-    if len(parts) < 2:
-        return None
-    first, last = parts[0], " ".join(parts[1:])
-    return (
-        listed_goalies()
-        .filter(first_name__iexact=first, last_name__iexact=last)
-        .first()
     )
 
 
@@ -244,7 +231,7 @@ def _place_offer(offer):
 def confirm_side(matchup, side, choice="roster", other_name="", goalies=()):
     """
     Mark one side of a game Confirmed with a chosen goalie in goal, from the
-    board's "Found a goalie?" picker or the "already found a sub" field:
+    board's "Select a goalie" picker or the "already found a sub" field:
 
     - "roster": the roster goalie plays (keeps a sub the captain already set).
     - "offer-<id>": one of the side's open volunteers.

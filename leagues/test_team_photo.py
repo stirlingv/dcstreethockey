@@ -21,7 +21,6 @@ from leagues.admin import (
 )
 from leagues.models import Division, PendingTeamPhoto, Season, Team, TeamPhoto
 
-
 _TEST_STORAGE = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",

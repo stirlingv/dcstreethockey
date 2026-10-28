@@ -31,8 +31,7 @@
                 <p class="board-intro">
                     Anyone can update this board &mdash; no login needed.
                     Each game asks whether the goalie is playing: answer <strong>Yes, confirmed</strong> or <strong>No, need a sub</strong>.
-                    Able to fill in where a sub is needed? Tap <strong>I can sub</strong>.
-                    Lined up a goalie for a game that needs one? Tap <strong>Found a goalie?</strong> to confirm them.
+                    Lined up a sub for a game that needs one? Tap <strong>Select a goalie</strong> to put them in.
                     {{ czar_name }} watches this board and helps teams find subs.
                 </p>
             </div>
@@ -77,36 +76,7 @@
                             <div class="side-actions">
                                 {% if side.needs_sub %}
                                 <details class="board-action">
-                                    <summary class="board-btn board-btn-primary">I can sub</summary>
-                                    <form method="post" action="{% url 'offer_sub' match_data.matchup.id side.side %}" class="board-form">
-                                        {% csrf_token %}
-                                        <input type="text" name="website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
-                                        <p class="board-form-title">Fill in for {{ side.team.team_name }} on {{ match_data.matchup.week.date|date:"D, M j" }} at {{ match_data.matchup.time|time:"g:i A" }}</p>
-                                        <label>
-                                            <span>Your name</span>
-                                            {% if goalie_choices %}
-                                            <select name="player_id" class="board-person">
-                                                <option value="">Choose your name</option>
-                                                {% for p in goalie_choices %}<option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>{% endfor %}
-                                                <option value="other">I&rsquo;m not on the list&hellip;</option>
-                                            </select>
-                                            {% endif %}
-                                            <input type="text" name="name" maxlength="100" autocomplete="name" placeholder="First Last"{% if goalie_choices %} class="board-other-name" hidden{% endif %}>
-                                        </label>
-                                        <label>
-                                            <span>Phone</span>
-                                            <input type="tel" name="phone" required maxlength="30" autocomplete="tel" placeholder="So the captain can reach you">
-                                        </label>
-                                        <label>
-                                            <span>Note <em>(optional)</em></span>
-                                            <input type="text" name="note" maxlength="300" placeholder="e.g. Can do 7pm but not 8:30">
-                                        </label>
-                                        <button type="submit" class="board-btn board-btn-primary board-btn-submit">Send &mdash; I&rsquo;m available</button>
-                                        <p class="board-form-help">The captain and {{ czar_name }} will see your offer and reach out to confirm.</p>
-                                    </form>
-                                </details>
-                                <details class="board-action">
-                                    <summary class="board-btn board-btn-secondary">Found a goalie?</summary>
+                                    <summary class="board-btn board-btn-primary">Select a goalie</summary>
                                     {% include 'partials/goalie_board_confirm_form.html' %}
                                 </details>
                                 {% elif side.status == 1 %}
@@ -171,7 +141,7 @@ document.querySelectorAll('.board-action').forEach(function (details) {
         if (first) first.focus();
     });
 });
-// "Someone else…" / "I'm not on the list…" reveals a name field; picking a
+// "Someone else…" reveals a name field; picking a
 // listed name hides it again (and the typed name is ignored by the server).
 document.querySelectorAll('.board-person').forEach(function (select) {
     var other = select.parentElement.querySelector('.board-other-name');

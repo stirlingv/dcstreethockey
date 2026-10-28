@@ -26,7 +26,6 @@ from leagues.models import (
     Team,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fake player data — 8 teams × 12 players = 96 total (88 players + 8 goalies)
 # ---------------------------------------------------------------------------
@@ -514,9 +513,9 @@ class Command(BaseCommand):
             DraftRound.objects.create(
                 session=session,
                 round_number=r,
-                order_type=DraftRound.ORDER_RANDOMIZED
-                if r == 11
-                else DraftRound.ORDER_SNAKE,
+                order_type=(
+                    DraftRound.ORDER_RANDOMIZED if r == 11 else DraftRound.ORDER_SNAKE
+                ),
             )
 
         # Pick 8 captains from willing signups

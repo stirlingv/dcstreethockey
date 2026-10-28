@@ -27,7 +27,7 @@
                 <h4>How to use this page:</h4>
                 <ul>
                     <li><strong>Confirmed:</strong> Your goalie is available and will play</li>
-                    <li><strong>Sub Needed:</strong> Your regular goalie is unavailable - we need to find a sub. {{ czar_name }} sees this and helps find one, and goalies can volunteer on the public board.</li>
+                    <li><strong>Sub Needed:</strong> Your regular goalie is unavailable - we need to find a sub. {{ czar_name }} sees this and helps find one. Once a sub is lined up, anyone can put them in goal with <strong>Select a goalie</strong> on the public board.</li>
                     <li><strong>Unconfirmed:</strong> You haven't checked with your goalie yet</li>
                 </ul>
                 <p style="margin-top: 10px;">Select a different goalie from the dropdown if you've arranged your own sub. Volunteers from the board show up under the game with a <strong>Confirm</strong> button.</p>
@@ -124,7 +124,7 @@
                                 </div>
                             </div>
                             {% empty %}
-                            <p class="volunteer-empty">No volunteers yet. This game shows as Sub Needed on the <a href="{% url 'goalie_status_board' %}#game-{{ match_data.matchup.id }}">public board</a>, where goalies can offer to fill in, and {{ czar_name }} can help find one.</p>
+                            <p class="volunteer-empty">This game shows as Sub Needed on the <a href="{% url 'goalie_status_board' %}#game-{{ match_data.matchup.id }}">public board</a>, where {{ czar_name }} or anyone who lines up a sub can select them, or pick one above yourself.</p>
                             {% endfor %}
                         </div>
                         {% endif %}
