@@ -498,7 +498,7 @@ class GoalieStatusBoardViewTest(TestCase):
         self.assertContains(response, "Championship Away")
         self.assertContains(response, "NewSeason Away")
         # The sub-needed game from the non-current season should still count.
-        self.assertEqual(response.context["sub_needed_count"], 1)
+        self.assertEqual(len(response.context["sub_needed_games"]), 1)
 
     def test_includes_all_weeks_for_same_date_not_just_first_four_rows(self):
         season = Season.objects.create(

@@ -224,32 +224,119 @@ class BoardPageTest(BoardFixture):
         self.assertContains(response, "Sam Stopper")
         self.assertContains(response, "John Romps")
         self.assertContains(response, "1 game needs a goalie sub")
+        self.assertContains(response, f'href="#game-{self.game.id}"')
 
-    def test_unconfirmed_side_asks_whether_the_goalie_is_playing(self):
+    def test_unconfirmed_side_offers_confirm_and_need_a_sub_beside_the_goalie(self):
+        # The coordinator asked for the buttons next to the goalie's name
+        # with no "Is Sam Stopper playing?" line, so a game fits on a phone
+        # screen: the name on the row is the question.
         self.game.home_goalie_status = UNCONFIRMED
         self.game.save()
         response = self.client.get(self.board_url)
-        self.assertContains(response, "Is Sam Stopper playing?")
-        self.assertContains(response, "Yes, confirmed")
-        self.assertContains(response, "No, need a sub")
+        self.assertNotContains(response, "playing?")
+        self.assertNotContains(response, "Yes, confirmed")
+        self.assertNotContains(response, "No, need a sub")
+        self.assertContains(
+            response,
+            'aria-label="Confirm Sam Stopper is playing for Lumber Kings">Confirm</button>',
+        )
+        self.assertContains(response, "Need a sub")
         self.assertContains(
             response, reverse("confirm_goalie", args=[self.game.id, "home"])
         )
         self.assertContains(
             response, reverse("report_sub_needed", args=[self.game.id, "home"])
         )
+        self.assertContains(response, 'class="side-row side-unconfirmed"')
 
-    def test_question_falls_back_when_the_team_has_no_roster_goalie(self):
+    def test_confirm_label_falls_back_when_the_team_has_no_roster_goalie(self):
         Roster.objects.filter(team=self.home).delete()
         self.game.home_goalie_status = UNCONFIRMED
         self.game.save()
         response = self.client.get(self.board_url)
-        self.assertContains(response, "Is your goalie playing?")
+        self.assertContains(
+            response, 'aria-label="Confirm your goalie is playing for Lumber Kings"'
+        )
+        self.assertContains(response, "No goalie on roster")
         self.game.home_goalie_status = SUB_NEEDED
         self.game.save()
         response = self.client.get(self.board_url)
         self.assertContains(response, "Select a goalie")
         self.assertNotContains(response, "Sam Stopper (roster goalie)")
+
+    def test_rows_carry_their_status_for_the_colour_stripe(self):
+        response = self.client.get(self.board_url)
+        self.assertContains(response, 'class="side-row side-needs-sub"')
+        self.assertContains(response, 'class="side-row side-confirmed"')
+        # A confirmed row's only action is the quiet one.
+        self.assertContains(response, 'class="board-btn board-btn-quiet"')
+        self.assertNotContains(response, 'class="board-btn board-btn-success"')
+
+    def test_summary_links_to_every_game_needing_a_sub(self):
+        other = self._team("Night Owls", "Black")
+        self._goalie(other, "Max", "Mitts")
+        later = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(20, 0),
+            awayteam=other,
+            hometeam=self.home,
+            away_goalie_status=SUB_NEEDED,
+            home_goalie_status=SUB_NEEDED,
+        )
+        fine = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(21, 0),
+            awayteam=self.away,
+            hometeam=other,
+            away_goalie_status=CONFIRMED,
+            home_goalie_status=UNCONFIRMED,
+        )
+        response = self.client.get(self.board_url)
+        self.assertContains(response, "2 games need a goalie sub")
+        html = response.content.decode()
+        summary = html[
+            html.index('class="needs-sub-list"') : html.index("week-section")
+        ]
+        self.assertIn(f'href="#game-{self.game.id}"', summary)
+        self.assertIn(f'href="#game-{later.id}"', summary)
+        self.assertNotIn(f'href="#game-{fine.id}"', summary)
+        self.assertIn("Iced Out</span>", summary)
+        self.assertIn("Night Owls and Lumber Kings</span>", summary)
+        self.assertIn(f"{self.date:%a %b %-d} &middot; 7:00 PM", summary)
+        self.assertIn("Iced Out @ Lumber Kings", summary)
+        self.assertLess(
+            summary.index(f"#game-{self.game.id}"), summary.index(f"#game-{later.id}")
+        )
+
+    def test_summary_counts_unconfirmed_goalies(self):
+        response = self.client.get(self.board_url)
+        self.assertNotContains(response, "still unconfirmed")
+        self.game.home_goalie_status = UNCONFIRMED
+        self.game.save()
+        response = self.client.get(self.board_url)
+        self.assertContains(response, "1 goalie still unconfirmed")
+        self.game.away_goalie_status = UNCONFIRMED
+        self.game.save()
+        response = self.client.get(self.board_url)
+        self.assertContains(response, "2 goalies still unconfirmed")
+        self.assertContains(response, "Every game has a goalie")
+        self.assertNotContains(response, "need a goalie sub")
+
+    def test_cancelled_game_is_marked_and_has_no_buttons(self):
+        self.game.is_cancelled = True
+        self.game.save()
+        self.game.away_goalie_status = SUB_NEEDED
+        self.game.save()
+        response = self.client.get(self.board_url)
+        self.assertContains(response, f'id="game-{self.game.id}"')
+        self.assertContains(response, "Cancelled")
+        self.assertContains(response, "Every game has a goalie")
+        self.assertNotContains(response, "still unconfirmed")
+        self.assertNotContains(response, "Select a goalie")
+        self.assertNotContains(response, "Need a sub")
+        self.assertNotContains(
+            response, reverse("confirm_goalie", args=[self.game.id, "away"])
+        )
 
     def test_goalie_pickers_list_goalies_not_other_players(self):
         response = self.client.get(self.board_url)

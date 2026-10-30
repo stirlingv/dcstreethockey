@@ -144,6 +144,10 @@ jobs:
       # - CVE-2026-83813: twisted.names DNS client accepts a forged UDP response
       #   that matches only the transaction ID. The site never resolves names
       #   through twisted.names.
+      # - GHSA-vpp8-g58w-m8mp: HTTP/2 Rapid Reset CPU exhaustion in the
+      #   twisted.web HTTP/2 server. Twisted only speaks HTTP/2 when the `h2`
+      #   package is installed, which it isn't here, and production serves
+      #   through uvicorn anyway.
       run: |
         SITE=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
         pipx run pip-audit --path "$SITE" --desc on \
@@ -153,4 +157,5 @@ jobs:
           --ignore-vuln CVE-2026-115776 \
           --ignore-vuln CVE-2026-115778 \
           --ignore-vuln CVE-2026-115877 \
-          --ignore-vuln CVE-2026-83813
+          --ignore-vuln CVE-2026-83813 \
+          --ignore-vuln GHSA-vpp8-g58w-m8mp
