@@ -4,7 +4,7 @@
 {% block title %}Goalie Status Board - DC Street Hockey{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'assets/css/goalie.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'assets/css/goalie.css' %}?v=3">
 {% endblock %}
 
 {% block content %}
@@ -18,21 +18,32 @@
             {% include 'partials/messages.html' %}
 
             <div class="status-summary">
-                <h2>Upcoming Games Needing Goalies</h2>
-                {% if sub_needed_count > 0 %}
+                {% if sub_needed_games %}
                     <div class="sub-needed-alert">
-                        ⚠️ {{ sub_needed_count }} game{{ sub_needed_count|pluralize }} need{{ sub_needed_count|pluralize:"s," }} a goalie sub
+                        ⚠️ {{ sub_needed_games|length }} game{{ sub_needed_games|length|pluralize }} need{{ sub_needed_games|length|pluralize:"s," }} a goalie sub
                     </div>
+                    <ul class="needs-sub-list">
+                        {% for game in sub_needed_games %}
+                        <li>
+                            <a href="#game-{{ game.matchup.id }}">
+                                <span class="needs-sub-when">{{ game.matchup.week.date|date:"D M j" }} &middot; {{ game.matchup.time|time:"g:i A" }}</span>
+                                <span class="needs-sub-who">{{ game.teams|join:" and " }}</span>
+                                <span class="needs-sub-game">{{ game.matchup.awayteam.team_name }} @ {{ game.matchup.hometeam.team_name }}</span>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
                 {% else %}
                     <div class="sub-needed-alert none">
-                        ✓ All games have goalies confirmed or assigned
+                        ✓ Every game has a goalie
                     </div>
                 {% endif %}
+                {% if unconfirmed_count %}
+                <p class="unconfirmed-note">{{ unconfirmed_count }} goalie{{ unconfirmed_count|pluralize }} still unconfirmed &mdash; tap <strong>Confirm</strong> once you know they&rsquo;re playing.</p>
+                {% endif %}
                 <p class="board-intro">
-                    Anyone can update this board &mdash; no login needed.
-                    Each game asks whether the goalie is playing: answer <strong>Yes, confirmed</strong> or <strong>No, need a sub</strong>.
-                    Lined up a sub for a game that needs one? Tap <strong>Select a goalie</strong> to put them in.
-                    {{ czar_name }} watches this board and helps teams find subs.
+                    Anyone can update this board, no login needed.
+                    {{ czar_name }} watches it and helps teams find subs.
                 </p>
             </div>
 
@@ -45,14 +56,16 @@
                 {% if week_data.matchups %}
                 <div class="game-cards">
                     {% for match_data in week_data.matchups %}
-                    <article class="game-card{% if match_data.away_goalie_info.needs_sub or match_data.home_goalie_info.needs_sub %} game-card-needs-sub{% endif %}" id="game-{{ match_data.matchup.id }}">
+                    <article class="game-card{% if match_data.matchup.is_cancelled %} game-card-cancelled{% elif match_data.away_goalie_info.needs_sub or match_data.home_goalie_info.needs_sub %} game-card-needs-sub{% endif %}" id="game-{{ match_data.matchup.id }}">
                         <div class="game-card-head">
                             <span class="game-time">{{ match_data.matchup.time|time:"g:i A" }}</span>
                             <span class="game-teams">{{ match_data.matchup.awayteam.team_name }} <span class="game-at">@</span> {{ match_data.matchup.hometeam.team_name }}</span>
+                            {% if match_data.matchup.is_cancelled %}<span class="cancelled-badge">Cancelled</span>{% endif %}
                         </div>
+                        {% if not match_data.matchup.is_cancelled %}
                         {% for side in match_data.sides %}
-                        <div class="side-row{% if side.needs_sub %} side-needs-sub{% endif %}">
-                            <div class="side-main">
+                        <div class="side-row {% if side.needs_sub %}side-needs-sub{% elif side.status == 1 %}side-confirmed{% else %}side-unconfirmed{% endif %}">
+                            <div class="side-info">
                                 <div class="side-team">{{ side.team.team_name }} <span class="side-label">{% if side.side == "home" %}home{% else %}away{% endif %}</span></div>
                                 <div class="side-status">
                                     <span class="status-badge {% if side.status == 1 %}confirmed{% elif side.status == 2 %}sub-needed{% else %}unconfirmed{% endif %}">{{ side.status_display }}</span>
@@ -81,20 +94,20 @@
                                 </details>
                                 {% elif side.status == 1 %}
                                 <details class="board-action">
-                                    <summary class="board-btn board-btn-secondary">Need a sub</summary>
+                                    <summary class="board-btn board-btn-quiet" aria-label="{{ side.team.team_name }} needs a sub after all">Need a sub</summary>
                                     {% include 'partials/goalie_board_report_form.html' %}
                                 </details>
                                 {% else %}
-                                <p class="side-prompt">Is {{ side.prompt_name }} playing?</p>
                                 {% include 'partials/goalie_board_confirm_form.html' %}
                                 <details class="board-action">
-                                    <summary class="board-btn board-btn-secondary">No, need a sub</summary>
+                                    <summary class="board-btn board-btn-secondary" aria-label="{{ side.team.team_name }} needs a sub">Need a sub</summary>
                                     {% include 'partials/goalie_board_report_form.html' %}
                                 </details>
                                 {% endif %}
                             </div>
                         </div>
                         {% endfor %}
+                        {% endif %}
                     </article>
                     {% endfor %}
                 </div>
@@ -119,7 +132,7 @@
                 </div>
                 <div class="legend-item">
                     <span class="status-badge unconfirmed">Unconfirmed</span>
-                    <span>Captain hasn't confirmed availability yet</span>
+                    <span>Nobody has confirmed the goalie yet</span>
                 </div>
             </div>
         </div>

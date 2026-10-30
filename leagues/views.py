@@ -163,6 +163,11 @@ def goalie_status_board(request):
         by_week.setdefault(matchup.week_id, []).append(matchup)
 
     weeks_data = []
+    # The summary at the top names every game still needing a sub, with a
+    # link to its card, so the coordinator doesn't scroll to find them.
+    # Cancelled games are listed but can't need a goalie.
+    sub_needed_games = []
+    unconfirmed_count = 0
     for week in upcoming_weeks:
         matchups_data = []
         for matchup in by_week.get(week.id, []):
@@ -175,20 +180,25 @@ def goalie_status_board(request):
                     "sides": [info["away"], info["home"]],
                 }
             )
+            if matchup.is_cancelled:
+                continue
+            needing = [
+                side["team"].team_name
+                for side in (info["away"], info["home"])
+                if side["needs_sub"]
+            ]
+            if needing:
+                sub_needed_games.append({"matchup": matchup, "teams": needing})
+            unconfirmed_count += sum(
+                side["status"] == MatchUp.GOALIE_STATUS_UNCONFIRMED
+                for side in (info["away"], info["home"])
+            )
         weeks_data.append({"week": week, "matchups": matchups_data})
-
-    # Count games needing subs for the same date window shown on this page.
-    sub_needed_count = 0
-    if upcoming_dates:
-        sub_needed_count = (
-            MatchUp.objects.filter(week__date__in=upcoming_dates)
-            .filter(Q(away_goalie_status=2) | Q(home_goalie_status=2))
-            .count()
-        )
 
     context = {
         "weeks_data": weeks_data,
-        "sub_needed_count": sub_needed_count,
+        "sub_needed_games": sub_needed_games,
+        "unconfirmed_count": unconfirmed_count,
         "status_choices": MatchUp.GOALIE_STATUS_CHOICES,
         "goalie_choices": list(listed_goalies()),
         "czar_name": settings.GOALIE_CZAR_NAME,

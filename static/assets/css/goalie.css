@@ -408,24 +408,63 @@
 .site-message.error { background: #f8d7da; border-left-color: #dc3545; }
 .site-message.info { background: #fff3cd; border-left-color: #ffc107; }
 
-/* ── Board: game cards ────────────────────────────────────────────────── */
+/* ── Board: summary ───────────────────────────────────────────────────── */
 
 .board-intro {
-    margin: 14px auto 0;
+    margin: 12px auto 0;
     max-width: 640px;
-    color: rgba(255, 255, 255, 0.85);
-    font-size: 15px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
     line-height: 1.5;
 }
 .board-intro strong { color: #fff; }
+.unconfirmed-note {
+    margin: 12px auto 0;
+    max-width: 640px;
+    color: #ffe08a;
+    font-size: 15px;
+    line-height: 1.4;
+}
+.unconfirmed-note strong { color: #fff; }
+
+/* Every game needing a sub, as a link to its card. */
+.needs-sub-list {
+    list-style: none;
+    margin: 12px auto 0;
+    padding: 0;
+    max-width: 560px;
+    text-align: left;
+}
+.needs-sub-list li + li { margin-top: 6px; }
+.needs-sub-list a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-left: 4px solid #dc3545;
+    color: #fff;
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1.35;
+}
+.needs-sub-list a:hover, .needs-sub-list a:focus-visible { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.needs-sub-when { font-weight: 700; white-space: nowrap; }
+.needs-sub-who { font-weight: 700; color: #ffb3ba; }
+.needs-sub-game { color: rgba(255, 255, 255, 0.7); font-size: 13px; }
+
+/* ── Board: game cards ────────────────────────────────────────────────── */
 
 .game-cards {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 10px;
     background: #fff;
     border-radius: 0 0 8px 8px;
-    padding: 14px;
+    padding: 10px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 @media (min-width: 900px) {
@@ -439,32 +478,49 @@
     scroll-margin-top: 90px;
 }
 .game-card-needs-sub { border-color: #f1b0b7; }
+.game-card-cancelled { opacity: 0.6; }
 .game-card:target { box-shadow: 0 0 0 3px #ffd97a; }
 
 .game-card-head {
     display: flex;
     align-items: baseline;
     gap: 10px;
-    padding: 10px 14px;
+    padding: 8px 12px;
     background: #f8f9fa;
     border-bottom: 1px solid #eee;
 }
 .game-time { font-weight: 700; color: #333; white-space: nowrap; }
 .game-teams { color: #555; font-size: 14px; }
 .game-at { color: #d80000; font-weight: 700; margin: 0 3px; }
+.cancelled-badge {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 700;
+    color: #721c24;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
 
+/* One team's goalie: name and status on the left, its action buttons on
+   the right. A coloured stripe repeats the status so the eye can run down
+   the page for red (sub needed) and amber (unconfirmed) without reading.
+   When the buttons don't fit beside the info they wrap underneath,
+   right-aligned, so a phone row is at most three short lines. */
 .side-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 14px;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 8px 12px 8px 10px;
     border-top: 1px solid #f0f0f0;
+    border-left: 4px solid #ffc107;
 }
 .side-row:first-of-type { border-top: none; }
-.side-needs-sub { background: #fff8f8; }
-.side-main { min-width: 0; flex: 1; }
-.side-team { font-weight: 600; color: #222; margin-bottom: 4px; }
+.side-confirmed { border-left-color: #28a745; }
+.side-needs-sub { border-left-color: #dc3545; background: #fff8f8; }
+.side-info { min-width: 0; flex: 1 1 180px; }
+.side-team { font-weight: 600; color: #222; line-height: 1.3; }
 .side-label {
     font-size: 11px;
     font-weight: 600;
@@ -473,34 +529,26 @@
     letter-spacing: 0.04em;
     margin-left: 4px;
 }
-.side-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.side-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; }
 .goalie-none { color: #888; font-weight: 400; }
-.reported-by, .volunteer-when { font-size: 12px; color: #777; margin-top: 4px; }
-.volunteer-list { font-size: 14px; color: #333; margin-top: 6px; }
+.reported-by, .volunteer-when { font-size: 12px; color: #777; margin-top: 2px; }
+.volunteer-list { font-size: 14px; color: #333; margin-top: 4px; }
 .volunteer-note { color: #777; font-size: 13px; }
 
 /* Actions: a <details> whose summary is the button, with the form inside. */
 .side-actions {
     flex-shrink: 0;
-    width: 100%;
+    margin-left: auto;
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
     gap: 8px;
 }
-.side-prompt { flex-basis: 100%; margin: 0; font-size: 14px; font-weight: 600; color: #333; }
+/* An opened form takes the full card width under the game info instead
+   of squeezing into the button column. */
+.side-actions:has(.board-action[open]) { width: 100%; }
 .board-action[open] { flex-basis: 100%; }
-@media (min-width: 600px) {
-    .side-row { flex-wrap: wrap; }
-    .side-actions { width: auto; }
-    /* An opened form drops below the game info at full width instead of
-       squeezing it into a narrow column. */
-    .side-actions:has(.board-action[open]) { width: 100%; }
-    /* The "Is Pat playing?" question and its two answers sit on their own
-       line under the team, rather than squeezing the goalie's name. */
-    .side-actions:has(.side-prompt) { width: 100%; }
-    .side-actions:has(.board-action[open]) > .board-action > summary { width: auto; }
-}
 .board-action > summary { list-style: none; }
 .board-action > summary::-webkit-details-marker { display: none; }
 .board-action[open] > summary { opacity: 0.6; }
@@ -510,7 +558,7 @@
     align-items: center;
     justify-content: center;
     min-height: 44px;
-    padding: 0 18px;
+    padding: 0 14px;
     border-radius: 8px;
     border: 2px solid transparent;
     font-size: 15px;
@@ -525,6 +573,10 @@
 .board-btn-primary:hover { background: #0056b3; }
 .board-btn-secondary { background: #fff; color: #444; border-color: #cfd6dc; }
 .board-btn-secondary:hover { border-color: #888; }
+/* On a confirmed row the only action is a rare one, so it looks like a
+   link (still a 44px target) and doesn't compete with rows needing work. */
+.board-btn-quiet { background: transparent; color: #555; font-size: 14px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; padding: 0 8px; }
+.board-btn-quiet:hover { color: #222; background: #f1f3f5; }
 .board-btn-danger { background: #dc3545; color: #fff; }
 .board-btn-danger:hover { background: #b02a37; }
 .board-btn-success { background: #1e7e34; color: #fff; }
@@ -597,9 +649,7 @@
 .volunteer-empty { margin: 0; color: #555; font-size: 14px; line-height: 1.5; }
 
 @media (max-width: 599px) {
-    .side-row { flex-direction: column; }
-    .board-action { flex: 1 1 45%; }
-    .board-action > summary.board-btn { width: 100%; }
+    .board-action[open] > summary.board-btn { width: 100%; }
     .volunteer-actions { width: 100%; }
     .volunteer-actions form { flex: 1; }
     .volunteer-actions .board-btn { width: 100%; }

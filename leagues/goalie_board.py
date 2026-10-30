@@ -65,8 +65,8 @@ def goalie_sides_for_matchups(matchups):
     reported_by (name on the latest board/captain change, or ""),
     reported_at, roster (the team's players, for the "who's reporting?"
     picker), roster_goalie_name and prompt_name (the goalie the board's
-    questions are about: "Is Pat Pads playing?", or "your goalie" when the
-    team has nobody in goal on its roster).
+    Confirm button and form hints are about: "Confirm Pat Pads is playing",
+    or "your goalie" when the team has nobody in goal on its roster).
 
     A confirmed volunteer the site has no Player for is shown by the name
     they gave, as a sub, until an admin links them to a player.

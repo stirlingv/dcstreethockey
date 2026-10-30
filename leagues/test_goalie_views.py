@@ -4,7 +4,7 @@ Tests for goalie status views and helper functions in leagues/views.py.
 Covers:
   - get_roster_goalie()  — primary goalie, fallback, no goalie, position2, substitute exclusion
   - get_goalie_display_info() — sub-needed, explicit sub, no explicit goalie
-  - goalie_status_board view — HTTP 200, sub_needed_count, past games excluded
+  - goalie_status_board view — HTTP 200, sub_needed_games, past games excluded
   - captain_goalie_update view — valid/invalid access code, past matchups excluded
   - update_goalie_status endpoint — confirmed, sub-needed, unauthorized, invalid inputs
 """
@@ -211,23 +211,28 @@ class GoalieStatusBoardViewTest(TestCase):
             self.client.get(reverse("goalie_status_board")).status_code, 200
         )
 
-    def test_context_has_weeks_data_and_sub_needed_count(self):
+    def test_context_has_weeks_data_and_sub_needed_games(self):
         response = self.client.get(reverse("goalie_status_board"))
         self.assertIn("weeks_data", response.context)
-        self.assertIn("sub_needed_count", response.context)
+        self.assertIn("sub_needed_games", response.context)
+        self.assertIn("unconfirmed_count", response.context)
 
-    def test_sub_needed_count_reflects_home_sub_needed(self):
+    def test_sub_needed_games_reflects_home_sub_needed(self):
         self.matchup.home_goalie_status = 2
         self.matchup.save()
         response = self.client.get(reverse("goalie_status_board"))
-        self.assertEqual(response.context["sub_needed_count"], 1)
+        games = response.context["sub_needed_games"]
+        self.assertEqual(len(games), 1)
+        self.assertEqual(games[0]["matchup"], self.matchup)
+        self.assertEqual(games[0]["teams"], [self.home_team.team_name])
 
-    def test_sub_needed_count_zero_when_all_confirmed(self):
+    def test_sub_needed_games_empty_when_all_confirmed(self):
         self.matchup.home_goalie_status = 1
         self.matchup.away_goalie_status = 1
         self.matchup.save()
         response = self.client.get(reverse("goalie_status_board"))
-        self.assertEqual(response.context["sub_needed_count"], 0)
+        self.assertEqual(response.context["sub_needed_games"], [])
+        self.assertEqual(response.context["unconfirmed_count"], 0)
 
     def test_past_games_not_shown(self):
         past_week = Week.objects.create(
@@ -249,12 +254,17 @@ class GoalieStatusBoardViewTest(TestCase):
         response = self.client.get(reverse("goalie_status_board"))
         self.assertIn("status_choices", response.context)
 
-    def test_two_sub_needed_counted_correctly(self):
+    def test_two_sub_needed_counted_as_one_game(self):
         self.matchup.home_goalie_status = 2
         self.matchup.away_goalie_status = 2
         self.matchup.save()
         response = self.client.get(reverse("goalie_status_board"))
-        self.assertEqual(response.context["sub_needed_count"], 1)  # still 1 matchup
+        games = response.context["sub_needed_games"]
+        self.assertEqual(len(games), 1)  # still 1 matchup, both teams named
+        self.assertEqual(
+            games[0]["teams"],
+            [self.away_team.team_name, self.home_team.team_name],
+        )
 
 
 # ---------------------------------------------------------------------------
