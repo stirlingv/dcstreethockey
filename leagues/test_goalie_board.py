@@ -915,9 +915,42 @@ class ScheduleChipsTest(BoardFixture):
         self.assertContains(response, "gc-sub-needed")
         self.assertContains(response, "Sub needed")
         self.assertContains(response, "gc-confirmed")
+        self.assertContains(response, "Goalie confirmed")
         self.assertContains(response, f"{self.board_url}#game-{self.game.id}")
         self.assertContains(response, "1 upcoming game needs a goalie sub")
         self.assertContains(response, "What are the goalie chips?")
+        # The explainer names the board's buttons as they are today.
+        self.assertContains(response, "<strong>Confirm</strong>")
+        self.assertNotContains(response, "Yes, confirmed")
+
+    def test_chips_sit_under_their_team_in_the_teams_row(self):
+        # The coordinator found a game took half a phone screen: the chips
+        # were a full-width row of their own, labelled "Away goalie" / "Home
+        # goalie" so the reader had to map them back to the teams. Now each
+        # chip is in the teams grid, directly under its team, and the team
+        # itself is the label.
+        html = self.client.get(reverse("schedule")).content.decode()
+        self.assertNotIn("Away goalie", html)
+        self.assertNotIn("Home goalie", html)
+        self.assertNotIn('class="goalie-line"', html)
+        teams = html[html.index('class="game-teams"') :]
+        teams = teams[: teams.index("</div>")]
+        order = [
+            teams.index("Iced Out</span>"),
+            teams.index("Lumber Kings</span>"),
+            teams.index("gc-sub-needed"),
+            teams.index("game-at-spacer"),
+            teams.index("gc-confirmed"),
+        ]
+        self.assertEqual(order, sorted(order))
+
+    def test_record_is_its_own_span_so_it_never_wraps_mid_number(self):
+        response = self.client.get(reverse("schedule"))
+        self.assertContains(
+            response,
+            '<span class="game-team-name">Iced Out</span>\n'
+            '                            <span class="game-team-record">(0-0-0-0)</span>',
+        )
 
     def test_no_alert_when_nothing_is_needed(self):
         self.game.away_goalie_status = UNCONFIRMED
@@ -925,6 +958,15 @@ class ScheduleChipsTest(BoardFixture):
         response = self.client.get(reverse("schedule"))
         self.assertNotContains(response, "need a goalie sub")
         self.assertContains(response, "gc-unconfirmed")
+        self.assertContains(response, "Goalie unconfirmed")
+
+    def test_team_page_schedule_tab_uses_the_same_compact_row(self):
+        response = self.client.get(reverse("teams", args=[self.home.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "assets/css/schedule.css")
+        self.assertContains(response, 'class="game-teams"')
+        # Chips are a schedule-page feature; the team page has no board link.
+        self.assertNotContains(response, "goalie-chip")
 
     def test_cancelled_game_has_no_chips(self):
         self.game.is_cancelled = True

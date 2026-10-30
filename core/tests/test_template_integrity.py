@@ -446,3 +446,41 @@ class CellLinkStylingTest(TestCase):
             "@media screen and (min-width: 737px) {\n    #content a.matchup-time-link",
             css,
         )
+
+
+class ScheduleGameRowCssTest(TestCase):
+    """
+    The schedule's game row was rebuilt to fit on a phone: the record never
+    breaks mid-number, a goalie chip is a small pill whose tap target is
+    still 44px tall, and the odds toggles share the time's line.
+    """
+
+    def _schedule_css(self):
+        from django.contrib.staticfiles import finders
+
+        path = finders.find("assets/css/schedule.css")
+        self.assertIsNotNone(path, "schedule.css not found by staticfiles finder")
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_record_never_wraps_mid_number(self):
+        css = self._schedule_css()
+        self.assertRegex(
+            css, r"\.game-teams \.game-team-record \{[^}]*white-space: nowrap"
+        )
+
+    def test_chip_keeps_a_44px_tap_target_while_drawn_small(self):
+        css = self._schedule_css()
+        # 26px pill plus 9px of invisible padding above and below.
+        self.assertRegex(css, r"\.goalie-chip \{[^}]*min-height: 26px")
+        self.assertRegex(css, r"\.goalie-chip::before \{[^}]*top: -9px;\s*bottom: -9px")
+        self.assertNotRegex(css, r"\.goalie-chip \{[^}]*flex: 1 1 45%")
+
+    def test_odds_toggles_share_the_time_line(self):
+        css = self._schedule_css()
+        self.assertRegex(
+            css,
+            r"#content-wrapper\.schedule \.game \{[^}]*"
+            r'grid-template-areas: "time toggles" "teams teams"',
+        )
+        self.assertRegex(css, r"\.game \.bl-toggle-row \{[^}]*grid-area: toggles")
