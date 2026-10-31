@@ -24,39 +24,34 @@
                     {% else %}
                         <h3>{{match.time}} | {{date}}{% if match.is_cancelled %} <span class="game-cancelled-badge">Cancelled</span>{% endif %}</h3>
                     {% endif %}
-                    <table class="game-overview">
-                        <tr>
-                            <td>
-                                <a href="{% url 'teams' match.awayteam.id %}" class="cell-link">
-                                    <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png"
-                                         alt="{{ match.awayteam.team_color }} jersey"
-                                         title="{{ match.awayteam.team_color }}"
-                                         class="team-color-emoji">
-                                    {{match.awayteam.team_name}} ({% team_record match.awayteam.season.year match.away_wins match.away_losses match.away_otw match.away_otl match.away_ties %})
-                                </a>
-                            </td>
-                            <td>@</td>
-                            <td>
-                                <a href="{% url 'teams' match.hometeam.id %}" class="cell-link">
-                                    <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png"
-                                         alt="{{ match.hometeam.team_color }} jersey"
-                                         title="{{ match.hometeam.team_color }}"
-                                         class="team-color-emoji">
-                                    {{match.hometeam.team_name}} ({% team_record match.hometeam.season.year match.home_wins match.home_losses match.home_otw match.home_otl match.home_ties %})
-                                </a>
-                            </td>
-                        </tr>
-                    </table>
-                    {% if view == "schedule" %}{% with goalie_sides|get_item:match.id as gs %}{% if gs and not match.is_cancelled %}
-                    <div class="goalie-line">
+                    {# Away | @ | Home on one row; each team's goalie chip sits under its name. #}
+                    <div class="game-teams">
+                        <a href="{% url 'teams' match.awayteam.id %}" class="cell-link game-team">
+                            <img src="{% jersey_path %}{{ match.awayteam.team_color|lower }}_jersey.png"
+                                 alt="{{ match.awayteam.team_color }} jersey"
+                                 title="{{ match.awayteam.team_color }}"
+                                 class="team-color-emoji">
+                            <span class="game-team-name">{{match.awayteam.team_name}}</span>
+                            <span class="game-team-record">({% team_record match.awayteam.season.year match.away_wins match.away_losses match.away_otw match.away_otl match.away_ties %})</span>
+                        </a>
+                        <span class="game-at">@</span>
+                        <a href="{% url 'teams' match.hometeam.id %}" class="cell-link game-team">
+                            <img src="{% jersey_path %}{{ match.hometeam.team_color|lower }}_jersey.png"
+                                 alt="{{ match.hometeam.team_color }} jersey"
+                                 title="{{ match.hometeam.team_color }}"
+                                 class="team-color-emoji">
+                            <span class="game-team-name">{{match.hometeam.team_name}}</span>
+                            <span class="game-team-record">({% team_record match.hometeam.season.year match.home_wins match.home_losses match.home_otw match.home_otl match.home_ties %})</span>
+                        </a>
+                        {% if view == "schedule" %}{% with goalie_sides|get_item:match.id as gs %}{% if gs and not match.is_cancelled %}
                         {% for side in gs %}
+                        {% if not forloop.first %}<span class="game-at-spacer"></span>{% endif %}
                         <a class="goalie-chip {% if side.status == 1 %}gc-confirmed{% elif side.status == 2 %}gc-sub-needed{% else %}gc-unconfirmed{% endif %}" href="{% url 'goalie_status_board' %}#game-{{ match.id }}" title="{{ side.team.team_name }}: update on the Goalie Status Board">
-                            <span class="gc-team">{% if side.side == "home" %}Home{% else %}Away{% endif %} goalie</span>
-                            <span class="gc-status">{% if side.status == 2 %}&#9888; Sub needed{% elif side.status == 1 %}&#10003; Confirmed{% else %}Unconfirmed{% endif %}</span>
+                            <span class="gc-status">{% if side.status == 2 %}&#9888; Sub needed{% elif side.status == 1 %}&#10003; Goalie confirmed{% else %}Goalie unconfirmed{% endif %}</span>
                         </a>
                         {% endfor %}
+                        {% endif %}{% endwith %}{% endif %}
                     </div>
-                    {% endif %}{% endwith %}{% endif %}
                     {% if view == "schedule" and match.hometeam.division.division != 1 %}
                     {% with betting_lines|get_item:match.id as lines %}{% with player_props|get_item:match.id as props %}
                     {% include 'partials/odds_panels.html' %}

@@ -1,6 +1,9 @@
 {% extends 'core/base.html' %}
 {% load static %}
 {% load helpers %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'assets/css/schedule.css' %}">
+{% endblock %}
 {% block content %}
 <div id="content-wrapper" class="team">
 	<div id="content">
