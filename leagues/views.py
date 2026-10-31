@@ -26,6 +26,7 @@ from .goalie_board import (
     client_ip,
     confirm_offer,
     confirm_side,
+    games_needing_subs,
     goalie_sides_for_matchups,
     listed_goalies,
     notify_goalie_czar,
@@ -163,10 +164,8 @@ def goalie_status_board(request):
         by_week.setdefault(matchup.week_id, []).append(matchup)
 
     weeks_data = []
-    # The summary at the top names every game still needing a sub, with a
-    # link to its card, so the coordinator doesn't scroll to find them.
+    # Goalies nobody has confirmed yet, for the nudge in the summary.
     # Cancelled games are listed but can't need a goalie.
-    sub_needed_games = []
     unconfirmed_count = 0
     for week in upcoming_weeks:
         matchups_data = []
@@ -182,13 +181,6 @@ def goalie_status_board(request):
             )
             if matchup.is_cancelled:
                 continue
-            needing = [
-                side["team"].team_name
-                for side in (info["away"], info["home"])
-                if side["needs_sub"]
-            ]
-            if needing:
-                sub_needed_games.append({"matchup": matchup, "teams": needing})
             unconfirmed_count += sum(
                 side["status"] == MatchUp.GOALIE_STATUS_UNCONFIRMED
                 for side in (info["away"], info["home"])
@@ -197,7 +189,9 @@ def goalie_status_board(request):
 
     context = {
         "weeks_data": weeks_data,
-        "sub_needed_games": sub_needed_games,
+        # Named at the top with a link to each card, so the coordinator
+        # doesn't scroll to find them.
+        "sub_needed_games": games_needing_subs(all_matchups, sides),
         "unconfirmed_count": unconfirmed_count,
         "status_choices": MatchUp.GOALIE_STATUS_CHOICES,
         "goalie_choices": list(listed_goalies()),

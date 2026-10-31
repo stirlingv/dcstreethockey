@@ -9,7 +9,11 @@ from django.views.generic.list import ListView
 
 from django.conf import settings
 
-from leagues.goalie_board import goalie_sides_for_matchup, goalie_sides_for_matchups
+from leagues.goalie_board import (
+    games_needing_subs,
+    goalie_sides_for_matchup,
+    goalie_sides_for_matchups,
+)
 from leagues.goalie_of_record import goalies_of_record, is_goalie_appearance
 from leagues.models import Division, MatchUp, Player, Roster, Stat, Team, Week
 
@@ -394,11 +398,9 @@ def schedule(request):
     context["goalie_sides"] = {
         mid: [info["away"], info["home"]] for mid, info in sides.items()
     }
-    context["sub_needed_games"] = sum(
-        1
-        for info in sides.values()
-        if info["away"]["needs_sub"] or info["home"]["needs_sub"]
-    )
+    # Named at the top of the page, each linking to its card on the board,
+    # so anyone who could sub sees which games need one without scrolling.
+    context["sub_needed_games"] = games_needing_subs(all_matchups, sides)
     context["czar_name"] = settings.GOALIE_CZAR_NAME
 
     return render(request, "leagues/schedule.html", context=context)

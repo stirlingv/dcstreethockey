@@ -16,6 +16,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from leagues.goalie_board import (
+    games_needing_subs,
     goalie_sides_for_matchups,
     over_rate_limit,
     RATE_LIMIT_POSTS,
@@ -167,6 +168,44 @@ class GoalieSidesForMatchupsTest(BoardFixture):
         info = goalie_sides_for_matchups([self.game])[self.game.id]["home"]
         self.assertEqual(info["reported_by"], "")
 
+    def test_games_needing_subs_names_each_side_in_matchup_order(self):
+        other = self._team("Night Owls", "Black")
+        later = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(20, 0),
+            awayteam=other,
+            hometeam=self.home,
+            away_goalie_status=SUB_NEEDED,
+            home_goalie_status=SUB_NEEDED,
+        )
+        fine = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(21, 0),
+            awayteam=self.away,
+            hometeam=other,
+            away_goalie_status=CONFIRMED,
+            home_goalie_status=UNCONFIRMED,
+        )
+        games = [later, self.game, fine]
+        result = games_needing_subs(games, goalie_sides_for_matchups(games))
+        self.assertEqual(
+            result,
+            [
+                {"matchup": later, "teams": ["Night Owls", "Lumber Kings"]},
+                {"matchup": self.game, "teams": ["Iced Out"]},
+            ],
+        )
+
+    def test_games_needing_subs_skips_cancelled_and_unknown_games(self):
+        self.game.is_cancelled = True
+        self.game.save()
+        sides = goalie_sides_for_matchups([self.game])
+        self.assertEqual(games_needing_subs([self.game], sides), [])
+        self.game.is_cancelled = False
+        self.game.save()
+        self.assertEqual(games_needing_subs([self.game], {}), [])
+        self.assertEqual(games_needing_subs([], {}), [])
+
     def test_query_count_does_not_grow_with_games(self):
         for i in range(5):
             MatchUp.objects.create(
@@ -224,7 +263,7 @@ class BoardPageTest(BoardFixture):
         self.assertContains(response, "Sam Stopper")
         self.assertContains(response, "John Romps")
         self.assertContains(response, "1 game needs a goalie sub")
-        self.assertContains(response, f'href="#game-{self.game.id}"')
+        self.assertContains(response, f'href="{self.board_url}#game-{self.game.id}"')
 
     def test_unconfirmed_side_offers_confirm_and_need_a_sub_beside_the_goalie(self):
         # The coordinator asked for the buttons next to the goalie's name
@@ -297,9 +336,11 @@ class BoardPageTest(BoardFixture):
         summary = html[
             html.index('class="needs-sub-list"') : html.index("week-section")
         ]
-        self.assertIn(f'href="#game-{self.game.id}"', summary)
-        self.assertIn(f'href="#game-{later.id}"', summary)
-        self.assertNotIn(f'href="#game-{fine.id}"', summary)
+        # The list is the partial shared with the Schedule page, so its
+        # links carry the board's path rather than a bare fragment.
+        self.assertIn(f'href="{self.board_url}#game-{self.game.id}"', summary)
+        self.assertIn(f'href="{self.board_url}#game-{later.id}"', summary)
+        self.assertNotIn(f"#game-{fine.id}", summary)
         self.assertIn("Iced Out</span>", summary)
         self.assertIn("Night Owls and Lumber Kings</span>", summary)
         self.assertIn(f"{self.date:%a %b %-d} &middot; 7:00 PM", summary)
@@ -919,6 +960,36 @@ class ScheduleChipsTest(BoardFixture):
         self.assertContains(response, f"{self.board_url}#game-{self.game.id}")
         self.assertContains(response, "1 upcoming game needs a goalie sub")
         self.assertContains(response, "What are the goalie chips?")
+
+    def test_schedule_names_each_game_needing_a_sub_with_a_link_to_the_board(self):
+        # The old banner only said how many games needed a sub and asked
+        # "can you help?"; now it names them, the same way the board does,
+        # so a potential sub sees which game before deciding.
+        other = self._team("Night Owls", "Black")
+        later = MatchUp.objects.create(
+            week=self.week,
+            time=datetime.time(20, 0),
+            awayteam=other,
+            hometeam=self.home,
+            home_goalie_status=SUB_NEEDED,
+        )
+        response = self.client.get(reverse("schedule"))
+        self.assertTemplateUsed(response, "partials/goalie_needs_sub_list.html")
+        self.assertContains(response, "2 upcoming games need a goalie sub")
+        self.assertNotContains(response, "can you help")
+        html = response.content.decode()
+        strip = html[html.index('class="goalie-strip-alert"') :]
+        strip = strip[: strip.index("goalie-strip-info")]
+        self.assertIn(f'href="{self.board_url}#game-{self.game.id}"', strip)
+        self.assertIn(f'href="{self.board_url}#game-{later.id}"', strip)
+        self.assertIn("Iced Out</span>", strip)
+        self.assertIn("Lumber Kings</span>", strip)
+        self.assertIn(f"{self.date:%a %b %-d} &middot; 7:00 PM", strip)
+        self.assertLess(
+            strip.index(f"#game-{self.game.id}"), strip.index(f"#game-{later.id}")
+        )
+        # The schedule page loads the stylesheet that draws the list.
+        self.assertContains(response, "assets/css/schedule.css")
         # The explainer names the board's buttons as they are today.
         self.assertContains(response, "<strong>Confirm</strong>")
         self.assertNotContains(response, "Yes, confirmed")

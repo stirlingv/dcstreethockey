@@ -1,0 +1,17 @@
+{% comment %}
+Every upcoming game still needing a goalie sub, each a link to its card on
+the Goalie Status Board (where "Select a goalie" lives). Shared by the
+board's summary and the Schedule page header, so both name the same games
+the same way. Expects: sub_needed_games (from games_needing_subs()).
+{% endcomment %}
+<ul class="needs-sub-list">
+    {% for game in sub_needed_games %}
+    <li>
+        <a href="{% url 'goalie_status_board' %}#game-{{ game.matchup.id }}">
+            <span class="needs-sub-when">{{ game.matchup.week.date|date:"D M j" }} &middot; {{ game.matchup.time|time:"g:i A" }}</span>
+            <span class="needs-sub-who">{{ game.teams|join:" and " }}</span>
+            <span class="needs-sub-game">{{ game.matchup.awayteam.team_name }} @ {{ game.matchup.hometeam.team_name }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>

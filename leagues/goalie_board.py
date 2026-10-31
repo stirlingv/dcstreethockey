@@ -151,6 +151,30 @@ def goalie_sides_for_matchup(matchup):
     return goalie_sides_for_matchups([matchup]).get(matchup.id, {})
 
 
+def games_needing_subs(matchups, sides):
+    """
+    The games in `matchups` (in that order) that still need a goalie sub, as
+    {"matchup", "teams"} dicts where teams names each side needing one.
+    Shown at the top of the Goalie Status Board and the Schedule page so a
+    reader sees which games need help without scrolling. `sides` is the
+    goalie_sides_for_matchups() result for these games. A cancelled game
+    can't need a goalie, so it is left out.
+    """
+    needing = []
+    for matchup in matchups:
+        if matchup.is_cancelled:
+            continue
+        info = sides.get(matchup.id)
+        if not info:
+            continue
+        teams = [
+            info[side]["team"].team_name for side in SIDES if info[side]["needs_sub"]
+        ]
+        if teams:
+            needing.append({"matchup": matchup, "teams": teams})
+    return needing
+
+
 def client_ip(request):
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
     if forwarded:
