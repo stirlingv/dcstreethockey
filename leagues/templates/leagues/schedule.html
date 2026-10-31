@@ -17,7 +17,10 @@
 
             <div class="goalie-strip">
                 {% if sub_needed_games %}
-                <a class="goalie-strip-alert" href="{% url 'goalie_status_board' %}">&#9888; {{ sub_needed_games }} upcoming game{{ sub_needed_games|pluralize }} need{{ sub_needed_games|pluralize:"s," }} a goalie sub &mdash; can you help?</a>
+                <div class="goalie-strip-alert">
+                    <p class="goalie-strip-heading">&#9888; {{ sub_needed_games|length }} upcoming game{{ sub_needed_games|length|pluralize }} need{{ sub_needed_games|length|pluralize:"s," }} a goalie sub</p>
+                    {% include 'partials/goalie_needs_sub_list.html' %}
+                </div>
                 {% endif %}
                 <details class="goalie-strip-info">
                     <summary>What are the goalie chips?</summary>

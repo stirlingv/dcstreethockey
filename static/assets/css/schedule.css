@@ -808,24 +808,50 @@ a.props-name:hover,
 #content a.gc-sub-needed, .gc-sub-needed { background: #f8d7da; border-color: #f1b0b7; color: #721c24; }
 #content a.gc-unconfirmed, .gc-unconfirmed { background: #fff3cd; border-color: #f5e1a4; color: #856404; }
 
-/* Schedule page header strip */
-.goalie-strip { margin: -4px 0 16px; display: flex; flex-direction: column; gap: 8px; }
-#content a.goalie-strip-alert,
-.goalie-strip-alert {
-    display: inline-flex;
-    align-items: center;
-    align-self: flex-start;
+/* ── Games needing a sub (partials/goalie_needs_sub_list.html) ─────────── */
+/* One row per game, each a link to its card on the Goalie Status Board.
+   These are the light-background styles the Schedule page uses; goalie.css
+   recolours them for the board's dark summary panel. */
+
+.needs-sub-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+}
+.needs-sub-list li + li { margin-top: 6px; }
+#content .needs-sub-list a,
+.needs-sub-list a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
     min-height: 44px;
-    padding: 8px 16px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.6);
+    border-left: 4px solid #dc3545;
+    color: #721c24;
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1.35;
+}
+#content .needs-sub-list a:hover,
+#content .needs-sub-list a:focus-visible { background: #fff; color: #721c24; text-decoration: underline; }
+.needs-sub-when { font-weight: 700; white-space: nowrap; }
+.needs-sub-who { font-weight: 700; }
+.needs-sub-game { opacity: 0.75; font-size: 13px; }
+
+/* Schedule page header strip */
+.goalie-strip { margin: -4px 0 16px; display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
+.goalie-strip-alert {
+    padding: 10px 12px 12px;
     border-radius: 8px;
     background: #f8d7da;
     border: 1px solid #f1b0b7;
     color: #721c24;
-    font-weight: 700;
-    font-size: 14px;
-    text-decoration: none;
 }
-#content a.goalie-strip-alert:hover { background: #f1b0b7; }
+.goalie-strip-heading { margin: 0 0 8px; font-weight: 700; font-size: 14px; }
 .goalie-strip-info { font-size: 13px; color: #666; }
 .goalie-strip-info summary {
     cursor: pointer;
@@ -838,5 +864,5 @@ a.props-name:hover,
 .goalie-strip-info p { margin: 4px 0 0; line-height: 1.5; max-width: 720px; }
 
 @media (max-width: 767px) {
-    .goalie-strip-alert, #content a.goalie-strip-alert { align-self: stretch; justify-content: center; text-align: center; }
+    .goalie-strip { max-width: none; }
 }

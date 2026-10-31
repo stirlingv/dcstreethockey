@@ -4,7 +4,8 @@
 {% block title %}Goalie Status Board - DC Street Hockey{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'assets/css/goalie.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'assets/css/schedule.css' %}">
+<link rel="stylesheet" href="{% static 'assets/css/goalie.css' %}?v=4">
 {% endblock %}
 
 {% block content %}
@@ -22,17 +23,7 @@
                     <div class="sub-needed-alert">
                         ⚠️ {{ sub_needed_games|length }} game{{ sub_needed_games|length|pluralize }} need{{ sub_needed_games|length|pluralize:"s," }} a goalie sub
                     </div>
-                    <ul class="needs-sub-list">
-                        {% for game in sub_needed_games %}
-                        <li>
-                            <a href="#game-{{ game.matchup.id }}">
-                                <span class="needs-sub-when">{{ game.matchup.week.date|date:"D M j" }} &middot; {{ game.matchup.time|time:"g:i A" }}</span>
-                                <span class="needs-sub-who">{{ game.teams|join:" and " }}</span>
-                                <span class="needs-sub-game">{{ game.matchup.awayteam.team_name }} @ {{ game.matchup.hometeam.team_name }}</span>
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
+                    {% include 'partials/goalie_needs_sub_list.html' %}
                 {% else %}
                     <div class="sub-needed-alert none">
                         ✓ Every game has a goalie

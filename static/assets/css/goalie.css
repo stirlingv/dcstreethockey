@@ -427,34 +427,15 @@
 }
 .unconfirmed-note strong { color: #fff; }
 
-/* Every game needing a sub, as a link to its card. */
-.needs-sub-list {
-    list-style: none;
-    margin: 12px auto 0;
-    padding: 0;
-    max-width: 560px;
-    text-align: left;
-}
-.needs-sub-list li + li { margin-top: 6px; }
-.needs-sub-list a {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 10px;
-    min-height: 44px;
-    padding: 8px 14px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border-left: 4px solid #dc3545;
-    color: #fff;
-    text-decoration: none;
-    font-size: 15px;
-    line-height: 1.35;
-}
-.needs-sub-list a:hover, .needs-sub-list a:focus-visible { background: rgba(255, 255, 255, 0.18); color: #fff; }
-.needs-sub-when { font-weight: 700; white-space: nowrap; }
-.needs-sub-who { font-weight: 700; color: #ffb3ba; }
-.needs-sub-game { color: rgba(255, 255, 255, 0.7); font-size: 13px; }
+/* The games-needing-a-sub list (base styles in schedule.css, shared with
+   the Schedule page) on the board's dark summary panel. */
+/* `#content` keeps these ahead of schedule.css's light `#content` rules. */
+.status-summary .needs-sub-list { margin: 12px auto 0; max-width: 560px; }
+#content .status-summary .needs-sub-list a { background: rgba(255, 255, 255, 0.1); color: #fff; }
+#content .status-summary .needs-sub-list a:hover,
+#content .status-summary .needs-sub-list a:focus-visible { background: rgba(255, 255, 255, 0.18); color: #fff; text-decoration: none; }
+#content .status-summary .needs-sub-who { color: #ffb3ba; }
+#content .status-summary .needs-sub-game { color: rgba(255, 255, 255, 0.7); opacity: 1; }
 
 /* ── Board: game cards ────────────────────────────────────────────────── */
 
