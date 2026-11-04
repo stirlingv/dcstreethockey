@@ -34,7 +34,7 @@
                              alt="{{ matchup.awayteam.team_color }} jersey"
                              class="matchup-detail-jersey">
                         <a href="{% url 'teams' matchup.awayteam.id %}" class="matchup-team-link">{{ matchup.awayteam.team_name }}</a>
-                        <div class="matchup-team-record" title="{% if matchup.awayteam.season.year >= 2022 %}Wins - OT Wins - OT Losses - Losses{% else %}Wins - Losses - Ties{% endif %}">
+                        <div class="matchup-team-record" title="{% if matchup.awayteam.season.year >= 2022 %}Wins - OT Wins - Losses - OT Losses{% else %}Wins - Losses - Ties{% endif %}">
                             {% team_record matchup.awayteam.season.year matchup.away_wins matchup.away_losses matchup.away_otw matchup.away_otl matchup.away_ties %}
                         </div>
                     </div>
@@ -54,7 +54,7 @@
                              alt="{{ matchup.hometeam.team_color }} jersey"
                              class="matchup-detail-jersey">
                         <a href="{% url 'teams' matchup.hometeam.id %}" class="matchup-team-link">{{ matchup.hometeam.team_name }}</a>
-                        <div class="matchup-team-record" title="{% if matchup.hometeam.season.year >= 2022 %}Wins - OT Wins - OT Losses - Losses{% else %}Wins - Losses - Ties{% endif %}">
+                        <div class="matchup-team-record" title="{% if matchup.hometeam.season.year >= 2022 %}Wins - OT Wins - Losses - OT Losses{% else %}Wins - Losses - Ties{% endif %}">
                             {% team_record matchup.hometeam.season.year matchup.home_wins matchup.home_losses matchup.home_otw matchup.home_otl matchup.home_ties %}
                         </div>
                     </div>

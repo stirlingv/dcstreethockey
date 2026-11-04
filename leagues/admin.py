@@ -29,6 +29,7 @@ from leagues.results import (
     standings_recompute_deferred,
     tied_without_shootout_message,
 )
+from leagues.templatetags.helpers import team_record
 from leagues.seasons import (
     active_season_ids,
     current_season,
@@ -367,15 +368,20 @@ def _stat_record_goals(obj):
 
 
 def _record_summary(season, team_stat):
-    """What the game page shows as a team's season record."""
+    """What the game page shows as a team's season record, written the same
+    way as everywhere else on the site (see ``team_record``)."""
+    year = season.year if season else None
     if team_stat is None:
-        return {"text": "0-0-0-0", "gf": 0, "ga": 0, "gp": 0}
-    if season and season.year and season.year < 2022:
-        text = f"{team_stat.win}-{team_stat.loss}-{team_stat.tie}"
-    else:
-        text = f"{team_stat.win}-{team_stat.otw}-{team_stat.otl}-{team_stat.loss}"
+        return {"text": team_record(year, 0, 0), "gf": 0, "ga": 0, "gp": 0}
     return {
-        "text": text,
+        "text": team_record(
+            year,
+            team_stat.win,
+            team_stat.loss,
+            otw=team_stat.otw,
+            otl=team_stat.otl,
+            ties=team_stat.tie,
+        ),
         "gf": team_stat.goals_for,
         "ga": team_stat.goals_against,
         "gp": team_stat.win

@@ -15,6 +15,7 @@ Covered bugs (each test names the template it protects):
 """
 
 import datetime
+import re
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -319,12 +320,37 @@ class RealLinksTest(TemplateFixtureBase):
         self.assertIn(f'href="/teams/{self.home_team.id}/" class="cell-link"', content)
 
     def test_scores_page_record_uses_current_format(self):
-        # Post-2022 season: four-number W-OTW-OTL-L record (was W-L-T). The
+        # Post-2022 season: four-number W-OTW-L-OTL record (was W-L-T). The
         # records come from the game itself (home won 2-0), not a typed row.
         content = self._get(reverse("scores"))
         self.assertIn("(1-0-0-0)", content)
-        self.assertIn("(0-0-0-1)", content)
-        self.assertIn("Team records: W-OTW-OTL-L", content)
+        self.assertIn("(0-0-1-0)", content)
+        self.assertIn("Team records: W-OTW-L-OTL", content)
+
+    def test_compact_record_reads_in_standings_table_order(self):
+        # A captain compared "(0-1-0-3)" on the schedule with "0 1 3 0" in the
+        # standings and reported the record as wrong. Every compact record
+        # must list W, OTW, L, OTL in the standings table's column order.
+        self.season.standings_from_games = False
+        self.season.save()
+        Team_Stat.objects.filter(team=self.home_team).delete()
+        Team_Stat.objects.create(
+            team=self.home_team,
+            division=self.division,
+            season=self.season,
+            win=1,
+            otw=2,
+            loss=3,
+            otl=4,
+        )
+        standings = self._get(reverse("team_standings"))
+        row = standings[standings.index(self.home_team.team_name) :]
+        cells = re.findall(r'<td class="col-stat">(\d+)</td>', row)[:4]
+        self.assertEqual(cells, ["1", "2", "3", "4"])
+        self.assertIn("(1-2-3-4)", self._get(reverse("scores")))
+        self.assertIn(
+            "(1-2-3-4)", self._get(reverse("teams", args=[self.home_team.id]))
+        )
 
 
 class HomeDivisionGroupingTest(TestCase):
