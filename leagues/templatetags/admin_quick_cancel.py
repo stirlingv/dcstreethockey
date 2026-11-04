@@ -223,6 +223,9 @@ def _records_behind_scores(today):
                 "fix_url": reverse(
                     "admin:leagues_matchup_change", args=[latest_game_id]
                 ),
+                "switch_url": reverse(
+                    "admin:leagues_season_switch_to_computed", args=[season.pk]
+                ),
             }
         )
     behind.sort(
@@ -383,10 +386,20 @@ def stats_entry_widget(context=None):
             "all_entered": all(d["all_entered"] for d in divisions),
         }
 
+    records_behind = _records_behind_scores(today)
+    # Each hand-kept season with a record behind, once, so the hint can
+    # offer the lasting fix: records that come from the games.
+    switchable = {}
+    for row in records_behind:
+        switchable.setdefault(row["season"].pk, row)
     return {
         "grouped_games": grouped,
         "older_games": _older_games_needing_attention(today, since),
-        "records_behind": _records_behind_scores(today),
+        "records_behind": records_behind,
+        "records_behind_seasons": [
+            {"season": row["season"], "switch_url": row["switch_url"]}
+            for row in switchable.values()
+        ],
         "today": today,
         "csrf_token": (context or {}).get("csrf_token"),
     }

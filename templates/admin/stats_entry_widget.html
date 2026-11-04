@@ -366,7 +366,8 @@
   {% if records_behind %}
   <p class="se-older-heading">&#9888; Records behind the scores</p>
   <p class="se-older-hint">These teams have more games with scores than their record counts, so the standings are missing a result.
-    Open the team's latest game and set its season totals (W, OTW, L, OTL) in the Game Outcome section.</p>
+    Open the team's latest game and set its season totals (W, OTW, L, OTL) in the Game Outcome section.
+    To stop this happening again, {% for s in records_behind_seasons %}{% if not forloop.first %} or {% endif %}<a href="{{ s.switch_url }}">switch {{ s.season.get_season_type_display }} {{ s.season.year }} to standings from game results</a>{% endfor %}: the record then comes from the scores and is never typed in.</p>
   {% for row in records_behind %}
   <div class="se-older-row">
     <span class="se-older-when">{{ row.division }}</span>

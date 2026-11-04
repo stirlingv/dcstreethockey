@@ -123,27 +123,28 @@ def recompute_for_week_id(week_id):
         recompute_team_stats(*pair)
 
 
-def recompute_team_stats(season_id, division_id):
-    """Rebuild every team's record for one season and division from its
-    games. Does nothing for seasons whose records are kept by hand."""
-    if season_id is None or division_id is None:
-        return
-    pending = getattr(_state, "pending", None)
-    if pending is not None:
-        pending.add((season_id, division_id))
-        return
-    season = Season.objects.filter(pk=season_id).first()
-    if not standings_from_games(season):
-        return
+def standings_games(season_id, division_id):
+    """The games that count toward one division's standings: regular-season
+    games on this season's weeks that haven't been cancelled."""
+    return MatchUp.objects.filter(
+        week__season_id=season_id,
+        week__division_id=division_id,
+        is_cancelled=False,
+        is_postseason=False,
+    ).exclude(week__is_cancelled=True)
 
-    matchups = list(
-        MatchUp.objects.filter(
-            week__season_id=season_id,
-            week__division_id=division_id,
-            is_cancelled=False,
-            is_postseason=False,
-        ).exclude(week__is_cancelled=True)
-    )
+
+def tally_records(season_id, division_id):
+    """Every team's record for one season and division, worked out from the
+    games without writing anything.
+
+    Returns ``(records, undecided)``: ``records`` maps each team id to a
+    dict of win / otw / loss / otl / goals_for / goals_against, and
+    ``undecided`` lists the games whose score is tied with no shootout
+    winner picked. Those games' goals are counted but they give neither
+    team a result until the shootout winner is recorded.
+    """
+    matchups = list(standings_games(season_id, division_id))
     goals = {
         (row["matchup_id"], row["team_id"]): row["total"] or 0
         for row in Stat.objects.filter(matchup__in=matchups)
@@ -170,6 +171,7 @@ def recompute_team_stats(season_id, division_id):
         }
         for tid in team_ids
     }
+    undecided = []
     for m in matchups:
         home_goals = goals.get((m.pk, m.hometeam_id), 0)
         away_goals = goals.get((m.pk, m.awayteam_id), 0)
@@ -179,6 +181,11 @@ def recompute_team_stats(season_id, division_id):
         tally[m.awayteam_id]["goals_against"] += home_goals
         result = game_result(m, home_goals, away_goals)
         if result is None:
+            # A game nobody has scored in yet is simply unplayed; a scored
+            # game that is tied needs its shootout winner.
+            if (m.pk, m.hometeam_id) in goals or (m.pk, m.awayteam_id) in goals:
+                m.home_goals, m.away_goals = home_goals, away_goals
+                undecided.append(m)
             continue
         if result.overtime:
             tally[result.winner_id]["otw"] += 1
@@ -186,7 +193,23 @@ def recompute_team_stats(season_id, division_id):
         else:
             tally[result.winner_id]["win"] += 1
             tally[result.loser_id]["loss"] += 1
+    return tally, undecided
 
+
+def recompute_team_stats(season_id, division_id):
+    """Rebuild every team's record for one season and division from its
+    games. Does nothing for seasons whose records are kept by hand."""
+    if season_id is None or division_id is None:
+        return
+    pending = getattr(_state, "pending", None)
+    if pending is not None:
+        pending.add((season_id, division_id))
+        return
+    season = Season.objects.filter(pk=season_id).first()
+    if not standings_from_games(season):
+        return
+
+    tally, _undecided = tally_records(season_id, division_id)
     for team_id, record in tally.items():
         rows = list(
             Team_Stat.objects.filter(
