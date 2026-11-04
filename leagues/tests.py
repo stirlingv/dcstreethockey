@@ -3013,6 +3013,162 @@ class MatchUpTeamsMatchWeekValidationTest(TestCase):
         self.assertIsNotNone(game._teams_vs_week_problem(force=True))
 
 
+class RecordsBehindScoresTest(StatsEntryWidgetTest):
+    """The dashboard names every team in a hand-kept season whose typed-in
+    record counts fewer games than have scores, however old the games are.
+
+    Regression for the Gold Rush report of Nov 2026: two of the team's
+    results were never typed into the Game Outcome section, so goals for and
+    against (summed from the player stats) covered six games while the
+    record covered four. Nothing flagged it once the games were more than a
+    week old.
+    """
+
+    def _scored_game(self, days_ago, away_goals=1, home_goals=2, **kwargs):
+        game = self._matchup(self._week(delta=days_ago), **kwargs)
+        self._add_stat(game, self.team1, goals=away_goals)
+        self._add_stat(game, self.team2, goals=home_goals)
+        return game
+
+    def _behind(self):
+        return self._call_widget()["records_behind"]
+
+    def test_record_short_of_the_scores_is_listed_with_a_fix_link(self):
+        self._scored_game(30)
+        latest = self._scored_game(20)
+        # Only one of the two games was typed into the record.
+        self._add_team_stat(self.team1, loss=1)
+        self._add_team_stat(self.team2, win=1)
+
+        rows = {row["team"].pk: row for row in self._behind()}
+        self.assertEqual(set(rows), {self.team1.pk, self.team2.pk})
+        away = rows[self.team1.pk]
+        self.assertEqual(away["record"], "0-0-1-0")
+        self.assertEqual(away["games_played"], 1)
+        self.assertEqual(away["games_with_scores"], 2)
+        self.assertEqual(away["missing"], 1)
+        self.assertEqual(away["division"], self.division)
+        self.assertEqual(away["season"], self.season)
+        self.assertEqual(away["fix_url"], f"/admin/leagues/matchup/{latest.pk}/change/")
+        self.assertEqual(rows[self.team2.pk]["record"], "1-0-0-0")
+
+    def test_team_with_no_record_row_at_all_is_listed(self):
+        self._scored_game(20)
+        rows = self._behind()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["record"], "0-0-0-0")
+        self.assertEqual(rows[0]["games_played"], 0)
+        self.assertEqual(rows[0]["games_with_scores"], 1)
+
+    def test_record_that_matches_the_scores_is_not_listed(self):
+        self._scored_game(30)
+        self._scored_game(20)
+        self._add_team_stat(self.team1, loss=1, otl=1)
+        self._add_team_stat(self.team2, win=1, otw=1)
+        self.assertEqual(self._behind(), [])
+
+    def test_cancelled_playoff_and_future_games_do_not_count_as_scores(self):
+        self._scored_game(30)
+        self._scored_game(25, cancelled=True)
+        playoff = self._matchup(self._week(delta=15))
+        playoff.is_postseason = True
+        playoff.save()
+        self._add_stat(playoff, self.team1)
+        self._add_stat(playoff, self.team2)
+        tomorrow = self._matchup(self._week(delta=-1))
+        self._add_stat(tomorrow, self.team1)
+        self._add_stat(tomorrow, self.team2)
+        self._add_team_stat(self.team1, loss=1)
+        self._add_team_stat(self.team2, win=1)
+        self.assertEqual(self._behind(), [])
+
+    def test_game_on_a_cancelled_week_does_not_count(self):
+        game = self._matchup(self._week(delta=20, cancelled=True))
+        self._add_stat(game, self.team1)
+        self._add_stat(game, self.team2)
+        self.assertEqual(self._behind(), [])
+
+    def test_season_no_longer_being_played_is_left_alone(self):
+        old_season = Season.objects.create(
+            standings_from_games=False, year=self.today.year - 2, season_type=3
+        )
+        old_week = Week.objects.create(
+            division=self.division,
+            season=old_season,
+            date=self.today - datetime.timedelta(days=700),
+        )
+        game = MatchUp.objects.create(
+            week=old_week,
+            time=datetime.time(19, 0),
+            awayteam=self.team1,
+            hometeam=self.team2,
+        )
+        self._add_stat(game, self.team1)
+        self._add_stat(game, self.team2)
+        # This season is the one being played; the old one is history.
+        self._matchup(self._week(delta=-7))
+        self.assertEqual(self._behind(), [])
+
+    def test_rows_are_sorted_by_division_then_team_name(self):
+        other_division = Division.objects.create(division=2)
+        zebra = Team.objects.create(
+            team_name="Zebras",
+            team_color="black",
+            season=self.season,
+            division=other_division,
+            is_active=True,
+        )
+        ants = Team.objects.create(
+            team_name="Ants",
+            team_color="red",
+            season=self.season,
+            division=other_division,
+            is_active=True,
+        )
+        week = Week.objects.create(
+            division=other_division,
+            season=self.season,
+            date=self.today - datetime.timedelta(days=20),
+        )
+        game = MatchUp.objects.create(
+            week=week, time=datetime.time(19, 0), awayteam=zebra, hometeam=ants
+        )
+        self._add_stat(game, zebra)
+        self._add_stat(game, ants)
+        self._scored_game(20)
+        names = [
+            (row["division"].division, row["team"].team_name) for row in self._behind()
+        ]
+        self.assertEqual(
+            names,
+            [(1, "Blue Team"), (1, "Red Team"), (2, "Ants"), (2, "Zebras")],
+        )
+
+    def test_widget_renders_the_list_with_a_fix_button(self):
+        from django.template import Context, Template
+
+        latest = self._scored_game(20)
+        self._add_team_stat(self.team1, loss=1, otl=1)  # 2 games typed in
+        self._add_team_stat(self.team2)  # none typed in
+        html = Template("{% load admin_quick_cancel %}{% stats_entry_widget %}").render(
+            Context({"csrf_token": "token"})
+        )
+        self.assertIn("Records behind the scores", html)
+        self.assertIn("Blue Team", html)
+        self.assertNotIn("Red Team", html)
+        self.assertIn("Record 0-0-0-0 counts 0 games, 1 have scores", html)
+        self.assertIn(f'href="/admin/leagues/matchup/{latest.pk}/change/"', html)
+        self.assertIn(">Fix record<", html)
+
+    def test_widget_without_drift_shows_no_section(self):
+        from django.template import Context, Template
+
+        html = Template("{% load admin_quick_cancel %}{% stats_entry_widget %}").render(
+            Context({"csrf_token": "token"})
+        )
+        self.assertNotIn("Records behind the scores", html)
+
+
 class StatsEntryWidgetComputedSeasonTest(TestCase):
     """Dashboard flags for a season whose standings come from game results,
     and the list of older games that still don't count."""
@@ -3112,6 +3268,13 @@ class StatsEntryWidgetComputedSeasonTest(TestCase):
         self.assertEqual(
             ctx["older_games"][0].reason, "Tied score, no shootout winner picked"
         )
+
+    def test_computed_season_records_are_never_behind_the_scores(self):
+        # The record is rebuilt from the games, so there is nothing to type
+        # in and nothing to forget.
+        self._score(self._game(20), 3, 1)
+        self._score(self._game(10), 2, 4)
+        self.assertEqual(self._widget()["records_behind"], [])
 
     def test_older_decided_cancelled_and_playoff_games_are_not_listed(self):
         decided = self._game(20)

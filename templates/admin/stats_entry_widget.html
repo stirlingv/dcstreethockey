@@ -136,14 +136,17 @@
     text-decoration: none;
     display: inline-block;
   }
-  .se-btn-enter { background: #417690; color: #fff; }
-  .se-btn-enter:hover { background: #2c5f73; color: #fff; }
-  .se-btn-edit { background: #79aec8; color: #fff; }
-  .se-btn-edit:hover { background: #5e9ab8; color: #fff; }
+  /* The link buttons name the admin's own a:link / a:visited rules in their
+     selectors: those rules are more specific than a lone class and would
+     otherwise paint the label the same blue as the button. */
+  .se-btn-enter, a.se-btn-enter:link, a.se-btn-enter:visited { background: #417690; color: #fff; }
+  .se-btn-enter:hover, a.se-btn-enter:hover { background: #2c5f73; color: #fff; }
+  .se-btn-edit, a.se-btn-edit:link, a.se-btn-edit:visited { background: #79aec8; color: #fff; }
+  .se-btn-edit:hover, a.se-btn-edit:hover { background: #5e9ab8; color: #fff; }
   .se-btn-cancel { background: #fff; color: #ba2121; border: 1px solid #ba2121; }
   .se-btn-cancel:hover { background: #fce4e4; }
-  .se-btn-move { background: #fff; color: #417690; border: 1px solid #417690; }
-  .se-btn-move:hover { background: #eef5f9; }
+  .se-btn-move, a.se-btn-move:link, a.se-btn-move:visited { background: #fff; color: #417690; border: 1px solid #417690; }
+  .se-btn-move:hover, a.se-btn-move:hover { background: #eef5f9; }
   .se-inline-form { display: inline; margin: 0; }
   .se-older-heading {
     font-size: 13px;
@@ -183,6 +186,8 @@
     white-space: nowrap;
   }
   .se-older-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  /* A team name, allowed to wrap rather than be cut short. */
+  .se-record-team { font-size: 13px; flex: 1 1 140px; min-width: 0; }
 
   .se-no-games {
     padding: 10px 12px;
@@ -248,6 +253,11 @@
         stat row for that team's goalie.</dd>
       <dt>Outcome &#10003; / Done</dt>
       <dd>Everything for the game is recorded.</dd>
+      <dt>Record behind the scores</dt>
+      <dd>In a season whose records are typed in by hand, a team has more games
+        with scores than its W-OTW-L-OTL record counts, so the standings are
+        missing a result. Open the team's latest game and set its season
+        totals in the Game Outcome section.</dd>
       <dt>Playoff</dt>
       <dd>A postseason game. Results don't affect regular-season standings, so
         there's no Game Outcome to record — just enter player and goalie stats.</dd>
@@ -349,6 +359,21 @@
       </form>
       {% endif %}
       <a href="{{ game.reschedule_url }}" class="se-btn se-btn-move">Move</a>
+    </span>
+  </div>
+  {% endfor %}
+  {% endif %}
+  {% if records_behind %}
+  <p class="se-older-heading">&#9888; Records behind the scores</p>
+  <p class="se-older-hint">These teams have more games with scores than their record counts, so the standings are missing a result.
+    Open the team's latest game and set its season totals (W, OTW, L, OTL) in the Game Outcome section.</p>
+  {% for row in records_behind %}
+  <div class="se-older-row">
+    <span class="se-older-when">{{ row.division }}</span>
+    <span class="se-record-team">{{ row.team.team_name }} <span style="color:#888;font-size:11px;">({{ row.season.get_season_type_display }} {{ row.season.year }})</span></span>
+    <span class="se-older-reason">Record {{ row.record }} counts {{ row.games_played }} game{{ row.games_played|pluralize }}, {{ row.games_with_scores }} have scores</span>
+    <span class="se-older-actions">
+      <a href="{{ row.fix_url }}" class="se-btn se-btn-enter">Fix record</a>
     </span>
   </div>
   {% endfor %}

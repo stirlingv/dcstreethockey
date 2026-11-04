@@ -2,13 +2,14 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from django import template
-from django.db.models import Count, F, Sum
+from django.db.models import Count, F, Q, Sum
 from django.urls import reverse
 from django.utils.http import urlencode
 
-from leagues.models import MatchUp, Stat, Team_Stat, Week
+from leagues.models import Division, MatchUp, Season, Stat, Team, Team_Stat, Week
 from leagues.results import game_result, standings_from_games
 from leagues.seasons import active_season_ids
+from leagues.templatetags.helpers import team_record
 
 register = template.Library()
 
@@ -128,6 +129,109 @@ def _older_games_needing_attention(today, since):
         _attach_actions(game)
         flagged.append(game)
     return flagged
+
+
+def _records_behind_scores(today):
+    """Teams in a hand-kept season still being played whose typed-in record
+    counts fewer games than have scores entered.
+
+    In a hand-kept season the W / OTW / L / OTL totals are typed on each
+    game while goals for and against are summed from the player stats, so
+    one forgotten Game Outcome leaves a team's record short of its scores
+    for good: the standings show a game fewer than the scores page, and the
+    recent-games list above stops flagging it after a week. Each entry here
+    names the team, its record, the counts, and links to the team's latest
+    game, where the season totals are typed in.
+    """
+    seasons = Season.objects.filter(
+        pk__in=active_season_ids(today=today), standings_from_games=False
+    )
+    season_ids = [season.pk for season in seasons]
+    if not season_ids:
+        return []
+    game_filter = Q(
+        matchup__week__season_id__in=season_ids,
+        matchup__week__date__lte=today,
+        matchup__is_cancelled=False,
+        matchup__is_postseason=False,
+        matchup__week__is_cancelled=False,
+    )
+    with_scores = {
+        (
+            row["team_id"],
+            row["matchup__week__division_id"],
+            row["matchup__week__season_id"],
+        ): row["games"]
+        for row in Stat.objects.filter(game_filter)
+        .values("team_id", "matchup__week__division_id", "matchup__week__season_id")
+        .annotate(games=Count("matchup_id", distinct=True))
+    }
+    if not with_scores:
+        return []
+    records = {
+        (row.team_id, row.division_id, row.season_id): row
+        for row in Team_Stat.objects.filter(
+            season_id__in=season_ids, team_id__in={k[0] for k in with_scores}
+        )
+    }
+    teams = Team.objects.in_bulk({key[0] for key in with_scores})
+    divisions = Division.objects.in_bulk({key[1] for key in with_scores})
+    seasons_by_id = {season.pk: season for season in seasons}
+
+    behind = []
+    for key, games in with_scores.items():
+        team_id, division_id, season_id = key
+        row = records.get(key)
+        gp = row.win + row.otw + row.loss + row.otl + row.tie if row else 0
+        if gp >= games or team_id not in teams:
+            continue
+        season = seasons_by_id[season_id]
+        latest_game_id = (
+            MatchUp.objects.filter(
+                Q(hometeam_id=team_id) | Q(awayteam_id=team_id),
+                week__season_id=season_id,
+                week__division_id=division_id,
+                week__date__lte=today,
+                is_cancelled=False,
+                is_postseason=False,
+                stat__isnull=False,
+            )
+            .order_by("-week__date", "-time")
+            .values_list("pk", flat=True)
+            .first()
+        )
+        behind.append(
+            {
+                "team": teams[team_id],
+                "division": divisions.get(division_id),
+                "season": season,
+                "record": (
+                    team_record(
+                        season.year,
+                        row.win,
+                        row.loss,
+                        otw=row.otw,
+                        otl=row.otl,
+                        ties=row.tie,
+                    )
+                    if row
+                    else team_record(season.year, 0, 0)
+                ),
+                "games_played": gp,
+                "games_with_scores": games,
+                "missing": games - gp,
+                "fix_url": reverse(
+                    "admin:leagues_matchup_change", args=[latest_game_id]
+                ),
+            }
+        )
+    behind.sort(
+        key=lambda entry: (
+            entry["division"].division if entry["division"] else 0,
+            entry["team"].team_name.lower(),
+        )
+    )
+    return behind
 
 
 @register.inclusion_tag("admin/stats_entry_widget.html", takes_context=True)
@@ -282,6 +386,7 @@ def stats_entry_widget(context=None):
     return {
         "grouped_games": grouped,
         "older_games": _older_games_needing_attention(today, since),
+        "records_behind": _records_behind_scores(today),
         "today": today,
         "csrf_token": (context or {}).get("csrf_token"),
     }

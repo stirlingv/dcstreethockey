@@ -1493,10 +1493,12 @@ class ComputedStandingsMatchupAdminTest(TestCase):
         self.assertIn(self._record(self.f["home_team"]), (None, (0, 0, 0, 0, 0, 0)))
 
     def test_record_shown_after_save(self):
+        # W-OTW-L-OTL, the same order as the standings table.
         self.client.post(self._url(), self._post("3", "1"))
         html = self.client.get(self._url()).content.decode()
         self.assertIn("1-0-0-0", html)
-        self.assertIn("0-0-0-1", html)
+        self.assertIn("0-0-1-0", html)
+        self.assertIn("W-OTW-L-OTL", html)
 
     def test_sub_stats_count_toward_the_score(self):
         sub = Player.objects.create(first_name="Sam", last_name="Sub")

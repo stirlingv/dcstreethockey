@@ -133,13 +133,23 @@ Tests live in `leagues/test_draft.py`.
 
 ### Standings computed from game results (`leagues/results.py`)
 
-For a season with `standings_from_games` (every season created since Fall 2026),
+For a season with `standings_from_games` (every season created after 27 Oct 2026),
 `Team_Stat` is a cache rebuilt from the games: score from `Stat` goals, `went_to_overtime`
 and `shootout_winner_is_home` from the game. A tied score with no shootout winner is
 undecided and the admin refuses to save it. Signals on `Stat` and `MatchUp` keep the cache
-fresh; `Week.save()` and the admin's bulk `update()` calls recompute explicitly. Seasons
-before Fall 2026 have `standings_from_games=False` and keep their hand-entered records:
-never backfill them. Tests live in `leagues/test_results.py`.
+fresh; `Week.save()` and the admin's bulk `update()` calls recompute explicitly. Every
+season that existed on 27 Oct 2026, including the Fall 2026 seasons that were mid-way
+through, has `standings_from_games=False` and keeps its hand-entered records: never
+backfill them. In those seasons W/OTW/L/OTL are typed on each game while GF/GA are summed
+from the stats, so the two can drift apart; the admin dashboard lists any team whose
+record counts fewer games than have scores (`_records_behind_scores` in
+`leagues/templatetags/admin_quick_cancel.py`). Tests live in `leagues/test_results.py`.
+
+### Record format (`team_record` in `leagues/templatetags/helpers.py`)
+
+A record is always written W-OTW-L-OTL for seasons from 2022 on (W-L-T before), the same
+left-to-right order as the standings table columns. Every template and admin page goes
+through `team_record`; never hand-roll the format. Tests live in `leagues/test_templatetags.py`.
 
 ### Which season is current (`leagues/seasons.py`)
 

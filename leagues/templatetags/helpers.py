@@ -105,7 +105,9 @@ def team_record(year, wins, losses, otw=0, otl=0, ties=0):
     Render a team record in the era-appropriate format.
 
     Seasons before 2022 tracked ties: W-L-T.
-    Seasons from 2022 on track overtime results: W-OTW-OTL-L.
+    Seasons from 2022 on track overtime results: W-OTW-L-OTL, the same
+    order as the columns of the standings table, so a record read off the
+    schedule or a team page lines up with the standings headers.
 
     Accepts None for any count (values()-dict rows may carry NULLs) and
     treats it as 0. This is the single source of truth for record
@@ -115,4 +117,4 @@ def team_record(year, wins, losses, otw=0, otl=0, ties=0):
     losses = losses or 0
     if year and int(year) < 2022:
         return f"{wins}-{losses}-{ties or 0}"
-    return f"{wins}-{otw or 0}-{otl or 0}-{losses}"
+    return f"{wins}-{otw or 0}-{losses}-{otl or 0}"
