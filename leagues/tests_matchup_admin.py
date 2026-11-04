@@ -1819,6 +1819,127 @@ class SeasonAdminTest(TestCase):
         self.assertContains(resp, "From game results")
 
 
+class SeasonSwitchToComputedAdminTest(TestCase):
+    """The Season admin page that moves a hand-kept season onto standings
+    computed from its games, with a preview first."""
+
+    def setUp(self):
+        self.client = Client()
+        self.superuser = User.objects.create_superuser(
+            "admin", "a@example.com", "password"
+        )
+        self.client.force_login(self.superuser)
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture(standings_from_games=False)
+        self.player = Player.objects.create(first_name="Pat", last_name="Player")
+        # Home won 3-2 in overtime before the "went to OT" box existed.
+        Stat.objects.create(
+            matchup=self.matchup, team=self.home_team, player=self.player, goals=3
+        )
+        Stat.objects.create(
+            matchup=self.matchup, team=self.away_team, player=self.player, goals=2
+        )
+        Team_Stat.objects.create(
+            team=self.home_team, season=self.season, division=self.division, otw=1
+        )
+        Team_Stat.objects.create(
+            team=self.away_team, season=self.season, division=self.division, otl=1
+        )
+
+    def _url(self):
+        return reverse("admin:leagues_season_switch_to_computed", args=[self.season.pk])
+
+    def test_season_page_offers_the_switch_for_a_hand_kept_season(self):
+        resp = self.client.get(
+            reverse("admin:leagues_season_change", args=[self.season.pk])
+        )
+        self.assertContains(resp, "Entered by hand")
+        self.assertContains(resp, self._url())
+        self.assertContains(resp, "Switch to game results")
+
+    def test_season_page_does_not_offer_it_for_a_computed_season(self):
+        self.season.standings_from_games = True
+        self.season.save()
+        resp = self.client.get(
+            reverse("admin:leagues_season_change", args=[self.season.pk])
+        )
+        self.assertContains(resp, "From game results")
+        self.assertNotContains(resp, self._url())
+
+    def test_season_list_links_to_the_switch(self):
+        resp = self.client.get(reverse("admin:leagues_season_changelist"))
+        self.assertContains(resp, self._url())
+
+    def test_preview_shows_records_warnings_and_the_game_to_mark(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Home Team")
+        self.assertContains(resp, "0-1-0-0")  # typed in
+        self.assertContains(resp, "1-0-0-0")  # from the games, unmarked
+        self.assertContains(resp, "2 overtime games still to mark")
+        self.assertContains(resp, "Away Team 2 at Home Team 3")
+        self.assertContains(
+            resp, reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+        )
+        self.assertContains(resp, "Switch to standings from game results")
+        self.assertContains(resp, 'method="post"')
+        # Nothing changed by looking.
+        self.assertFalse(Season.objects.get(pk=self.season.pk).standings_from_games)
+
+    def test_preview_is_calm_when_everything_matches(self):
+        self.matchup.went_to_overtime = True
+        self.matchup.save()
+        resp = self.client.get(self._url())
+        self.assertContains(resp, "Every typed-in record matches")
+        self.assertNotContains(resp, "still to mark")
+
+    def test_post_switches_the_season_and_rebuilds_the_records(self):
+        self.matchup.went_to_overtime = True
+        self.matchup.save()
+        resp = self.client.post(self._url(), follow=True)
+        self.assertRedirects(
+            resp, reverse("admin:leagues_season_change", args=[self.season.pk])
+        )
+        self.assertContains(resp, "now takes its standings from game results")
+        self.assertTrue(Season.objects.get(pk=self.season.pk).standings_from_games)
+        home = Team_Stat.objects.get(team=self.home_team)
+        self.assertEqual((home.win, home.otw, home.loss, home.otl), (0, 1, 0, 0))
+        self.assertEqual((home.goals_for, home.goals_against), (3, 2))
+        # From now on the stats drive the record.
+        Stat.objects.filter(team=self.home_team).update(goals=1)
+        Stat.objects.get(team=self.home_team).save()
+        home = Team_Stat.objects.get(team=self.home_team)
+        self.assertEqual((home.win, home.otw, home.loss, home.otl), (0, 0, 0, 1))
+
+    def test_computed_season_page_says_so_and_post_changes_nothing(self):
+        self.season.standings_from_games = True
+        self.season.save()
+        resp = self.client.get(self._url())
+        self.assertContains(resp, "already takes its standings from game results")
+        self.assertNotContains(resp, "Switch to standings from game results")
+        resp = self.client.post(self._url(), follow=True)
+        self.assertContains(resp, "already takes its standings")
+
+    def test_requires_change_permission(self):
+        viewer = User.objects.create_user("viewer", "v@example.com", "password")
+        viewer.is_staff = True
+        viewer.save()
+        self.client.force_login(viewer)
+        self.assertEqual(self.client.get(self._url()).status_code, 403)
+        self.assertEqual(self.client.post(self._url()).status_code, 403)
+        self.assertFalse(Season.objects.get(pk=self.season.pk).standings_from_games)
+
+    def test_unknown_season_is_404(self):
+        url = reverse("admin:leagues_season_switch_to_computed", args=[999999])
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+
 class ScheduleManagerFilesGamesByTeamDivisionTest(TestCase):
     def setUp(self):
         self.client = Client()

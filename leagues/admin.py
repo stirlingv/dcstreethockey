@@ -2196,8 +2196,8 @@ class SeasonAdmin(admin.ModelAdmin):
 
     list_filter = ("year",)
     list_display = ("__str__", "playing_now", "standings_source")
-    exclude = ("is_current_season",)
-    readonly_fields = ("standings_from_games",)
+    exclude = ("is_current_season", "standings_from_games")
+    readonly_fields = ("standings",)
 
     def changelist_view(self, request, extra_context=None):
         self._playing_now = {season.pk: [] for season in Season.objects.all()}
@@ -2211,9 +2211,90 @@ class SeasonAdmin(admin.ModelAdmin):
         names = getattr(self, "_playing_now", {}).get(obj.pk) or []
         return ", ".join(names) if names else "—"
 
+    @staticmethod
+    def _switch_url(obj):
+        return reverse("admin:leagues_season_switch_to_computed", args=[obj.pk])
+
     @admin.display(description="Standings", boolean=False)
     def standings_source(self, obj):
-        return "From game results" if obj.standings_from_games else "Entered by hand"
+        if obj.standings_from_games:
+            return "From game results"
+        return format_html(
+            'Entered by hand &middot; <a href="{}">Switch to game results</a>',
+            self._switch_url(obj),
+        )
+
+    @admin.display(description="Standings")
+    def standings(self, obj):
+        """How this season's records are kept, with the way to change it."""
+        if obj.standings_from_games or not obj.pk:
+            return (
+                "From game results: each team's record is worked out from the "
+                "score, overtime and shootout of its games."
+            )
+        return format_html(
+            "Entered by hand: W, OTW, L and OTL are typed on each game. "
+            '<a class="button" href="{}" style="margin-left:8px;">'
+            "Switch to game results&hellip;</a>",
+            self._switch_url(obj),
+        )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "<int:season_id>/switch-to-computed/",
+                self.admin_site.admin_view(self.switch_to_computed_view),
+                name="leagues_season_switch_to_computed",
+            ),
+        ]
+        return custom_urls + urls
+
+    def switch_to_computed_view(self, request, season_id):
+        """Show what each team's record would be if it came from the games,
+        next to what was typed in, and switch the season over on POST."""
+        from leagues import standings_switch
+
+        season = get_object_or_404(Season, pk=season_id)
+        if not self.has_change_permission(request, season):
+            raise PermissionDenied
+        change_url = reverse("admin:leagues_season_change", args=[season.pk])
+
+        if request.method == "POST":
+            if season.standings_from_games:
+                messages.info(
+                    request, f"{season} already takes its standings from game results."
+                )
+                return redirect(change_url)
+            divisions = standings_switch.switch(season)
+            names = ", ".join(str(d) for d in divisions) or "no divisions"
+            messages.success(
+                request,
+                f"{season} now takes its standings from game results. Records "
+                f"rebuilt for {names}. From now on, saving a game's stats "
+                "updates the standings by itself.",
+            )
+            return redirect(change_url)
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Switch {season} to standings from game results",
+            "season": season,
+            "change_url": change_url,
+            "already_computed": season.standings_from_games,
+            "opts": self.model._meta,
+        }
+        if not season.standings_from_games:
+            divisions = standings_switch.preview(season)
+            context.update(
+                {
+                    "divisions": divisions,
+                    "ot_to_mark": sum(d["ot_to_mark"] for d in divisions),
+                    "changed": sum(d["changed"] for d in divisions),
+                    "undecided": sum(len(d["undecided"]) for d in divisions),
+                }
+            )
+        return render(request, "admin/leagues/season/switch_to_computed.html", context)
 
 
 @admin.register(Ref)

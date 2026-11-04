@@ -46,6 +46,7 @@ All tests must pass before committing. The pre-commit hook runs the full suite a
 | `leagues/models.py` validation | `leagues/tests.py` |
 | `leagues/seasons.py` (which season each division is playing) | `leagues/test_seasons.py` |
 | `leagues/results.py` and `leagues/signals.py` (game results → standings) | `leagues/test_results.py` |
+| `leagues/standings_switch.py` (hand-kept season → computed standings) | `leagues/test_results.py` |
 | Admin pages in `leagues/admin.py` (matchup, week, team, season) | `leagues/tests_matchup_admin.py` |
 | Dashboard widgets (`leagues/templatetags/admin_quick_cancel.py`) | `leagues/tests.py` |
 | Draft league views & state machine | `leagues/test_draft.py` |
@@ -143,7 +144,11 @@ through, has `standings_from_games=False` and keeps its hand-entered records: ne
 backfill them. In those seasons W/OTW/L/OTL are typed on each game while GF/GA are summed
 from the stats, so the two can drift apart; the admin dashboard lists any team whose
 record counts fewer games than have scores (`_records_behind_scores` in
-`leagues/templatetags/admin_quick_cancel.py`). Tests live in `leagues/test_results.py`.
+`leagues/templatetags/admin_quick_cancel.py`). A hand-kept season can be moved onto
+computed standings from its admin page ("Switch to game results"): `leagues/standings_switch.py`
+previews each team's typed-in record next to the one its games give, counts the overtime
+games that still need the `went_to_overtime` box ticked (games before 27 Oct 2026 have no
+mark), and the switch rebuilds every record. Tests live in `leagues/test_results.py`.
 
 ### Record format (`team_record` in `leagues/templatetags/helpers.py`)
 

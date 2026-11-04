@@ -146,6 +146,7 @@ class AdminSmokeTest(TestCase):
             "leagues_draftsession_draft_setup_hub": [],
             "leagues_draftsession_start_signups": [],
             "leagues_draftsession_setup_teams": [d["draft"].pk],
+            "leagues_season_switch_to_computed": [d["season"].pk],
         }
 
     # Custom admin URLs that change data, so a GET must not act. The quick

@@ -3159,6 +3159,10 @@ class RecordsBehindScoresTest(StatsEntryWidgetTest):
         self.assertIn("Record 0-0-0-0 counts 0 games, 1 have scores", html)
         self.assertIn(f'href="/admin/leagues/matchup/{latest.pk}/change/"', html)
         self.assertIn(">Fix record<", html)
+        # The lasting fix is offered once per season, not once per team.
+        switch_url = f"/admin/leagues/season/{self.season.pk}/switch-to-computed/"
+        self.assertEqual(html.count(switch_url), 1)
+        self.assertIn("switch Spring", html)
 
     def test_widget_without_drift_shows_no_section(self):
         from django.template import Context, Template
