@@ -24,6 +24,7 @@ from leagues.models import (
     SeasonSignup,
 )
 
+
 # ---------------------------------------------------------------------------
 # Shared fixture helpers
 # ---------------------------------------------------------------------------
@@ -165,9 +166,7 @@ class DraftChatReactionModelTests(TestCase):
         DraftChatReaction.objects.create(
             message=self.msg, emoji="👍", sender_name="Alice"
         )
-        DraftChatReaction.objects.create(
-            message=self.msg, emoji="👍", sender_name="Bob"
-        )
+        DraftChatReaction.objects.create(message=self.msg, emoji="👍", sender_name="Bob")
         self.assertEqual(
             DraftChatReaction.objects.filter(message=self.msg, emoji="👍").count(), 2
         )
