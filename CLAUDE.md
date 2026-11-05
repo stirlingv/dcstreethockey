@@ -49,6 +49,7 @@ All tests must pass before committing. The pre-commit hook runs the full suite a
 | `leagues/standings_switch.py` (hand-kept season → computed standings) | `leagues/test_results.py` |
 | Admin pages in `leagues/admin.py` (matchup, week, team, season) | `leagues/tests_matchup_admin.py` |
 | Dashboard widgets (`leagues/templatetags/admin_quick_cancel.py`) | `leagues/tests.py` |
+| `manage.py audit_unplayed_games` (past games with no stats: rescheduled, never played, or missing stats) | `leagues/test_audit_unplayed_games.py` |
 | Draft league views & state machine | `leagues/test_draft.py` |
 | Project-level views | `dcstreethockey/tests.py` |
 | Every admin page and public URL (smoke sweep) | `dcstreethockey/test_smoke.py` |
