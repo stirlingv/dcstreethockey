@@ -150,6 +150,16 @@
             color: #444;
         }
 
+        /* ── Overtime / shootout line under the score grid ───── */
+        .decided-by {
+            display: flex;
+            gap: 28px;
+            flex-wrap: wrap;
+            margin: 6px 0 14px;
+            font-size: 13px;
+            color: #333;
+        }
+
         /* ── Page break between scoresheets ─────────────────── */
         .page-break { page-break-before: always; }
 
@@ -223,6 +233,10 @@
             </tr>
         </tbody>
     </table>
+    <p class="decided-by">
+        <span>Went to OT? &#9744; No &nbsp; &#9744; Yes</span>
+        <span>Shootout won by: ______________________</span>
+    </p>
 
     <!-- Side-by-side rosters -->
     <div class="rosters">

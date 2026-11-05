@@ -150,6 +150,16 @@ previews each team's typed-in record next to the one its games give, counts the 
 games that still need the `went_to_overtime` box ticked (games before 27 Oct 2026 have no
 mark), and the switch rebuilds every record. Tests live in `leagues/test_results.py`.
 
+### Every game has a winner (seasons from 2022 on)
+
+Ties ended in 2022. Overtime or a shootout decides every game, playoffs included (a
+playoff shootout is rare and needs both captains to agree, but it is allowed). The admin
+refuses a tied score with no shootout winner in every season from 2022 on, hand-kept or
+computed, and the T box only appears for older seasons. A shootout win is recorded as the
+tied player-stat goals plus `shootout_winner_is_home`: the scores page and team GF/GA
+count one extra goal for the winner, and no player is credited with it. Tests live in
+`leagues/tests_matchup_admin.py` and `leagues/test_results.py`.
+
 ### Record format (`team_record` in `leagues/templatetags/helpers.py`)
 
 A record is always written W-OTW-L-OTL for seasons from 2022 on (W-L-T before), the same

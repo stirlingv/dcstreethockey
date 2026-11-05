@@ -695,13 +695,16 @@ class MatchUpAdminShootoutSaveTest(TestCase):
         self.matchup.refresh_from_db()
         self.assertIsNone(self.matchup.shootout_winner_is_home)
 
-    def test_postseason_clears_shootout_winner(self):
+    def test_postseason_keeps_shootout_winner(self):
+        # A playoff game can be settled in a shootout when both captains
+        # agree, so the pick is kept.
         self.client.post(
             self._url(),
             self._post_data(shootout_winner_is_home="true", is_postseason="on"),
         )
         self.matchup.refresh_from_db()
-        self.assertIsNone(self.matchup.shootout_winner_is_home)
+        self.assertIs(self.matchup.shootout_winner_is_home, True)
+        self.assertTrue(self.matchup.went_to_overtime)
 
 
 class MatchUpAdminPriorGFGAContextTest(TestCase):
@@ -861,18 +864,21 @@ class MatchUpAdminPostseasonTest(TestCase):
         base.update(overrides)
         return base
 
-    def test_postseason_change_view_shows_playoff_note_not_outcome(self):
+    def test_postseason_change_view_asks_only_how_it_was_decided(self):
+        # A playoff game has no season record to type in, but it still has
+        # a winner: the OT box and shootout pick are offered.
         self.matchup.is_postseason = True
         self.matchup.save()
         html = self.client.get(self._url(self.matchup)).content.decode()
-        self.assertIn("Playoff game", html)
-        self.assertNotIn('class="module game-outcome-module"', html)
+        self.assertIn("playoff game, not counted in the standings", html)
+        self.assertIn('name="went_to_overtime"', html)
+        self.assertIn('name="shootout_winner_is_home"', html)
         # The W/L record inputs are not rendered for playoff games.
         self.assertNotIn('name="home_stat-win"', html)
 
     def test_regular_change_view_shows_game_outcome(self):
         html = self.client.get(self._url(self.matchup)).content.decode()
-        self.assertNotIn("Playoff game", html)
+        self.assertNotIn("not counted in the standings", html)
         self.assertIn('class="module game-outcome-module"', html)
         self.assertIn('name="home_stat-win"', html)
 
@@ -1106,9 +1112,15 @@ class ScoresheetGridTest(TestCase):
         )
 
     def test_goalie_explicit_zero_ga_records_shutout(self):
+        # A 1-0 home win: the game can't be saved tied.
         self.client.post(
             self._url(),
-            self._post_data(**{f"ss-{self.home_goalie.pk}-goals_against": "0"}),
+            self._post_data(
+                **{
+                    f"ss-{self.home_goalie.pk}-goals_against": "0",
+                    f"ss-{self.home_center.pk}-goals": "1",
+                }
+            ),
         )
         stat = Stat.objects.get(matchup=self.matchup, player=self.home_goalie)
         self.assertEqual(stat.goals_against, 0)
@@ -1139,7 +1151,12 @@ class ScoresheetGridTest(TestCase):
     def test_negative_values_clamped_to_zero(self):
         self.client.post(
             self._url(),
-            self._post_data(**{f"ss-{self.home_center.pk}-goals": "-3"}),
+            self._post_data(
+                **{
+                    f"ss-{self.home_center.pk}-goals": "-3",
+                    f"ss-{self.away_wing.pk}-goals": "1",  # a decided game
+                }
+            ),
         )
         stat = Stat.objects.get(matchup=self.matchup, player=self.home_center)
         self.assertEqual(stat.goals, 0)
@@ -1179,6 +1196,7 @@ class ScoresheetGridTest(TestCase):
                     f"ss-{g}-empty_net": "",
                     f"ss-{g}-goals": "",
                     f"ss-{g}-assists": "1",
+                    f"ss-{self.away_wing.pk}-goals": "3",  # the goals conceded
                 }
             ),
         )
@@ -1291,7 +1309,8 @@ class ScoresheetGridTest(TestCase):
             first_name="Sub", last_name="Keeper", is_active=True, can_play_goalie=True
         )
         data = self._post_data(
-            **self._inline_row(sub, self.home_team, assists=1, goals_against=2)
+            **self._inline_row(sub, self.home_team, assists=1, goals_against=2),
+            **{f"ss-{self.away_wing.pk}-goals": "2"},  # the goals conceded
         )
         response = self.client.post(self._url(), data)
         self.assertEqual(response.status_code, 302)
@@ -1425,7 +1444,7 @@ class ComputedStandingsMatchupAdminTest(TestCase):
         html = self.client.get(self._url()).content.decode()
         self.assertIn('name="went_to_overtime"', html)
         self.assertIn('id="result-line"', html)
-        self.assertIn("Season records so far", html)
+        self.assertIn("Season records", html)
         self.assertNotIn('name="home_stat-win"', html)
         self.assertNotIn('id="qo-home"', html)
         self.assertNotIn('name="home_stat-goals_for"', html)
@@ -1463,6 +1482,34 @@ class ComputedStandingsMatchupAdminTest(TestCase):
         self.assertTrue(game.went_to_overtime)
         self.assertEqual(self._record(self.f["away_team"])[:4], (0, 1, 0, 0))
         self.assertEqual(self._record(self.f["home_team"])[:4], (0, 0, 1, 0))
+
+    def test_playoff_tie_without_shootout_winner_is_refused(self):
+        # Playoff games have a winner too: overtime, or a shootout if both
+        # captains agree to one.
+        resp = self.client.post(self._url(), self._post("2", "2", is_postseason="on"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Goals are tied 2-2")
+        self.assertEqual(Stat.objects.filter(matchup=self.f["matchup"]).count(), 0)
+
+    def test_playoff_shootout_is_saved_and_kept_out_of_the_standings(self):
+        resp = self.client.post(
+            self._url(),
+            self._post("2", "2", is_postseason="on", shootout_winner_is_home="true"),
+        )
+        self.assertEqual(resp.status_code, 302)
+        game = MatchUp.objects.get(pk=self.f["matchup"].pk)
+        self.assertIs(game.shootout_winner_is_home, True)
+        self.assertTrue(game.went_to_overtime)
+        self.assertIn(self._record(self.f["home_team"]), (None, (0, 0, 0, 0, 0, 0)))
+
+    def test_playoff_page_offers_the_overtime_and_shootout_controls(self):
+        self.f["matchup"].is_postseason = True
+        self.f["matchup"].save()
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn('name="went_to_overtime"', html)
+        self.assertIn('name="shootout_winner_is_home"', html)
+        self.assertIn("not counted in the standings", html)
+        self.assertNotIn("Season records", html)
 
     def test_shootout_pick_implies_overtime_even_without_the_box(self):
         self.client.post(
@@ -1819,6 +1866,226 @@ class SeasonAdminTest(TestCase):
         self.assertContains(resp, "From game results")
 
 
+class SaveAndEnterNextGameTest(TestCase):
+    """Scores are typed in the day after, a night's worth at a time, so a
+    save can go straight to the next game that still needs its sheet."""
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        self.f = _computed_fixture()
+        self.game = self.f["matchup"]
+
+    def _post(self, **overrides):
+        f = self.f
+        data = {
+            "week": f["week"].pk,
+            "time": "10:00 AM",
+            "awayteam": f["away_team"].pk,
+            "hometeam": f["home_team"].pk,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+            "ss-player-ids": f"{f['home_player'].pk},{f['away_player'].pk}",
+            f"ss-{f['home_player'].pk}-goals": "3",
+            f"ss-{f['away_player'].pk}-goals": "1",
+            "_save_next": "1",
+        }
+        data.update(overrides)
+        return data
+
+    def _another_game(self, week=None, time=datetime.time(11, 0), with_stats=False):
+        game = MatchUp.objects.create(
+            week=week or self.f["week"],
+            time=time,
+            awayteam=self.f["home_team"],
+            hometeam=self.f["away_team"],
+        )
+        if with_stats:
+            Stat.objects.create(
+                matchup=game,
+                team=self.f["home_team"],
+                player=self.f["home_player"],
+                goals=1,
+            )
+        return game
+
+    def _url(self, game):
+        return reverse("admin:leagues_matchup_change", args=[game.pk])
+
+    def test_button_is_offered_on_an_existing_game(self):
+        html = self.client.get(self._url(self.game)).content.decode()
+        self.assertIn('name="_save_next"', html)
+        self.assertIn("Save and enter next game", html)
+
+    def test_saves_then_opens_the_next_game_without_stats(self):
+        later = self._another_game()
+        resp = self.client.post(self._url(self.game), self._post(), follow=True)
+        self.assertRedirects(resp, self._url(later))
+        self.assertContains(resp, "Next: Home Team at Away Team")
+        self.assertEqual(Stat.objects.filter(matchup=self.game).count(), 2)
+
+    def test_games_already_entered_are_skipped(self):
+        self._another_game(with_stats=True)
+        resp = self.client.post(self._url(self.game), self._post())
+        self.assertRedirects(
+            resp, reverse("admin:index"), fetch_redirect_response=False
+        )
+
+    def test_last_game_of_the_night_returns_to_the_dashboard(self):
+        resp = self.client.post(self._url(self.game), self._post(), follow=True)
+        self.assertRedirects(resp, reverse("admin:index"))
+        self.assertContains(resp, "has its stats entered")
+
+    def test_same_division_comes_before_another_division_that_night(self):
+        other_division = Division.objects.create(division=2)
+        other_week = Week.objects.create(
+            division=other_division,
+            season=self.f["season"],
+            date=self.f["week"].date,
+        )
+        earlier_elsewhere = self._another_game(
+            week=other_week, time=datetime.time(9, 0)
+        )
+        same_division = self._another_game(time=datetime.time(12, 0))
+        from leagues.admin import MatchUpAdmin
+
+        self.assertEqual(MatchUpAdmin.next_game_to_enter(self.game), same_division)
+        Stat.objects.create(
+            matchup=same_division,
+            team=self.f["home_team"],
+            player=self.f["home_player"],
+            goals=1,
+        )
+        self.assertEqual(MatchUpAdmin.next_game_to_enter(self.game), earlier_elsewhere)
+
+    def test_cancelled_games_are_not_offered(self):
+        self._another_game().__class__.objects.filter(
+            pk__in=MatchUp.objects.exclude(pk=self.game.pk).values("pk")
+        ).update(is_cancelled=True)
+        from leagues.admin import MatchUpAdmin
+
+        self.assertIsNone(MatchUpAdmin.next_game_to_enter(self.game))
+
+    def test_a_refused_save_stays_on_the_page(self):
+        self._another_game()
+        resp = self.client.post(
+            self._url(self.game),
+            self._post(**{f"ss-{self.f['away_player'].pk}-goals": "3"}),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Goals are tied 3-3")
+
+
+class HandKeptSeasonHasWinnersTest(TestCase):
+    """A hand-kept season from 2022 on follows the same rule as a computed
+    one: no ties. The T box is gone and a tied score is refused."""
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        (
+            self.season,
+            self.division,
+            self.week,
+            self.away_team,
+            self.home_team,
+            self.matchup,
+        ) = _make_fixture(standings_from_games=False)
+        self.home_player = Player.objects.create(first_name="Harper", last_name="Home")
+        self.away_player = Player.objects.create(first_name="Avery", last_name="Away")
+        Roster.objects.create(player=self.home_player, team=self.home_team, position1=1)
+        Roster.objects.create(player=self.away_player, team=self.away_team, position1=1)
+
+    def _url(self):
+        return reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
+
+    def _post(self, home_goals, away_goals, **overrides):
+        data = {
+            "week": self.week.pk,
+            "time": "10:00 AM",
+            "awayteam": self.away_team.pk,
+            "hometeam": self.home_team.pk,
+            "away_goalie_status": 3,
+            "home_goalie_status": 3,
+            "stat_set-TOTAL_FORMS": "0",
+            "stat_set-INITIAL_FORMS": "0",
+            "stat_set-MIN_NUM_FORMS": "0",
+            "stat_set-MAX_NUM_FORMS": "1000",
+            "ss-player-ids": f"{self.home_player.pk},{self.away_player.pk}",
+            f"ss-{self.home_player.pk}-goals": home_goals,
+            f"ss-{self.away_player.pk}-goals": away_goals,
+            "home_stat-win": "0",
+            "home_stat-otw": "1",
+            "home_stat-loss": "0",
+            "home_stat-otl": "0",
+            "away_stat-win": "0",
+            "away_stat-otw": "0",
+            "away_stat-loss": "0",
+            "away_stat-otl": "1",
+        }
+        data.update(overrides)
+        return data
+
+    def test_tie_box_is_gone_for_seasons_since_2022(self):
+        html = self.client.get(self._url()).content.decode()
+        self.assertNotIn('name="home_stat-tie"', html)
+        self.assertNotIn('name="away_stat-tie"', html)
+        self.assertIn('name="home_stat-otl"', html)
+        # And the lasting fix is one click away.
+        self.assertIn(
+            reverse("admin:leagues_season_switch_to_computed", args=[self.season.pk]),
+            html,
+        )
+
+    def test_tie_box_stays_for_seasons_that_had_ties(self):
+        self.season.year = 2021
+        self.season.save()
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn('name="home_stat-tie"', html)
+
+    def test_tied_score_without_shootout_winner_is_refused(self):
+        resp = self.client.post(self._url(), self._post("2", "2"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Goals are tied 2-2")
+        self.assertEqual(Stat.objects.filter(matchup=self.matchup).count(), 0)
+        self.assertFalse(Team_Stat.objects.filter(team=self.home_team).exists())
+
+    def test_tied_score_with_shootout_winner_is_saved(self):
+        resp = self.client.post(
+            self._url(), self._post("2", "2", shootout_winner_is_home="true")
+        )
+        self.assertEqual(resp.status_code, 302)
+        game = MatchUp.objects.get(pk=self.matchup.pk)
+        self.assertIs(game.shootout_winner_is_home, True)
+        self.assertTrue(game.went_to_overtime)
+        self.assertEqual(Team_Stat.objects.get(team=self.home_team).otw, 1)
+
+    def test_pre_2022_season_may_still_record_a_tie(self):
+        self.season.year = 2021
+        self.season.save()
+        resp = self.client.post(
+            self._url(),
+            self._post(
+                "2",
+                "2",
+                **{
+                    "home_stat-otw": "0",
+                    "away_stat-otl": "0",
+                    "home_stat-tie": "1",
+                    "away_stat-tie": "1",
+                },
+            ),
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Team_Stat.objects.get(team=self.home_team).tie, 1)
+
+
 class SeasonSwitchToComputedAdminTest(TestCase):
     """The Season admin page that moves a hand-kept season onto standings
     computed from its games, with a preview first."""
@@ -1882,27 +2149,48 @@ class SeasonSwitchToComputedAdminTest(TestCase):
         self.assertContains(resp, "Home Team")
         self.assertContains(resp, "0-1-0-0")  # typed in
         self.assertContains(resp, "1-0-0-0")  # from the games, unmarked
-        self.assertContains(resp, "2 overtime games still to mark")
+        self.assertContains(resp, "2 overtime games to mark")
         self.assertContains(resp, "Away Team 2 at Home Team 3")
         self.assertContains(
             resp, reverse("admin:leagues_matchup_change", args=[self.matchup.pk])
         )
-        self.assertContains(resp, "Switch to standings from game results")
-        self.assertContains(resp, 'method="post"')
+        # The game can be marked from here, with a tick box.
+        self.assertContains(resp, f'name="overtime_game" value="{self.matchup.pk}"')
+        self.assertContains(resp, "Save overtime marks")
+        self.assertContains(resp, 'value="Switch to game results"')
         # Nothing changed by looking.
         self.assertFalse(Season.objects.get(pk=self.season.pk).standings_from_games)
+        self.assertFalse(MatchUp.objects.get(pk=self.matchup.pk).went_to_overtime)
+
+    def test_ticking_a_game_marks_it_as_overtime(self):
+        resp = self.client.post(
+            self._url(),
+            {"action": "mark_overtime", "overtime_game": [str(self.matchup.pk)]},
+            follow=True,
+        )
+        self.assertRedirects(resp, self._url())
+        self.assertContains(resp, "1 game marked as decided in overtime")
+        self.assertTrue(MatchUp.objects.get(pk=self.matchup.pk).went_to_overtime)
+        self.assertContains(resp, "Every record matches the games")
+        # Still hand-kept: marking is not switching.
+        self.assertFalse(Season.objects.get(pk=self.season.pk).standings_from_games)
+
+    def test_saving_marks_with_nothing_ticked_says_so(self):
+        resp = self.client.post(self._url(), {"action": "mark_overtime"}, follow=True)
+        self.assertContains(resp, "No games were ticked")
 
     def test_preview_is_calm_when_everything_matches(self):
         self.matchup.went_to_overtime = True
         self.matchup.save()
         resp = self.client.get(self._url())
-        self.assertContains(resp, "Every typed-in record matches")
-        self.assertNotContains(resp, "still to mark")
+        self.assertContains(resp, "Every record matches the games")
+        self.assertNotContains(resp, 'class="sw-flag"')
+        self.assertNotContains(resp, "Save overtime marks")
 
     def test_post_switches_the_season_and_rebuilds_the_records(self):
         self.matchup.went_to_overtime = True
         self.matchup.save()
-        resp = self.client.post(self._url(), follow=True)
+        resp = self.client.post(self._url(), {"action": "switch"}, follow=True)
         self.assertRedirects(
             resp, reverse("admin:leagues_season_change", args=[self.season.pk])
         )
@@ -1922,7 +2210,7 @@ class SeasonSwitchToComputedAdminTest(TestCase):
         self.season.save()
         resp = self.client.get(self._url())
         self.assertContains(resp, "already takes its standings from game results")
-        self.assertNotContains(resp, "Switch to standings from game results")
+        self.assertNotContains(resp, 'value="Switch to game results"')
         resp = self.client.post(self._url(), follow=True)
         self.assertContains(resp, "already takes its standings")
 

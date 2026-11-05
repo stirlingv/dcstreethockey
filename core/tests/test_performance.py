@@ -11,6 +11,7 @@ How to update ceilings:
   If a legitimate change increases query count, update the ceiling constant in
   the relevant test and leave a comment explaining why it changed.
 """
+
 import datetime
 
 from django.db import connection

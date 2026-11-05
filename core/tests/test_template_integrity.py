@@ -327,6 +327,15 @@ class RealLinksTest(TemplateFixtureBase):
         self.assertIn("(0-0-1-0)", content)
         self.assertIn("Team records: W-OTW-L-OTL", content)
 
+    def test_legend_mentions_ties_only_when_a_table_has_one(self):
+        # Ties ended in 2022: every game is decided in overtime or a shootout.
+        content = self._get(reverse("team_standings"))
+        self.assertIn("OTL=1 pt", content)
+        self.assertNotIn("OTL/Tie", content)
+        Team_Stat.objects.filter(team=self.home_team).update(tie=1)
+        content = self._get(reverse("team_standings"))
+        self.assertIn("OTL/Tie=1 pt", content)
+
     def test_compact_record_reads_in_standings_table_order(self):
         # A captain compared "(0-1-0-3)" on the schedule with "0 1 3 0" in the
         # standings and reported the record as wrong. Every compact record

@@ -214,9 +214,10 @@ class StandingsLogicTestCase(TestCase):
         self.assertEqual(team_stats[3].goal_differential, 10)  # Team D
 
         # Test the tiebreaker logic - regulation wins should be the primary tiebreaker
-        with patch("core.views.standings.check_teams_play") as mock_teams_play, patch(
-            "core.views.standings.check_h2h_record"
-        ) as mock_h2h:
+        with (
+            patch("core.views.standings.check_teams_play") as mock_teams_play,
+            patch("core.views.standings.check_h2h_record") as mock_h2h,
+        ):
             # Assume teams haven't all played each other, so no H2H advantages
             mock_teams_play.return_value = False
             mock_h2h.return_value = False
@@ -290,9 +291,10 @@ class StandingsLogicTestCase(TestCase):
         self.assertEqual(team_stats[3].goal_differential, 12)  # Blaze (2nd best)
 
         # Test with mixed H2H records
-        with patch("core.views.standings.check_teams_play") as mock_teams_play, patch(
-            "core.views.standings.check_h2h_record"
-        ) as mock_h2h:
+        with (
+            patch("core.views.standings.check_teams_play") as mock_teams_play,
+            patch("core.views.standings.check_h2h_record") as mock_h2h,
+        ):
 
             def mock_play_check(team1, team2):
                 # Thunder and Storm played each other, Storm and Blaze played
@@ -423,9 +425,10 @@ class StandingsLogicTestCase(TestCase):
         # between teams with same reg wins
 
         # Mock circular H2H: Phaze beat IO, IO beat Mantis, Mantis beat Phaze
-        with patch("core.views.standings.check_teams_play") as mock_teams_play, patch(
-            "core.views.standings.check_h2h_record"
-        ) as mock_h2h:
+        with (
+            patch("core.views.standings.check_teams_play") as mock_teams_play,
+            patch("core.views.standings.check_h2h_record") as mock_h2h,
+        ):
             mock_teams_play.return_value = True  # All teams played each other
 
             # For the pairwise algorithm, we need to simulate what happens
@@ -1089,6 +1092,19 @@ class StandingsChampionTest(TestCase):
         Stat.objects.filter(team=self.runner_up).update(goals=3)
         response = self._get(sunday=self.old_season.id)
         self.assertIsNone(response.context["sunday_d1_champion"])
+
+    def test_final_decided_in_a_shootout_names_the_champion(self):
+        # Rare, but allowed: a playoff game settled in a shootout after
+        # overtime when both captains agree. The shootout winner is the
+        # champion even though the player-stat goals are level.
+        from leagues.models import Stat
+
+        Stat.objects.filter(team=self.runner_up).update(goals=3)
+        self.final.shootout_winner_is_home = False  # the away team won
+        self.final.went_to_overtime = True
+        self.final.save()
+        response = self._get(sunday=self.old_season.id)
+        self.assertEqual(response.context["sunday_d1_champion"], self.runner_up)
 
     def test_championship_results_empty_pairs(self):
         from core.views.standings import championship_results

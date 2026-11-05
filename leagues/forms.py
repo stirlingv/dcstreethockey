@@ -35,8 +35,12 @@ class TeamStatForm(forms.ModelForm):
             "tie": "T",
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, show_tie=False, **kwargs):
+        # Ties ended in 2022: every game since is decided in overtime or a
+        # shootout, so the T box only appears for the seasons that had them.
         super().__init__(*args, **kwargs)
+        if not show_tie:
+            del self.fields["tie"]
         for field in self.fields.values():
             field.widget.attrs.update(
                 {"style": "width:55px;text-align:center;", "min": "0"}

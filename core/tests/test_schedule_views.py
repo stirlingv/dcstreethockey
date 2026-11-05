@@ -2100,6 +2100,14 @@ class MatchUpDetailViewTest(ScheduleTestBase):
         response = self.client.get(self.url)
         self.assertIn("available_dates", response.context)
 
+    def test_printed_sheet_asks_how_the_game_was_decided(self):
+        # Scores are written on paper at the rink and typed in the next day.
+        # The sheet carries the one thing the goals can't tell the typist:
+        # whether the game went to overtime, and who won a shootout.
+        content = self.client.get(self.url).content.decode()
+        self.assertIn("Went to OT?", content)
+        self.assertIn("Shootout won by:", content)
+
     def test_available_dates_contains_unstatted_date(self):
         # Fixture matchup has no stats — its date should appear
         response = self.client.get(self.url)

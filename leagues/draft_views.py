@@ -2086,9 +2086,9 @@ def draft_results_download(request, session_pk):
         # Column widths
         col_widths = [7, 7, 22, 20, 22, 12, 13, 15, 14, 8, 8]
         for col_idx, width in enumerate(col_widths, start=1):
-            ws.column_dimensions[
-                ws.cell(row=1, column=col_idx).column_letter
-            ].width = width
+            ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = (
+                width
+            )
 
         buffer = io.BytesIO()
         wb.save(buffer)

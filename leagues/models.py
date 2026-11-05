@@ -451,7 +451,7 @@ class MatchUp(models.Model):
         null=True,
         blank=True,
         default=None,
-        help_text="Set when a regular-season OT game is decided by shootout. "
+        help_text="Set when a game is decided by shootout. "
         "True = home team won; False = away team won; null = no shootout.",
     )
     went_to_overtime = models.BooleanField(
@@ -498,11 +498,8 @@ class MatchUp(models.Model):
             errors["away_goalie"] = "Clear the away goalie when status is 'Sub Needed'."
         if self.home_goalie_status == 2 and self.home_goalie_id:
             errors["home_goalie"] = "Clear the home goalie when status is 'Sub Needed'."
-        if self.is_postseason and self.shootout_winner_is_home is not None:
-            errors[
-                "shootout_winner_is_home"
-            ] = "Postseason games cannot have a shootout winner."
-
+        # A playoff game can end in a shootout too (rarely: both captains
+        # agree to it after an overtime period), so no restriction here.
         problem = self._teams_vs_week_problem()
         if problem:
             errors[NON_FIELD_ERRORS] = problem

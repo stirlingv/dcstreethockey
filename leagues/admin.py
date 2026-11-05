@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.db import models, transaction
-from django.db.models import Q, Prefetch, Sum
+from django.db.models import Count, Q, Prefetch, Sum
 from django.utils.http import urlencode
 from django.utils.html import format_html
 from django.utils import timezone
@@ -367,6 +367,12 @@ def _stat_record_goals(obj):
     return total, obj.goals_for - total
 
 
+def _games_have_winners(season):
+    """True for seasons from 2022 on, when ties were abolished: overtime or
+    a shootout decides every game. Earlier seasons kept their ties."""
+    return not (season and season.year and season.year < 2022)
+
+
 def _record_summary(season, team_stat):
     """What the game page shows as a team's season record, written the same
     way as everywhere else on the site (see ``team_record``)."""
@@ -693,19 +699,19 @@ class MatchUpAdmin(admin.ModelAdmin):
         if (
             obj is None
             or obj.week_id is None
-            or not standings_from_games(obj.week.season)
+            or not _games_have_winners(obj.week.season)
         ):
             return form_class
         model_admin = self
 
         class GameResultForm(form_class):
-            """Refuses a tied score with no shootout winner, so a game can
-            never be saved in a state the standings can't count."""
+            """Refuses a tied score with no shootout winner: since 2022 every
+            game, playoffs included, is decided in overtime or a shootout, so
+            a tie is an entry error whichever way the season's standings are
+            kept."""
 
             def clean(self):
                 cleaned = super().clean()
-                if cleaned.get("is_postseason"):
-                    return cleaned
                 home_goals, away_goals, any_stats = model_admin._posted_goals(
                     request, obj
                 )
@@ -809,16 +815,13 @@ class MatchUpAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         # shootout_winner_is_home is excluded from MatchUpForm and processed here
         # directly from POST so the admin template can label radios with team names.
-        if obj.is_postseason:
-            obj.shootout_winner_is_home = None
+        raw = request.POST.get("shootout_winner_is_home", "")
+        if raw == "true":
+            obj.shootout_winner_is_home = True
+        elif raw == "false":
+            obj.shootout_winner_is_home = False
         else:
-            raw = request.POST.get("shootout_winner_is_home", "")
-            if raw == "true":
-                obj.shootout_winner_is_home = True
-            elif raw == "false":
-                obj.shootout_winner_is_home = False
-            else:
-                obj.shootout_winner_is_home = None
+            obj.shootout_winner_is_home = None
         # The OT box is rendered in the Game Outcome section, not the form.
         obj.went_to_overtime = (
             bool(request.POST.get("went_to_overtime"))
@@ -843,6 +846,47 @@ class MatchUpAdmin(admin.ModelAdmin):
         """After a plain 'Save', return to the admin home where the stats entry
         widget and quick-cancel widget live — not the matchup changelist."""
         return HttpResponseRedirect(reverse("admin:index"))
+
+    @staticmethod
+    def next_game_to_enter(match):
+        """The next game on the same night still without stats: the one in
+        this division first, then any other division that night. Scores are
+        entered in one sitting the day after, from paper, so each save goes
+        straight to the next sheet in the pile."""
+        if not match.week_id:
+            return None
+        pending = (
+            MatchUp.objects.filter(week__date=match.week.date, is_cancelled=False)
+            .exclude(pk=match.pk)
+            .annotate(stat_count=Count("stat"))
+            .filter(stat_count=0)
+            .order_by("time", "pk")
+        )
+        return (
+            pending.filter(week_id=match.week_id).first()
+            or pending.order_by("week__division__division", "time", "pk").first()
+        )
+
+    def response_change(self, request, obj):
+        if "_save_next" in request.POST:
+            next_game = self.next_game_to_enter(obj)
+            if next_game is None:
+                messages.success(
+                    request,
+                    f"Saved. Every game on {obj.week.date:%A, %B %-d} has its "
+                    "stats entered.",
+                )
+                return HttpResponseRedirect(reverse("admin:index"))
+            messages.success(
+                request,
+                f"Saved {obj.awayteam.team_name} at {obj.hometeam.team_name}. "
+                f"Next: {next_game.awayteam.team_name} at "
+                f"{next_game.hometeam.team_name}.",
+            )
+            return HttpResponseRedirect(
+                reverse("admin:leagues_matchup_change", args=[next_game.pk])
+            )
+        return super().response_change(request, obj)
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         extra_context = extra_context or {}
@@ -877,20 +921,27 @@ class MatchUpAdmin(admin.ModelAdmin):
 
             derived = standings_from_games(match.week.season)
             extra_context["standings_from_games"] = derived
+            if request.method == "POST":
+                went_to_overtime = bool(request.POST.get("went_to_overtime"))
+            else:
+                went_to_overtime = match.went_to_overtime
+            extra_context["went_to_overtime"] = went_to_overtime
             if derived:
                 home_stat_form = away_stat_form = None
-                if request.method == "POST":
-                    went_to_overtime = bool(request.POST.get("went_to_overtime"))
-                else:
-                    went_to_overtime = match.went_to_overtime
-                extra_context["went_to_overtime"] = went_to_overtime
             else:
+                show_tie = not _games_have_winners(match.week.season)
                 if request.method == "POST":
                     home_stat_form = TeamStatForm(
-                        request.POST, instance=home_stat, prefix="home_stat"
+                        request.POST,
+                        instance=home_stat,
+                        prefix="home_stat",
+                        show_tie=show_tie,
                     )
                     away_stat_form = TeamStatForm(
-                        request.POST, instance=away_stat, prefix="away_stat"
+                        request.POST,
+                        instance=away_stat,
+                        prefix="away_stat",
+                        show_tie=show_tie,
                     )
                     if home_stat_form.is_valid() and away_stat_form.is_valid():
                         request._home_stat_form = home_stat_form
@@ -898,11 +949,15 @@ class MatchUpAdmin(admin.ModelAdmin):
                         request._matchup_for_stat = match
                 else:
                     home_stat_form = TeamStatForm(
-                        instance=home_stat, prefix="home_stat"
+                        instance=home_stat, prefix="home_stat", show_tie=show_tie
                     )
                     away_stat_form = TeamStatForm(
-                        instance=away_stat, prefix="away_stat"
+                        instance=away_stat, prefix="away_stat", show_tie=show_tie
                     )
+                extra_context["switch_url"] = reverse(
+                    "admin:leagues_season_switch_to_computed",
+                    args=[match.week.season_id],
+                )
 
             # The season records shown at the bottom of the page. Computed
             # seasons show them read-only; hand-kept seasons show GF/GA
@@ -2266,6 +2321,21 @@ class SeasonAdmin(admin.ModelAdmin):
                     request, f"{season} already takes its standings from game results."
                 )
                 return redirect(change_url)
+            if request.POST.get("action") == "mark_overtime":
+                # Tick boxes on the preview: mark the chosen games as decided
+                # in overtime without opening each one.
+                marked = standings_switch.mark_overtime(
+                    season, request.POST.getlist("overtime_game")
+                )
+                if marked:
+                    messages.success(
+                        request,
+                        f"{marked} game{'s' if marked != 1 else ''} marked as "
+                        "decided in overtime.",
+                    )
+                else:
+                    messages.info(request, "No games were ticked.")
+                return redirect(request.path)
             divisions = standings_switch.switch(season)
             names = ", ".join(str(d) for d in divisions) or "no divisions"
             messages.success(

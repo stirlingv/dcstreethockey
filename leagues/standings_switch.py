@@ -16,7 +16,7 @@ season and rebuilds every record from the games.
 from django.db.models import Sum
 from django.urls import reverse
 
-from leagues.models import Division, Stat, Team, Team_Stat, Week
+from leagues.models import Division, MatchUp, Stat, Team, Team_Stat, Week
 from leagues.results import recompute_team_stats, standings_games, tally_records
 from leagues.templatetags.helpers import team_record
 
@@ -145,6 +145,25 @@ def preview_division(season, division):
 
 def preview(season):
     return [preview_division(season, division) for division in divisions_for(season)]
+
+
+def mark_overtime(season, game_ids):
+    """Mark games of this season as decided in overtime. Only ids that
+    belong to the season count; anything else is ignored. Returns how many
+    games changed."""
+    ids = {int(value) for value in game_ids if str(value).isdigit()}
+    if not ids:
+        return 0
+    games = MatchUp.objects.filter(
+        pk__in=ids, week__season=season, went_to_overtime=False
+    )
+    marked = 0
+    for game in games:
+        # Saved one at a time so the standings signals see each change.
+        game.went_to_overtime = True
+        game.save(update_fields=["went_to_overtime"])
+        marked += 1
+    return marked
 
 
 def switch(season):
