@@ -170,6 +170,7 @@
 
         updateGameScore(homeTonight, awayTonight);
         updateGoalieWarning(homeTonight, awayTonight);
+        updateShootoutVisibility();
         updateResultLine(homeTonight, awayTonight);
     }
 
@@ -195,12 +196,13 @@
         if (homeGoals === awayGoals) {
             if (so === 'true' || so === 'false') {
                 var w = so === 'true' ? homeTeamName : awayTeamName;
-                text = w + ' win in a shootout, ' + homeGoals + '\u2013' + awayGoals + ' after overtime.';
+                var finalHi = homeGoals + 1;
+                text = w + ' win in a shootout, ' + finalHi + '\u2013' + awayGoals + '.';
             } else if (homeGoals === 0 && awayGoals === 0) {
                 text = 'Enter the player stats above \u2014 the score decides the winner.';
                 cls += ' result-pending';
             } else {
-                text = 'Tied ' + homeGoals + '\u2013' + awayGoals + '. Tick \u201cwent to OT / shootout\u201d and pick who won the shootout.';
+                text = 'Tied ' + homeGoals + '\u2013' + awayGoals + ': pick who won the shootout.';
                 cls += ' result-warning';
             }
         } else {
@@ -330,29 +332,44 @@
 
     // ── Shootout section show/hide ─────────────────────────────────────────
     //
-    // The shootout section only appears for non-postseason games (rendered
-    // conditionally by the template). Show it whenever either team has an
-    // OTW value greater than zero, and hide it otherwise.
+    // A game can't end tied, so the moment the goals entered tie the
+    // shootout picker appears on its own: no box to find first. It also
+    // shows when the OT box is ticked (an OT goal is the default there) or,
+    // on a hand-kept season, when an OTW has been typed in.
+
+    function goalsAreTied() {
+        if (!homeTeamId || !awayTeamId) return false;
+        var totals = computeGoalTotals();
+        var home = totals[homeTeamId] || 0;
+        var away = totals[awayTeamId] || 0;
+        return home === away && home > 0;
+    }
 
     function updateShootoutVisibility() {
         var section = document.getElementById('shootout-section');
         if (!section) return;
+        var tied = goalsAreTied();
         var otBox = document.getElementById('went_to_overtime');
+        var show;
         if (otBox) {
-            // Computed standings: the OT box decides.
-            section.style.display = otBox.checked ? 'flex' : 'none';
-            if (!otBox.checked) {
-                // A hidden shootout pick must not be saved by accident.
-                var none = document.querySelector('[name="shootout_winner_is_home"][value=""]');
-                if (none) none.checked = true;
+            show = otBox.checked || tied;
+            if (tied && !otBox.checked) {
+                // A tie is only decided by a shootout, which is overtime.
+                otBox.checked = true;
             }
-            return;
+        } else {
+            var homeOtwEl = document.querySelector('[name="home_stat-otw"]');
+            var awayOtwEl = document.querySelector('[name="away_stat-otw"]');
+            var homeOtw = homeOtwEl ? (parseInt(homeOtwEl.value, 10) || 0) : 0;
+            var awayOtw = awayOtwEl ? (parseInt(awayOtwEl.value, 10) || 0) : 0;
+            show = homeOtw > 0 || awayOtw > 0 || tied;
         }
-        var homeOtwEl = document.querySelector('[name="home_stat-otw"]');
-        var awayOtwEl = document.querySelector('[name="away_stat-otw"]');
-        var homeOtw = homeOtwEl ? (parseInt(homeOtwEl.value, 10) || 0) : 0;
-        var awayOtw = awayOtwEl ? (parseInt(awayOtwEl.value, 10) || 0) : 0;
-        section.style.display = (homeOtw > 0 || awayOtw > 0) ? 'flex' : 'none';
+        section.style.display = show ? 'flex' : 'none';
+        if (!show) {
+            // A hidden shootout pick must not be saved by accident.
+            var none = document.querySelector('[name="shootout_winner_is_home"][value=""]');
+            if (none) none.checked = true;
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {

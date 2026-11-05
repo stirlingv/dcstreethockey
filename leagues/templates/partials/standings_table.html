@@ -20,7 +20,7 @@
                 <th class="col-stat has-tip" data-tip="Overtime / Shootout Wins">OTW</th>
                 <th class="col-stat has-tip" data-tip="Regulation Losses">L</th>
                 <th class="col-stat has-tip" data-tip="Overtime / Shootout Losses">OTL</th>
-                <th class="col-stat col-pts has-tip" data-tip="Points — W=3, OTW=2, OTL/Tie=1, L=0">Pts</th>
+                <th class="col-stat col-pts has-tip" data-tip="Points — W=3, OTW=2, OTL{% if show_ties %}/Tie{% endif %}=1, L=0">Pts</th>
                 <th class="col-stat has-tip" data-tip="Goals For">GF</th>
                 <th class="col-stat has-tip" data-tip="Goals Against">GA</th>
                 <th class="col-stat has-tip" data-tip="Goal Differential (GF minus GA)">DIFF</th>
@@ -47,4 +47,4 @@
         </tbody>
     </table>
 </div>
-<p class="standings-legend">W=3 pts &nbsp;&bull;&nbsp; OTW=2 pts &nbsp;&bull;&nbsp; OTL/Tie=1 pt &nbsp;&bull;&nbsp; L=0 pts &nbsp;&nbsp;&mdash;&nbsp;&nbsp; Tiebreakers: Reg. Wins &rarr; Head-to-Head &rarr; Goal Diff</p>
+<p class="standings-legend">W=3 pts &nbsp;&bull;&nbsp; OTW=2 pts &nbsp;&bull;&nbsp; OTL{% if show_ties %}/Tie{% endif %}=1 pt &nbsp;&bull;&nbsp; L=0 pts &nbsp;&nbsp;&mdash;&nbsp;&nbsp; Tiebreakers: Reg. Wins &rarr; Head-to-Head &rarr; Goal Diff</p>

@@ -5,6 +5,7 @@ its score, and the standings rebuilt from every game in a season.
 
 import datetime
 
+from django.db.models import Sum
 from django.test import TestCase
 
 from leagues.models import (
@@ -127,6 +128,26 @@ class RecomputeTest(ResultsFixture):
         self._score(game, 2, 2)
         self.assertEqual(self._record(self.a)[:4], (0, 0, 1, 0))
         self.assertEqual(self._record(self.b)[:4], (0, 1, 0, 0))
+
+    def test_shootout_goal_counts_for_the_team_but_no_player(self):
+        # The final score of a shootout game gives the winner one more goal.
+        # It belongs to the team, never to a player.
+        game = self._game(self.a, self.b, shootout_winner_is_home=False)
+        self._score(game, 2, 2)
+        self.assertEqual(self._record(self.b)[4:], (3, 2))
+        self.assertEqual(self._record(self.a)[4:], (2, 3))
+        self.assertEqual(
+            Stat.objects.filter(matchup=game).aggregate(total=Sum("goals"))["total"],
+            4,
+        )
+
+    def test_playoff_shootout_is_a_result_but_not_a_standings_game(self):
+        game = self._game(
+            self.a, self.b, is_postseason=True, shootout_winner_is_home=True
+        )
+        self._score(game, 1, 1)
+        self.assertTrue(game_result(game, 1, 1).shootout)
+        self.assertEqual(self._record(self.a), (0, 0, 0, 0, 0, 0))
 
     def test_undecided_tie_counts_goals_but_no_result(self):
         game = self._game(self.a, self.b)
@@ -386,3 +407,25 @@ class StandingsSwitchTest(ResultsFixture):
         before = self._record(self.a)
         standings_switch.switch(self.season)
         self.assertEqual(self._record(self.a), before)
+
+    def test_mark_overtime_ticks_the_chosen_games(self):
+        marked = standings_switch.mark_overtime(
+            self.season, [str(self.overtime.pk), "junk", ""]
+        )
+        self.assertEqual(marked, 1)
+        self.assertTrue(MatchUp.objects.get(pk=self.overtime.pk).went_to_overtime)
+        self.assertFalse(MatchUp.objects.get(pk=self.regulation.pk).went_to_overtime)
+        division, rows = self._rows()
+        self.assertEqual(division["ot_to_mark"], 0)
+
+    def test_mark_overtime_ignores_games_from_other_seasons(self):
+        other_season = Season.objects.create(year=2027, season_type=2)
+        other_week = Week.objects.create(
+            division=self.division, season=other_season, date=datetime.date(2027, 6, 1)
+        )
+        stranger = self._game(self.a, self.b, week=other_week)
+        self.assertEqual(standings_switch.mark_overtime(self.season, [stranger.pk]), 0)
+        self.assertFalse(MatchUp.objects.get(pk=stranger.pk).went_to_overtime)
+
+    def test_mark_overtime_with_nothing_ticked_changes_nothing(self):
+        self.assertEqual(standings_switch.mark_overtime(self.season, []), 0)

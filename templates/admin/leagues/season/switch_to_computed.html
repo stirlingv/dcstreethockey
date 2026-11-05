@@ -13,38 +13,44 @@
 {% block extrahead %}
 {{ block.super }}
 <style>
-  .sw-intro { max-width: 760px; font-size: 14px; line-height: 1.5; }
-  .sw-summary {
+  .sw-status {
     max-width: 760px;
-    margin: 16px 0 24px;
+    margin: 0 0 20px;
     padding: 12px 16px;
     border-radius: 6px;
     font-size: 14px;
     line-height: 1.5;
   }
-  .sw-summary-ok { background: #e8f5e9; color: #1b5e20; border-left: 4px solid #2e7d32; }
-  .sw-summary-warn { background: #fff8e1; color: #7a4a00; border-left: 4px solid #e6a100; }
-  .sw-summary ul { margin: 6px 0 0 18px; padding: 0; }
+  .sw-status-ok { background: #e8f5e9; color: #1b5e20; border-left: 4px solid #2e7d32; }
+  .sw-status-warn { background: #fff8e1; color: #7a4a00; border-left: 4px solid #e6a100; }
+  .sw-status details { margin-top: 6px; }
+  .sw-status summary { cursor: pointer; font-weight: 600; }
+  .sw-status details p { margin: 6px 0 0; }
   .sw-division { margin-bottom: 28px; }
   .sw-division h2 { font-size: 16px; margin: 0 0 8px; }
   .sw-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table.sw-table { border-collapse: collapse; min-width: 560px; width: 100%; font-size: 14px; }
   table.sw-table th, table.sw-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
   table.sw-table th { background: #f6f6f6; font-weight: 600; color: #444; }
+  table.sw-table th[title] { cursor: help; text-decoration: underline dotted; }
   table.sw-table td.num { text-align: center; }
   table.sw-table tr.sw-changed td { background: #fffbeb; }
+  table.sw-table tr.sw-games-row td { background: #fff; padding: 4px 10px 10px 28px; white-space: normal; }
   .sw-record { font-weight: 700; }
   .sw-arrow { color: #888; padding: 0 4px; }
   .sw-flag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 3px; background: #fff8e1; color: #b45309; }
-  .sw-games { margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; }
-  .sw-games li { padding: 6px 0; border-top: 1px solid #f0f0f0; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
-  .sw-games .sw-when { color: #666; min-width: 70px; }
-  .sw-games a.button { padding: 6px 12px; min-height: 32px; line-height: 20px; }
-  .sw-sub { font-size: 13px; color: #555; margin: 10px 0 4px; }
-  .sw-actions { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .sw-games { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+  .sw-games li { padding: 5px 0; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+  .sw-games label { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 32px; }
+  .sw-games input[type="checkbox"] { width: 18px; height: 18px; }
+  .sw-games .sw-when { color: #666; min-width: 50px; }
+  .sw-games a { font-size: 12px; }
+  .sw-none { color: #666; font-size: 13px; }
+  .sw-actions { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   .sw-actions .button, .sw-actions input[type="submit"] { min-height: 44px; padding: 10px 20px; font-size: 14px; }
   .sw-actions .sw-cancel { background: #6b7280; }
-  .sw-note { font-size: 13px; color: #555; max-width: 760px; margin-top: 10px; line-height: 1.5; }
+  .sw-mark-row { margin: 4px 0 20px; }
+  .sw-mark-row input[type="submit"] { min-height: 40px; padding: 8px 16px; }
   @media (max-width: 767px) {
     table.sw-table th, table.sw-table td { padding: 10px 8px; }
     .sw-actions { flex-direction: column; align-items: stretch; }
@@ -57,32 +63,31 @@
 <div id="content-main">
 
 {% if already_computed %}
-  <p class="sw-intro">{{ season }} already takes its standings from game results. Each team's record is worked out from the score, overtime and shootout of its games, so there is nothing to switch.</p>
+  <p class="sw-status sw-status-ok">{{ season }} already takes its standings from game results.</p>
   <div class="sw-actions">
     <a href="{{ change_url }}" class="button sw-cancel">Back to {{ season }}</a>
   </div>
 {% else %}
-  <p class="sw-intro">
-    Right now each team's W, OTW, L and OTL are typed in on every game, while goals for and against are summed from the player stats.
-    After the switch, the whole record comes from the games: the score decides the winner, the <strong>went to OT / shootout</strong> box decides whether it counts as an overtime result, and nothing is typed in twice.
-    Below is each team's record as it was typed in, next to what the games say.
-  </p>
 
   {% if ot_to_mark or changed or undecided %}
-  <div class="sw-summary sw-summary-warn">
-    <strong>Before you switch, check:</strong>
-    <ul>
-      {% if ot_to_mark %}<li><strong>{{ ot_to_mark }} overtime game{{ ot_to_mark|pluralize }} still to mark.</strong> Games played before the <em>went to OT</em> box existed look like regulation results. The one-goal games that could be them are listed under each team: open the game, tick the box, and save. Each unmarked game moves one point from the loser to the winner.</li>{% endif %}
-      {% if undecided %}<li><strong>{{ undecided }} tied game{{ undecided|pluralize }} with no shootout winner.</strong> {% if undecided == 1 %}It gives{% else %}They give{% endif %} neither team a result until the shootout winner is picked.</li>{% endif %}
-      {% if changed %}<li><strong>{{ changed }} record{{ changed|pluralize }} would change.</strong> Highlighted rows show where the typed-in record and the games disagree. Where the games are right, the switch fixes the record; where a game is missing its overtime mark, mark it first.</li>{% endif %}
-    </ul>
+  <div class="sw-status sw-status-warn">
+    <strong>
+      {% if ot_to_mark %}{{ ot_to_mark }} overtime game{{ ot_to_mark|pluralize }} to mark{% endif %}{% if ot_to_mark and undecided %} &middot; {% endif %}{% if undecided %}{{ undecided }} tied game{{ undecided|pluralize }} with no shootout winner{% endif %}{% if changed and ot_to_mark or changed and undecided %} &middot; {% endif %}{% if changed %}{{ changed }} record{{ changed|pluralize }} would change{% endif %}
+    </strong>
+    <details>
+      <summary>What does this mean?</summary>
+      {% if ot_to_mark %}<p>Games played before the OT box existed carry no overtime mark, so they look like regulation results. The typed-in records say how many overtime games each team has. Tick the games that went to overtime below and save; each one moves a point back from the winner to the loser.</p>{% endif %}
+      {% if undecided %}<p>A tied game gives neither team a result until its shootout winner is picked on the game page.</p>{% endif %}
+      {% if changed %}<p>Highlighted rows differ from the games. Once the overtime games are marked, what remains is a typing slip that the switch corrects.</p>{% endif %}
+    </details>
   </div>
   {% else %}
-  <div class="sw-summary sw-summary-ok">
-    Every typed-in record matches what the games say. The switch changes nothing in the standings today; it only stops the totals from having to be typed in again.
-  </div>
+  <p class="sw-status sw-status-ok">Every record matches the games. Switching changes nothing in today's standings; from now on they update by themselves.</p>
   {% endif %}
 
+  <form method="post" id="mark-form">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="mark_overtime">
   {% for d in divisions %}
   <div class="sw-division">
     <h2>{{ d.division }}</h2>
@@ -92,11 +97,11 @@
       <thead>
         <tr>
           <th>Team</th>
-          <th>Typed in</th>
-          <th>From the games</th>
-          <th class="num">Pts</th>
-          <th class="num">GP</th>
-          <th>Overtime games to mark</th>
+          <th title="W-OTW-L-OTL, as typed into the Game Outcome section">Typed in</th>
+          <th title="W-OTW-L-OTL, worked out from the score, OT box and shootout of each game">From games</th>
+          <th class="num" title="Points: typed in → from games, where they differ">Pts</th>
+          <th class="num" title="Games played: typed in → from games, where they differ">GP</th>
+          <th title="Overtime games the typed-in record counts that no game is marked as">OT to mark</th>
         </tr>
       </thead>
       <tbody>
@@ -109,52 +114,58 @@
           <td class="num">{% if row.typed_gp != row.computed_gp %}{{ row.typed_gp }}<span class="sw-arrow">&rarr;</span>{% endif %}{{ row.computed_gp }}</td>
           <td>{% if row.ot_to_mark %}<span class="sw-flag">{{ row.ot_to_mark }}</span>{% else %}&mdash;{% endif %}</td>
         </tr>
+        {% if row.ot_to_mark %}
+        <tr class="sw-games-row">
+          <td colspan="6">
+            {% if row.candidates %}
+            <ul class="sw-games">
+              {% for g in row.candidates %}
+              <li>
+                <label><input type="checkbox" name="overtime_game" value="{{ g.pk }}">
+                  <span class="sw-when">{{ g.week.date|date:"M j" }}</span>
+                  <span>{{ g.awayteam.team_name }} {{ g.away_goals }} at {{ g.hometeam.team_name }} {{ g.home_goals }}</span></label>
+                <a href="{{ g.admin_url }}">open</a>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <span class="sw-none">No one-goal game is left unmarked, so the typed-in overtime count is probably the slip.</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+        {% for g in d.undecided %}
+        <tr class="sw-games-row">
+          <td colspan="6"><span class="sw-flag">Tied, no shootout winner</span>
+            <span class="sw-when">{{ g.week.date|date:"M j" }}</span>
+            {{ g.awayteam.team_name }} {{ g.away_goals }} at {{ g.hometeam.team_name }} {{ g.home_goals }}
+            <a href="{{ g.admin_url }}">open</a></td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
     </div>
-    <p class="sw-sub">Records are W-OTW-L-OTL. Pts and GP show typed in &rarr; from the games where they differ.</p>
-
-    {% for row in d.rows %}{% if row.ot_to_mark %}
-    <p class="sw-sub"><strong>{{ row.team.team_name }}</strong>: {{ row.ot_to_mark }} overtime game{{ row.ot_to_mark|pluralize }} to mark.
-      {% if row.candidates %}One-goal games that could be {% if row.ot_to_mark == 1 %}it{% else %}them{% endif %}:{% else %}No one-goal game without an overtime mark was found, so the typed-in overtime count may itself be wrong.{% endif %}</p>
-    {% if row.candidates %}
-    <ul class="sw-games">
-      {% for g in row.candidates %}
-      <li><span class="sw-when">{{ g.week.date|date:"M j" }}</span>
-          <span>{{ g.awayteam.team_name }} {{ g.away_goals }} at {{ g.hometeam.team_name }} {{ g.home_goals }}</span>
-          <a href="{{ g.admin_url }}" class="button">Open game</a></li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-    {% endif %}{% endfor %}
-
-    {% if d.undecided %}
-    <p class="sw-sub"><strong>Tied with no shootout winner</strong> (no result for either team until it is picked):</p>
-    <ul class="sw-games">
-      {% for g in d.undecided %}
-      <li><span class="sw-when">{{ g.week.date|date:"M j" }}</span>
-          <span>{{ g.awayteam.team_name }} {{ g.away_goals }} at {{ g.hometeam.team_name }} {{ g.home_goals }}</span>
-          <a href="{{ g.admin_url }}" class="button">Open game</a></li>
-      {% endfor %}
-    </ul>
-    {% endif %}
     {% else %}
-    <p class="sw-sub">No teams or games yet.</p>
+    <p class="sw-none">No teams or games yet.</p>
     {% endif %}
   </div>
   {% empty %}
-  <p class="sw-sub">This season has no teams or games yet, so there is nothing to compare. You can still switch it now so that records come from the games once they are played.</p>
+  <p class="sw-none">No teams or games yet. Switching now means records come from the games once they are played.</p>
   {% endfor %}
+  {% if ot_to_mark %}
+  <div class="sw-mark-row"><input type="submit" class="default" value="Save overtime marks"></div>
+  {% endif %}
+  </form>
 
   <div class="sw-actions">
     <form method="post">
       {% csrf_token %}
-      <input type="submit" class="default" value="Switch to standings from game results">
+      <input type="hidden" name="action" value="switch">
+      <input type="submit" class="default" value="Switch to game results">
     </form>
     <a href="{{ change_url }}" class="button sw-cancel">Not now</a>
   </div>
-  <p class="sw-note">The typed-in records are replaced by the ones shown under &ldquo;From the games&rdquo;. You can come back to this page any time before switching; after it, every save of a game's stats updates the standings on its own.</p>
 {% endif %}
 
 </div>

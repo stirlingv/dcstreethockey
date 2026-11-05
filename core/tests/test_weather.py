@@ -440,9 +440,10 @@ class WeatherIntegrationTest(TestCase):
         return {"properties": {"periods": periods}}
 
     def _get_home_with_forecast(self, periods):
-        with patch("core.views.home.MatchUp") as MockMatchUp, patch(
-            "core.views.home.requests.get"
-        ) as mock_get:
+        with (
+            patch("core.views.home.MatchUp") as MockMatchUp,
+            patch("core.views.home.requests.get") as mock_get,
+        ):
             mock_get.return_value.status_code = 200
             mock_get.return_value.json.return_value = self._make_nws_response(periods)
             cache.clear()
@@ -455,9 +456,10 @@ class WeatherIntegrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_weather_unavailable_on_api_failure(self):
-        with patch("core.views.home.MatchUp") as MockMatchUp, patch(
-            "core.views.home.requests.get"
-        ) as mock_get:
+        with (
+            patch("core.views.home.MatchUp") as MockMatchUp,
+            patch("core.views.home.requests.get") as mock_get,
+        ):
             mock_get.return_value.status_code = 500
             cache.clear()
             response = self.client.get(reverse("home"))

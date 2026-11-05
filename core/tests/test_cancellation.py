@@ -50,9 +50,11 @@ class CancellationBannerContextTest(TestCase):
         self.home = _make_team("Home", self.division, self.season, "Red")
 
     def _get_home(self):
-        with patch("core.views.home.MatchUp") as MockMatchUp, patch(
-            "core.views.home.requests.get"
-        ) as mock_get, patch.dict("os.environ", {"OPENWEATHERMAP_API_KEY": "fake_key"}):
+        with (
+            patch("core.views.home.MatchUp") as MockMatchUp,
+            patch("core.views.home.requests.get") as mock_get,
+            patch.dict("os.environ", {"OPENWEATHERMAP_API_KEY": "fake_key"}),
+        ):
             mock_get.return_value.status_code = 200
             mock_get.return_value.json.return_value = {"list": []}
             response = self.client.get(reverse("home"))
@@ -199,9 +201,11 @@ class CancellationBannerTemplateTest(TestCase):
         self.home = _make_team("Home", self.division, self.season, "Red")
 
     def _get_home(self):
-        with patch("core.views.home.MatchUp") as MockMatchUp, patch(
-            "core.views.home.requests.get"
-        ) as mock_get, patch.dict("os.environ", {"OPENWEATHERMAP_API_KEY": "fake_key"}):
+        with (
+            patch("core.views.home.MatchUp") as MockMatchUp,
+            patch("core.views.home.requests.get") as mock_get,
+            patch.dict("os.environ", {"OPENWEATHERMAP_API_KEY": "fake_key"}),
+        ):
             mock_get.return_value.status_code = 200
             mock_get.return_value.json.return_value = {"list": []}
             response = self.client.get(reverse("home"))

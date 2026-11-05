@@ -151,7 +151,9 @@ class MatchUpValidationTest(TestCase):
 
         self.assertIn("home_goalie", context.exception.error_dict)
 
-    def test_postseason_with_shootout_winner_raises_error(self):
+    def test_postseason_with_shootout_winner_is_valid(self):
+        # Rare, but allowed: both captains can agree to settle a playoff
+        # game in a shootout after an overtime period.
         matchup = MatchUp(
             week=self.week,
             time=datetime.time(12, 0),
@@ -162,9 +164,7 @@ class MatchUpValidationTest(TestCase):
             is_postseason=True,
             shootout_winner_is_home=True,
         )
-        with self.assertRaises(ValidationError) as context:
-            matchup.full_clean()
-        self.assertIn("shootout_winner_is_home", context.exception.error_dict)
+        matchup.full_clean()  # no error
 
     def test_regular_season_with_shootout_winner_is_valid(self):
         matchup = MatchUp(
@@ -3170,7 +3170,7 @@ class RecordsBehindScoresTest(StatsEntryWidgetTest):
         html = Template("{% load admin_quick_cancel %}{% stats_entry_widget %}").render(
             Context({"csrf_token": "token"})
         )
-        self.assertNotIn("Records behind the scores", html)
+        self.assertNotIn("Fix record", html)
 
 
 class StatsEntryWidgetComputedSeasonTest(TestCase):

@@ -78,11 +78,12 @@ def game_result(matchup, home_goals, away_goals):
 
 
 def tied_without_shootout_message(home_name, away_name, home_goals, away_goals):
-    """The plain-language reason a tied game can't be saved yet."""
+    """The plain-language reason a tied game can't be saved yet. Every game
+    since 2022 has a winner: overtime or a shootout decides it."""
     return (
         f"Goals are tied {home_goals}-{away_goals} ({home_name} {home_goals}, "
-        f"{away_name} {away_goals}). Tick “went to OT / shootout” and "
-        "pick who won the shootout, or fix the goals above."
+        f"{away_name} {away_goals}). A game can't end tied: pick who won the "
+        "shootout, or fix the goals above."
     )
 
 
@@ -187,6 +188,12 @@ def tally_records(season_id, division_id):
                 m.home_goals, m.away_goals = home_goals, away_goals
                 undecided.append(m)
             continue
+        if result.shootout:
+            # The deciding shootout goal is part of the final score: one
+            # goal for the winner, one against the loser, and never
+            # attributed to a player.
+            tally[result.winner_id]["goals_for"] += 1
+            tally[result.loser_id]["goals_against"] += 1
         if result.overtime:
             tally[result.winner_id]["otw"] += 1
             tally[result.loser_id]["otl"] += 1

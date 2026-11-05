@@ -18,7 +18,7 @@
                     <button class="standings-info-btn" type="button" aria-label="How standings are calculated">?</button>
                     <div class="standings-tooltip" role="tooltip">
                         <strong>How Standings Are Calculated</strong>
-                        <div class="tooltip-row"><span class="tooltip-label">Points:</span> Win=3 &nbsp;&bull;&nbsp; OTW=2 &nbsp;&bull;&nbsp; OTL/Tie=1 &nbsp;&bull;&nbsp; Loss=0</div>
+                        <div class="tooltip-row"><span class="tooltip-label">Points:</span> Win=3 &nbsp;&bull;&nbsp; OTW=2 &nbsp;&bull;&nbsp; OTL{% if show_ties %}/Tie{% endif %}=1 &nbsp;&bull;&nbsp; Loss=0</div>
                         <div class="tooltip-row"><span class="tooltip-label">Tiebreakers (in order):</span></div>
                         <ol class="tooltip-list">
                             <li>Total Points</li>

@@ -4,6 +4,7 @@ from django.db.models import Q, Sum
 from django.views.generic import TemplateView
 
 from leagues.models import MatchUp, Season, Stat, Team_Stat
+from leagues.results import game_result
 
 from .schedule import add_goals_for_matchups
 
@@ -109,9 +110,10 @@ def apply_tiebreakers(stats):
 def championship_results(pairs):
     """Winner of the championship game for each (division, season_id) pair.
 
-    Returns {division int: Team}. A final that is unplayed or tied (no clear
-    winner yet) produces no entry, so in-progress playoffs never show a
-    premature champion.
+    Returns {division int: Team}. A final that is unplayed, or tied with no
+    shootout winner picked, produces no entry, so in-progress playoffs never
+    show a premature champion. A final decided in a shootout names its
+    winner.
     """
     if not pairs:
         return {}
@@ -135,9 +137,12 @@ def championship_results(pairs):
     for matchup in matchups:
         home = goals.get((matchup.id, matchup.hometeam_id), 0)
         away = goals.get((matchup.id, matchup.awayteam_id), 0)
-        if home != away:
+        if home == away == 0 and matchup.shootout_winner_is_home is None:
+            continue  # not played yet
+        result = game_result(matchup, home, away)
+        if result is not None:
             winners[matchup.week.division.division] = (
-                matchup.hometeam if home > away else matchup.awayteam
+                matchup.hometeam if result.winner_is_home else matchup.awayteam
             )
     return winners
 
@@ -247,8 +252,16 @@ class TeamStatDetailView(TemplateView):
 
         wednesday_east = ranked([t for t in wednesday if t.team.conference == 1])
         wednesday_west = ranked([t for t in wednesday if t.team.conference == 2])
+        # Ties ended in 2022. The legend only mentions them when a table on
+        # the page actually has one, i.e. an older season is being shown.
+        show_ties = any(
+            ts.tie
+            for table in (sunday_d1, sunday_d2, wednesday, monday_a, monday_b)
+            for ts in table
+        )
         context.update(
             {
+                "show_ties": show_ties,
                 "sunday_d1": ranked(sunday_d1),
                 "sunday_d2": ranked(sunday_d2),
                 "wednesday_east": wednesday_east,

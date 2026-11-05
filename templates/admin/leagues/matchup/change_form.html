@@ -439,15 +439,9 @@
   .outcome-readonly small { font-weight: 500; color: #666; font-size: 11px; }
 </style>
 
-{% if is_postseason %}
-<div class="playoff-note">
-  &#8505; <strong>Playoff game</strong> — results don't affect regular-season standings.
-  The score above (from player stats) decides the winner. Enter player stats above;
-  there's no win/loss or goals-for/against to record here.
-</div>
-{% elif standings_from_games %}
+{% if is_postseason or standings_from_games %}
 <div class="module game-outcome-module">
-  <h2>Game Outcome</h2>
+  <h2>Game Outcome{% if is_postseason %} &mdash; playoff game, not counted in the standings{% endif %}</h2>
 
   <div class="quick-outcome-row">
     <span class="quick-outcome-label">Result:</span>
@@ -459,40 +453,41 @@
       <input type="checkbox" id="went_to_overtime" name="went_to_overtime" value="on"{% if went_to_overtime %} checked{% endif %}>
       went to OT / shootout
     </label>
-    <span style="font-size:12px;color:#666;">An overtime or shootout result counts as OTW / OTL in the standings.</span>
   </div>
 
   <div id="shootout-section" class="shootout-row" style="display:none;">
-    <span class="shootout-row-label">Overtime type</span>
+    <span class="shootout-row-label">Decided by</span>
     <div class="shootout-radio-group">
       <label>
         <input type="radio" name="shootout_winner_is_home" value=""
           {% if shootout_winner_is_home is None %}checked{% endif %}>
-        OT goal (no shootout)
+        OT goal
       </label>
       <label>
         <input type="radio" name="shootout_winner_is_home" value="false"
           {% if shootout_winner_is_home == False %}checked{% endif %}>
-        {{ away_team_name }} won shootout
+        Shootout, {{ away_team_name }} won
       </label>
       <label>
         <input type="radio" name="shootout_winner_is_home" value="true"
           {% if shootout_winner_is_home == True %}checked{% endif %}>
-        {{ home_team_name }} won shootout
+        Shootout, {{ home_team_name }} won
       </label>
     </div>
   </div>
 
+  {% if not is_postseason %}
   <div class="records-row">
-    <p class="records-note">Season records so far &mdash; W-OTW-L-OTL, as in the standings table. They update by themselves when you save this game.</p>
+    <p class="records-note">Season records (W-OTW-L-OTL)</p>
     <div><span class="record-team">{{ away_team_name }}</span>&nbsp; <span class="record-value">{{ away_record.text }}</span> <span class="record-gfga">({{ away_record.gp }} GP, {{ away_record.gf }} GF, {{ away_record.ga }} GA)</span></div>
     <div><span class="record-team">{{ home_team_name }}</span>&nbsp; <span class="record-value">{{ home_record.text }}</span> <span class="record-gfga">({{ home_record.gp }} GP, {{ home_record.gf }} GF, {{ home_record.ga }} GA)</span></div>
   </div>
+  {% endif %}
 
 </div>
 {% else %}
 <p style="font-size:12px;color:#555;margin:8px 0 16px;padding:8px 12px;background:#f0f6fb;border-left:3px solid #417690;">
-  This season's records are kept by hand. Use the buttons to record tonight's result; goals for and against are summed from the player stats above when you save.
+  Records for this season are typed in by hand. <a href="{{ switch_url }}">Switch the season to game results</a> and they will come from the scores instead.
 </p>
 <div class="module game-outcome-module">
   <h2>Game Outcome</h2>
@@ -536,12 +531,14 @@
           <div class="outcome-stat-input-group">{{ away_stat_form.otl }}</div>
         </div>
       </div>
+      {% if away_stat_form.tie %}
       <div class="outcome-stat-row">
         <div class="outcome-stat-item">
           <label for="{{ away_stat_form.tie.id_for_label }}">T</label>
           <div class="outcome-stat-input-group">{{ away_stat_form.tie }}</div>
         </div>
       </div>
+      {% endif %}
       <div class="outcome-stat-row">
         <div class="outcome-stat-item">
           <label>GF</label>
@@ -583,12 +580,14 @@
           <div class="outcome-stat-input-group">{{ home_stat_form.otl }}</div>
         </div>
       </div>
+      {% if home_stat_form.tie %}
       <div class="outcome-stat-row">
         <div class="outcome-stat-item">
           <label for="{{ home_stat_form.tie.id_for_label }}">T</label>
           <div class="outcome-stat-input-group">{{ home_stat_form.tie }}</div>
         </div>
       </div>
+      {% endif %}
       <div class="outcome-stat-row">
         <div class="outcome-stat-item">
           <label>GF</label>
@@ -605,22 +604,22 @@
   </div>
 
   <div id="shootout-section" class="shootout-row" style="display:none;">
-    <span class="shootout-row-label">Overtime type</span>
+    <span class="shootout-row-label">Decided by</span>
     <div class="shootout-radio-group">
       <label>
         <input type="radio" name="shootout_winner_is_home" value=""
           {% if shootout_winner_is_home is None %}checked{% endif %}>
-        OT goal (no shootout)
+        OT goal
       </label>
       <label>
         <input type="radio" name="shootout_winner_is_home" value="false"
           {% if shootout_winner_is_home == False %}checked{% endif %}>
-        {{ away_team_name }} won shootout
+        Shootout, {{ away_team_name }} won
       </label>
       <label>
         <input type="radio" name="shootout_winner_is_home" value="true"
           {% if shootout_winner_is_home == True %}checked{% endif %}>
-        {{ home_team_name }} won shootout
+        Shootout, {{ home_team_name }} won
       </label>
     </div>
   </div>
@@ -731,7 +730,12 @@
   }
 </style>
 <div class="submit-row matchup-submit-row">
-  <button type="submit" name="_save" class="matchup-save-btn primary" title="Returns to home">Save</button>
+  {% if original %}
+  <button type="submit" name="_save_next" class="matchup-save-btn primary" title="Saves, then opens the next game that night without stats">Save and enter next game</button>
+  <button type="submit" name="_save" class="matchup-save-btn secondary" title="Saves and returns to the dashboard">Save</button>
+  {% else %}
+  <button type="submit" name="_save" class="matchup-save-btn primary" title="Saves and returns to the dashboard">Save</button>
+  {% endif %}
   {% if show_save_and_continue %}
   <button type="submit" name="_continue" class="matchup-save-btn secondary" title="Stays on this game">Save and continue editing</button>
   {% endif %}

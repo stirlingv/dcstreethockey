@@ -253,11 +253,9 @@
         stat row for that team's goalie.</dd>
       <dt>Outcome &#10003; / Done</dt>
       <dd>Everything for the game is recorded.</dd>
-      <dt>Record behind the scores</dt>
-      <dd>In a season whose records are typed in by hand, a team has more games
-        with scores than its W-OTW-L-OTL record counts, so the standings are
-        missing a result. Open the team's latest game and set its season
-        totals in the Game Outcome section.</dd>
+      <dt>Records behind the scores</dt>
+      <dd>A team has more games with scores than its typed-in record counts.
+        Fix the totals on its latest game, or switch the season to game results.</dd>
       <dt>Playoff</dt>
       <dd>A postseason game. Results don't affect regular-season standings, so
         there's no Game Outcome to record — just enter player and goalie stats.</dd>
@@ -365,9 +363,8 @@
   {% endif %}
   {% if records_behind %}
   <p class="se-older-heading">&#9888; Records behind the scores</p>
-  <p class="se-older-hint">These teams have more games with scores than their record counts, so the standings are missing a result.
-    Open the team's latest game and set its season totals (W, OTW, L, OTL) in the Game Outcome section.
-    To stop this happening again, {% for s in records_behind_seasons %}{% if not forloop.first %} or {% endif %}<a href="{{ s.switch_url }}">switch {{ s.season.get_season_type_display }} {{ s.season.year }} to standings from game results</a>{% endfor %}: the record then comes from the scores and is never typed in.</p>
+  <p class="se-older-hint">More games have scores than the typed-in record counts.
+    Fix the totals on the team's latest game, or {% for s in records_behind_seasons %}{% if not forloop.first %} / {% endif %}<a href="{{ s.switch_url }}">switch {{ s.season.get_season_type_display }} {{ s.season.year }} to game results</a>{% endfor %} so records come from the scores.</p>
   {% for row in records_behind %}
   <div class="se-older-row">
     <span class="se-older-when">{{ row.division }}</span>
