@@ -203,6 +203,29 @@ def listed_goalies():
     )
 
 
+def goalie_choice_options(players, last_name_first=False):
+    """
+    ``[{"id": 7, "name": "Pat Pads"}, ...]`` for a page's goalie pickers.
+
+    A page writes this list once (``json_script``) and fills each picker
+    from it in the browser. The Goalie Status Board has two pickers per
+    side of every upcoming game, so rendering the options server-side made
+    the page grow with games x goalies: several megabytes, and enough
+    memory per request to exhaust the server when fetched in parallel.
+    """
+    return [
+        {
+            "id": player.id,
+            "name": (
+                f"{player.last_name}, {player.first_name}"
+                if last_name_first
+                else full_name(player)
+            ),
+        }
+        for player in players
+    ]
+
+
 def resolve_person(request, candidates):
     """
     Who a board post says they are: (Player or None, display name).

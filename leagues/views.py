@@ -27,6 +27,7 @@ from .goalie_board import (
     confirm_offer,
     confirm_side,
     games_needing_subs,
+    goalie_choice_options,
     goalie_sides_for_matchups,
     listed_goalies,
     notify_goalie_czar,
@@ -194,7 +195,12 @@ def goalie_status_board(request):
         "sub_needed_games": games_needing_subs(all_matchups, sides),
         "unconfirmed_count": unconfirmed_count,
         "status_choices": MatchUp.GOALIE_STATUS_CHOICES,
-        "goalie_choices": list(listed_goalies()),
+        # Written into the page once as JSON; the browser fills each "Select
+        # a goalie" / "Already found a sub?" picker from it when its form
+        # opens. Rendering the list inside every form made the page grow
+        # with games x goalies (megabytes, and enough memory per request
+        # to take the site down when a crawler fetched it in parallel).
+        "goalie_choices": goalie_choice_options(listed_goalies()),
         "czar_name": settings.GOALIE_CZAR_NAME,
     }
     return render(request, "leagues/goalie_status_board.html", context)
@@ -461,6 +467,9 @@ def captain_goalie_update(request, access_code):
         "team": team,
         "matchups_data": matchups_data,
         "all_goalies": all_goalies,
+        # The same list once as JSON for the browser to fill each game's
+        # goalie dropdown from, instead of repeating it per game.
+        "goalie_options": goalie_choice_options(all_goalies, last_name_first=True),
         "roster_goalie": roster_goalie,
         "status_choices": MatchUp.GOALIE_STATUS_CHOICES,
         "czar_name": settings.GOALIE_CZAR_NAME,

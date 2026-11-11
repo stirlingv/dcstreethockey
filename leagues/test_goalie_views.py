@@ -555,6 +555,47 @@ class CanPlayGoalieTest(TestCase):
         response = self.client.get(self._url())
         self.assertIn(self.roster_goalie, response.context["all_goalies"])
 
+    def test_goalie_list_written_once_and_filled_in_the_browser(self):
+        """Regression: the page used to repeat every goalie in each game's
+        dropdown, growing with games x goalies. The list is now JSON, once."""
+        for i in range(12):
+            Player.objects.create(
+                first_name="Sub", last_name=f"Goalie{i:02d}", can_play_goalie=True
+            )
+        for hour in (20, 21):
+            make_matchup(
+                self.week, self.team, self.opponent, time=datetime.time(hour, 0)
+            )
+        response = self.client.get(self._url())
+        html = response.content.decode()
+        self.assertEqual(len(response.context["matchups_data"]), 3)
+        self.assertEqual(
+            response.context["goalie_options"][0],
+            {"id": self.roster_goalie.id, "name": "Goalie, Roster"},
+        )
+        self.assertContains(response, 'id="all-goalies" type="application/json"')
+        self.assertEqual(html.count("Goalie05, Sub"), 1)
+        self.assertEqual(
+            html.count(
+                '<optgroup label="All Goalies" data-goalie-choices '
+                f'data-skip="{self.roster_goalie.id}">'
+            ),
+            3,
+        )
+        # Each game still offers the roster goalie without any script.
+        self.assertEqual(html.count("Roster Goalie (Roster)"), 3)
+
+    def test_current_sub_stays_selected_without_script(self):
+        sub = Player.objects.create(
+            first_name="Alex", last_name="Wall", can_play_goalie=True
+        )
+        self.matchup.home_goalie = sub
+        self.matchup.home_goalie_status = MatchUp.GOALIE_STATUS_CONFIRMED
+        self.matchup.save()
+        response = self.client.get(self._url())
+        self.assertContains(response, f'<option value="{sub.id}" selected>')
+        self.assertContains(response, "Wall, Alex")
+
 
 # ---------------------------------------------------------------------------
 # leagues/goalie_of_record.py — who played goal, for goalie stat displays

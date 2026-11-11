@@ -82,37 +82,12 @@ showPropSort() handlers live in static/assets/js/odds.js.
         <span class="props-sort-col" onclick="showPropSort('assist', this)" data-sort="assist">ASSIST</span>
         <span class="props-sort-col" onclick="showPropSort('point', this)" data-sort="point">POINT</span>
     </div>
+    {# One list, in goal order; the sort headers reorder these rows in the
+       browser by their rank attributes (odds.js). Rendering a copy per
+       market tripled the size of the Schedule and home pages. #}
     <div class="props-list" data-sort="goal">
         {% for p in props.by_goal %}
-        <div class="props-row">
-            <span class="props-player-info">
-                <span class="props-team-tag">{{ p.team_abbr }}</span>
-                <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
-                <span class="props-pos">{{ p.pos }}</span>
-            </span>
-            <span class="props-odds">{{ p.goal_odds }}</span>
-            <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
-            <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
-        </div>
-        {% endfor %}
-    </div>
-    <div class="props-list" data-sort="assist" style="display:none">
-        {% for p in props.by_assist %}
-        <div class="props-row">
-            <span class="props-player-info">
-                <span class="props-team-tag">{{ p.team_abbr }}</span>
-                <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>
-                <span class="props-pos">{{ p.pos }}</span>
-            </span>
-            <span class="props-odds">{{ p.goal_odds }}</span>
-            <span class="props-odds props-assist-odds">{{ p.assist_odds }}</span>
-            <span class="props-odds props-point-odds">{{ p.point_odds }}</span>
-        </div>
-        {% endfor %}
-    </div>
-    <div class="props-list" data-sort="point" style="display:none">
-        {% for p in props.by_point %}
-        <div class="props-row">
+        <div class="props-row" data-goal-rank="{{ p.goal_rank }}" data-assist-rank="{{ p.assist_rank }}" data-point-rank="{{ p.point_rank }}">
             <span class="props-player-info">
                 <span class="props-team-tag">{{ p.team_abbr }}</span>
                 <a class="props-name" href="{% url 'player' p.player_id %}">{{ p.name }}</a>

@@ -1487,6 +1487,62 @@ class PlayerPropsBase(TestCase):
             )
 
 
+class PropsPanelRenderedOnceTest(PlayerPropsBase):
+    """The Player Props panel holds one list of players that the browser
+    re-sorts, not a copy per market."""
+
+    def setUp(self):
+        super().setUp()
+        # Sunday D1 never shows odds; make this a Sunday D2 game.
+        self.division.division = 2
+        self.division.save()
+
+    def test_each_player_carries_a_rank_in_every_market(self):
+        props = compute_player_props_for_matchups([self.matchup.id])[self.matchup.id]
+        by_name = {p["name"]: p for p in props["by_goal"]}
+        self.assertEqual(
+            [p["name"] for p in sorted(by_name.values(), key=lambda p: p["goal_rank"])],
+            [p["name"] for p in props["by_goal"]],
+        )
+        self.assertEqual(
+            [
+                p["name"]
+                for p in sorted(by_name.values(), key=lambda p: p["assist_rank"])
+            ],
+            [p["name"] for p in props["by_assist"]],
+        )
+        self.assertEqual(
+            [
+                p["name"]
+                for p in sorted(by_name.values(), key=lambda p: p["point_rank"])
+            ],
+            [p["name"] for p in props["by_point"]],
+        )
+        self.assertEqual(
+            sorted(p["goal_rank"] for p in by_name.values()),
+            list(range(1, len(by_name) + 1)),
+        )
+
+    def test_schedule_renders_one_props_list_per_game(self):
+        # Regression: three copies of the list (one per market) made the
+        # Schedule and home pages megabytes long, and the memory to build
+        # them for several visitors at once took the site down.
+        response = self.client.get(reverse("schedule"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        props = response.context["player_props"][self.matchup.id]
+        self.assertGreater(props["total"], 0)
+        self.assertEqual(html.count('class="props-list"'), 1)
+        # One row per player, plus the sort-header row.
+        self.assertEqual(html.count('class="props-row"'), props["total"] + 1)
+        self.assertEqual(html.count("Home Scorer"), 1)
+        self.assertContains(response, 'data-goal-rank="1"')
+        self.assertContains(response, 'data-assist-rank="1"')
+        self.assertContains(response, 'data-point-rank="1"')
+        # The sort headers are still there for the browser to act on.
+        self.assertContains(response, "showPropSort('assist', this)")
+
+
 class ComputePlayerPropsTest(PlayerPropsBase):
     def test_empty_input_returns_empty_dict(self):
         self.assertEqual(compute_player_props_for_matchups([]), {})

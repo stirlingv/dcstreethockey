@@ -58,14 +58,13 @@
                                         <option value="roster" {% if not match_data.current_goalie or match_data.current_goalie.id == roster_goalie.id %}selected{% endif %}>
                                             {{ roster_goalie.first_name }} {{ roster_goalie.last_name }} (Roster)
                                         </option>
-                                        <optgroup label="All Goalies">
-                                            {% for goalie in all_goalies %}
-                                                {% if goalie.id != roster_goalie.id %}
-                                                <option value="{{ goalie.id }}" {% if match_data.current_goalie and match_data.current_goalie.id == goalie.id %}selected{% endif %}>
-                                                    {{ goalie.last_name }}, {{ goalie.first_name }}
-                                                </option>
-                                                {% endif %}
-                                            {% endfor %}
+                                        {# Filled in the browser from the all-goalies JSON below, so the whole list is in the page once. #}
+                                        <optgroup label="All Goalies" data-goalie-choices data-skip="{{ roster_goalie.id }}">
+                                            {% if match_data.current_goalie and match_data.current_goalie.id != roster_goalie.id %}
+                                            <option value="{{ match_data.current_goalie.id }}" selected>
+                                                {{ match_data.current_goalie.last_name }}, {{ match_data.current_goalie.first_name }}
+                                            </option>
+                                            {% endif %}
                                         </optgroup>
                                     </select>
                                 </div>
@@ -146,8 +145,27 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{{ goalie_options|json_script:"all-goalies" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Fill each game's "All Goalies" group from the list written once above,
+    // keeping whichever goalie is currently picked for that game selected.
+    const allGoalies = JSON.parse(document.getElementById('all-goalies').textContent);
+    document.querySelectorAll('optgroup[data-goalie-choices]').forEach(function(group) {
+        const select = group.closest('select');
+        const current = select.value;
+        const skip = group.dataset.skip;
+        group.innerHTML = '';
+        allGoalies.forEach(function(goalie) {
+            if (String(goalie.id) === skip) return;
+            const option = document.createElement('option');
+            option.value = goalie.id;
+            option.textContent = goalie.name;
+            group.appendChild(option);
+        });
+        select.value = current;
+    });
+
     const forms = document.querySelectorAll('.goalie-update-form');
 
     forms.forEach(function(form) {

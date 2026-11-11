@@ -2,7 +2,9 @@
 "No, need a sub" / "Need a sub" form for one side of one game on the
 Goalie Status Board. If the reporter already has a sub lined up they can
 name them here, which confirms the game instead of marking it Sub Needed.
-Expects: side, match_data, goalie_choices, czar_name.
+Expects: side, match_data, czar_name. The "Listed goalies" group is filled
+in the browser from the page's goalie-choices JSON when the form opens, so
+the list of every goalie is written into the page once, not once per form.
 {% endcomment %}
 <form method="post" action="{% url 'report_sub_needed' match_data.matchup.id side.side %}" class="board-form">
     {% csrf_token %}
@@ -12,7 +14,7 @@ Expects: side, match_data, goalie_choices, czar_name.
         <span>Already found a sub? <em>(optional)</em></span>
         <select name="sub" class="board-person board-sub-pick">
             <option value="">No, still looking</option>
-            {% for p in goalie_choices %}<option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>{% endfor %}
+            <optgroup label="Listed goalies" data-goalie-choices></optgroup>
             <option value="other">Someone else&hellip;</option>
         </select>
         <input type="text" name="sub_name" maxlength="100" placeholder="Sub's name" class="board-other-name" hidden>

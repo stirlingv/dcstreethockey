@@ -382,13 +382,53 @@ class BoardPageTest(BoardFixture):
     def test_goalie_pickers_list_goalies_not_other_players(self):
         response = self.client.get(self.board_url)
         html = response.content.decode()
+        # The goalies are written once as JSON and filled into each picker
+        # by the browser, so the picker itself holds only its fixed options
+        # and an empty group for them.
+        self.assertEqual(
+            response.context["goalie_choices"],
+            [
+                {"id": self.away_goalie.id, "name": "Pat Pads"},
+                {"id": self.home_goalie.id, "name": "Sam Stopper"},
+            ],
+        )
+        self.assertContains(response, 'id="goalie-choices" type="application/json"')
         picker = html[html.index('name="goalie"') :]
         picker = picker[: picker.index("</select>")]
-        self.assertIn(
-            f'<option value="{self.away_goalie.id}">Pat Pads</option>', picker
-        )
+        self.assertIn('<optgroup label="Other goalies" data-goalie-choices>', picker)
+        self.assertNotIn("Pat Pads</option>", picker)
         self.assertNotIn("Casey Captain", picker)
         self.assertIn("Someone else", picker)
+        sub_picker = html[html.index('name="sub"') :]
+        sub_picker = sub_picker[: sub_picker.index("</select>")]
+        self.assertIn(
+            '<optgroup label="Listed goalies" data-goalie-choices>', sub_picker
+        )
+
+    def test_page_size_does_not_grow_with_games_times_goalies(self):
+        # Regression: every picker on the board used to embed the full list
+        # of goalies, so the page grew with games x goalies (10 MB with a
+        # season's worth of each) and a handful of parallel requests exhausted
+        # the server's memory. Each goalie is now named once, in the JSON.
+        for i in range(30):
+            Player.objects.create(
+                first_name="Extra", last_name=f"Goalie{i:02d}", can_play_goalie=True
+            )
+        for i in range(1, 6):
+            MatchUp.objects.create(
+                week=self.week,
+                time=datetime.time(19 + i % 3, 15),
+                awayteam=self.away,
+                hometeam=self.home,
+                away_goalie_status=SUB_NEEDED,
+                home_goalie_status=UNCONFIRMED,
+            )
+        response = self.client.get(self.board_url)
+        html = response.content.decode()
+        self.assertEqual(html.count("Extra Goalie07"), 1)
+        # Six games, each side with a roster picker or two: well under the
+        # 6 games x 2 sides x 2 pickers x 32 goalies the old page carried.
+        self.assertLess(html.count("<option"), 200)
 
     def test_report_form_lists_the_teams_roster(self):
         response = self.client.get(self.board_url)
