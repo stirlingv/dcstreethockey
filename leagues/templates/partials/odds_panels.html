@@ -82,9 +82,11 @@ showPropSort() handlers live in static/assets/js/odds.js.
         <span class="props-sort-col" onclick="showPropSort('assist', this)" data-sort="assist">ASSIST</span>
         <span class="props-sort-col" onclick="showPropSort('point', this)" data-sort="point">POINT</span>
     </div>
-    {# One list, in goal order; the sort headers reorder these rows in the
-       browser by their rank attributes (odds.js). Rendering a copy per
-       market tripled the size of the Schedule and home pages. #}
+    {% comment %}
+    One list, in goal order; the sort headers reorder these rows in the
+    browser by their rank attributes (odds.js). Rendering a copy per market
+    tripled the size of the Schedule and home pages.
+    {% endcomment %}
     <div class="props-list" data-sort="goal">
         {% for p in props.by_goal %}
         <div class="props-row" data-goal-rank="{{ p.goal_rank }}" data-assist-rank="{{ p.assist_rank }}" data-point-rank="{{ p.point_rank }}">

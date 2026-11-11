@@ -16,11 +16,13 @@ Covered bugs (each test names the template it protects):
 
 import datetime
 import re
+from pathlib import Path
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core.cache import cache
 from django.template.loader import render_to_string
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from leagues.models import (
@@ -519,3 +521,25 @@ class ScheduleGameRowCssTest(TestCase):
             r'grid-template-areas: "time toggles" "teams teams"',
         )
         self.assertRegex(css, r"\.game \.bl-toggle-row \{[^}]*grid-area: toggles")
+
+
+class TemplateCommentSyntaxTest(SimpleTestCase):
+    """A ``{# ... #}`` comment must open and close on one line. Django does
+    not support it across lines: the text is rendered to visitors. (The
+    Player Props panel once showed its own comment under the POINT header
+    this way.) Multi-line notes belong in ``{% comment %}`` blocks."""
+
+    def test_no_hash_comment_spans_lines(self):
+        root = Path(settings.BASE_DIR).resolve()
+        offenders = []
+        for path in root.rglob("*.html"):
+            if any(
+                part in ("venv", "node_modules", "staticfiles") for part in path.parts
+            ):
+                continue
+            for number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1
+            ):
+                if "{#" in line and "#}" not in line.split("{#", 1)[1]:
+                    offenders.append(f"{path.relative_to(root)}:{number}")
+        self.assertEqual(offenders, [], "Use {% comment %} for multi-line notes")
