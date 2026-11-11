@@ -1087,6 +1087,13 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
 
         # Three independent sorts — one per prop type, matching the DraftKings /
         # FanDuel convention of separate markets for Goal, Assist, and Point.
+        # Each player also carries their 1-based rank in every market
+        # (goal_rank, assist_rank, point_rank) so a page can render the list
+        # once and re-sort it in the browser instead of embedding three copies.
+        for market in ("goal", "assist", "point"):
+            ordered = sorted(all_players, key=lambda x: x[f"p_{market}"], reverse=True)
+            for rank, player in enumerate(ordered, 1):
+                player[f"{market}_rank"] = rank
         _prob_keys = {"p_goal", "p_assist", "p_point"}
 
         def _strip(player):

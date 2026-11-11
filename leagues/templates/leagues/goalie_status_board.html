@@ -132,12 +132,31 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{{ goalie_choices|json_script:"goalie-choices" }}
 <script>
+// Every goalie the board knows, written into the page once (above). Each
+// goalie picker is filled from it the first time its form opens, so the
+// page stays small however many games and goalies there are.
+var goalieChoices = JSON.parse(document.getElementById('goalie-choices').textContent);
+function fillGoalieChoices(root) {
+    root.querySelectorAll('[data-goalie-choices]').forEach(function (group) {
+        if (group.dataset.filled) return;
+        group.dataset.filled = '1';
+        goalieChoices.forEach(function (goalie) {
+            var option = document.createElement('option');
+            option.value = goalie.id;
+            option.textContent = goalie.name;
+            group.appendChild(option);
+        });
+    });
+}
 // Put the cursor in the first field when an action opens, and close any
 // other open form in the same card so the page stays tidy on a phone.
 document.querySelectorAll('.board-action').forEach(function (details) {
+    if (details.open) fillGoalieChoices(details);
     details.addEventListener('toggle', function () {
         if (!details.open) return;
+        fillGoalieChoices(details);
         details.closest('.game-card').querySelectorAll('.board-action[open]').forEach(function (other) {
             if (other !== details) other.open = false;
         });

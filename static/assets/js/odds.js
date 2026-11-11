@@ -22,12 +22,20 @@ function toggleOdds(btn, panelId) {
 	}
 }
 
-// Re-sort a Player Props panel by goal, assist or point odds.
+// Re-sort a Player Props panel by goal, assist or point odds. The panel
+// holds one list of players; each row carries its rank in every market
+// (data-goal-rank, data-assist-rank, data-point-rank), so sorting is a
+// matter of putting the rows back in that order.
 function showPropSort(sortKey, el) {
 	var panel = el.closest('.props-panel');
-	panel.querySelectorAll('.props-list[data-sort]').forEach(function(list) {
-		list.style.display = list.getAttribute('data-sort') === sortKey ? '' : 'none';
+	var list = panel.querySelector('.props-list');
+	var rows = Array.prototype.slice.call(list.querySelectorAll('.props-row'));
+	rows.sort(function(a, b) {
+		return Number(a.getAttribute('data-' + sortKey + '-rank')) -
+			Number(b.getAttribute('data-' + sortKey + '-rank'));
 	});
+	rows.forEach(function(row) { list.appendChild(row); });
+	list.setAttribute('data-sort', sortKey);
 	panel.querySelectorAll('.props-sort-col').forEach(function(col) {
 		var key = col.getAttribute('data-sort');
 		var isActive = key === sortKey;

@@ -89,6 +89,20 @@ dropdb dcsh_smoke
 2. Add a comment explaining why it changed.
 3. Never raise a ceiling without understanding _why_ the count increased.
 
+### Page size
+
+The site runs in one 512 MB process on Render, and every request renders in its own
+thread, so a page's size is multiplied by however many visitors (or crawler threads)
+fetch it at once. In November 2026 the Goalie Status Board embedded the full list of
+goalies in every form of every upcoming game (tens of thousands of `<option>` tags, a
+10 MB page) and a burst of parallel requests pushed the process past its memory limit,
+restarting the site. Never render a site-wide list (all goalies, all players) once per
+game or per form: write it into the page once with `json_script` and fill the controls
+in the browser, as `goalie_status_board.html` and `captain_goalie_update.html` do, and
+render a sortable list once and re-sort it client-side, as `partials/odds_panels.html`
+does. Add a regression test that counts the names or tags in the response when you
+change such a page.
+
 ---
 
 ## Dependencies

@@ -5,7 +5,9 @@ Confirming a side of one game on the Goalie Status Board.
 - Sub Needed row: "Select a goalie" asks who's in goal: the roster goalie
   (they can play after all), another listed goalie, or someone the site
   doesn't know yet. Volunteers (offers an admin entered) come first.
-Expects: side, match_data, goalie_choices.
+Expects: side, match_data. The "Other goalies" group is filled in the
+browser from the page's goalie-choices JSON when the form opens, so the
+list of every goalie is written into the page once, not once per form.
 {% endcomment %}
 <form method="post" action="{% url 'confirm_goalie' match_data.matchup.id side.side %}" class="{% if side.needs_sub %}board-form{% else %}board-tap{% endif %}">
     {% csrf_token %}
@@ -22,9 +24,7 @@ Expects: side, match_data, goalie_choices.
             </optgroup>
             {% endif %}
             {% if side.roster_goalie_name %}<option value="roster">{{ side.roster_goalie_name }} (roster goalie)</option>{% endif %}
-            <optgroup label="Other goalies">
-                {% for p in goalie_choices %}<option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>{% endfor %}
-            </optgroup>
+            <optgroup label="Other goalies" data-goalie-choices></optgroup>
             <option value="other">Someone else&hellip;</option>
         </select>
         <input type="text" name="goalie_name" maxlength="100" placeholder="Goalie's name" class="board-other-name" hidden>
