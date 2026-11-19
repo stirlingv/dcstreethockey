@@ -1,6 +1,7 @@
 {% comment %}
 One team's column of the scoresheet grid. Expects `side` with team,
-players (non-goalies) and goalies. Every row posts all four stat fields.
+players (non-goalies) and goalies (the roster's goalies, plus whoever was
+named as this game's goalie, marked "(sub)" when they aren't a regular). Every row posts all four stat fields.
 Player rows carry GA/EN as hidden inputs so saving never wipes them; goalie
 rows show all four, since a goalie can also score or assist.
 {% endcomment %}
@@ -47,7 +48,7 @@ rows show all four, since a goalie can also score or assist.
             {% for row in side.goalies %}
             <tr>
                 <td class="ss-name">
-                    {{ row.name }}{% if row.is_captain %} <span class="ss-cap">(C)</span>{% endif %}
+                    {{ row.name }}{% if row.is_captain %} <span class="ss-cap">(C)</span>{% endif %}{% if row.is_sub %} <span class="ss-cap">(sub)</span>{% endif %}
                 </td>
                 <td class="ss-num"><input type="number" min="0" inputmode="numeric" class="ss-input" name="ss-{{ row.player_id }}-goals_against" value="{{ row.goals_against }}" data-team="{{ side.team.id }}" data-ss="goals_against" aria-label="{{ row.name }} goals against"></td>
                 <td class="ss-num"><input type="number" min="0" inputmode="numeric" class="ss-input" name="ss-{{ row.player_id }}-empty_net" value="{{ row.empty_net }}" data-team="{{ side.team.id }}" data-ss="empty_net" aria-label="{{ row.name }} empty-net goals against"></td>
