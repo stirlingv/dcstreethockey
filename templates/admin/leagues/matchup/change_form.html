@@ -31,10 +31,13 @@
         &ldquo;Subs &amp; other players&rdquo; section below.
     </p>
     <p class="ss-hint ss-hint-sub-goalie">
-        <strong>Sub in goal?</strong> Also
+        <strong>Sub in goal?</strong> A sub who was named as this game&rsquo;s
+        goalie is already listed with the goalies below, marked (sub). If they
+        aren&rsquo;t listed, add them under &ldquo;Subs &amp; other players&rdquo;
+        (goals against is the first box) or
         <a href="{% url 'admin:leagues_matchupgoaliestatus_change' original.pk %}">set them as this game&rsquo;s goalie</a>
-        so their goalie stats are counted. If they aren&rsquo;t in the goalie list,
-        tick &ldquo;Can play goalie&rdquo; on their player record first.
+        and they will appear here. Not in the goalie list? Tick
+        &ldquo;Can play goalie&rdquo; on their player record first.
     </p>
     <input type="hidden" name="ss-player-ids" value="{{ scoresheet_player_ids }}">
     <div class="ss-grid">

@@ -1045,6 +1045,124 @@ class ScoresheetGridTest(TestCase):
         self.assertIn(f'value="{sub_stat.pk}"', content)
         self.assertNotIn(f'name="stat_set-0-id" value="{rostered_stat.pk}"', content)
 
+    def test_sub_rows_put_goals_against_before_goals_and_assists(self):
+        # Nearly every row in the subs section is a sub goalie, so the first
+        # number box after the team must be goals against, not goals.
+        content = self.client.get(self._url()).content.decode()
+        order = [
+            content.index(f'name="stat_set-0-{field}"')
+            for field in ("player", "team", "goals_against", "empty_net", "goals")
+        ]
+        self.assertEqual(order, sorted(order))
+        self.assertLess(
+            content.index('name="stat_set-0-goals"'),
+            content.index('name="stat_set-0-assists"'),
+        )
+
+    # ── Sub goalie named on the game ──────────────────────────────────
+
+    def _name_sub_goalie(self):
+        sub = Player.objects.create(
+            first_name="Sam",
+            last_name="Standin",
+            is_active=True,
+            can_play_goalie=True,
+        )
+        self.matchup.away_goalie = sub
+        self.matchup.away_goalie_status = 1
+        self.matchup.save()
+        return sub
+
+    def test_named_sub_goalie_gets_a_goalie_row_in_the_grid(self):
+        sub = self._name_sub_goalie()
+        response = self.client.get(self._url())
+        away = response.context["scoresheet"]["away"]
+        self.assertEqual([r["player_id"] for r in away["goalies"]], [sub.pk])
+        self.assertTrue(away["goalies"][0]["is_sub"])
+        self.assertContains(response, "Sam Standin")
+        self.assertContains(response, "(sub)")
+        self.assertContains(
+            response, f'name="ss-{sub.pk}-goals_against" value="" data-team'
+        )
+        self.assertIn(str(sub.pk), response.context["scoresheet_player_ids"].split(","))
+
+    def test_no_sub_row_without_a_named_goalie(self):
+        response = self.client.get(self._url())
+        self.assertEqual(response.context["scoresheet"]["away"]["goalies"], [])
+        self.assertNotContains(response, 'ss-cap">(sub)')
+
+    def test_named_sub_goalie_stat_is_edited_in_grid_not_inline(self):
+        sub = self._name_sub_goalie()
+        stat = Stat.objects.create(
+            matchup=self.matchup, team=self.away_team, player=sub, goals_against=4
+        )
+        content = self.client.get(self._url()).content.decode()
+        self.assertIn(f'name="ss-{sub.pk}-goals_against" value="4"', content)
+        self.assertNotIn(f'name="stat_set-0-id" value="{stat.pk}"', content)
+
+    def test_grid_saves_named_sub_goalie_and_rosters_them_as_a_sub(self):
+        sub = self._name_sub_goalie()
+        ids = self._post_data()["ss-player-ids"] + f",{sub.pk}"
+        self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    "ss-player-ids": ids,
+                    f"ss-{self.home_center.pk}-goals": "3",
+                    f"ss-{sub.pk}-goals_against": "3",
+                    f"ss-{sub.pk}-empty_net": "",
+                    f"ss-{sub.pk}-goals": "",
+                    f"ss-{sub.pk}-assists": "",
+                }
+            ),
+        )
+        stat = Stat.objects.get(matchup=self.matchup, player=sub)
+        self.assertEqual(stat.team, self.away_team)
+        self.assertEqual(stat.goals_against, 3)
+        entry = Roster.objects.get(player=sub, team=self.away_team)
+        self.assertTrue(entry.is_substitute)
+        self.assertEqual(entry.position1, 4)
+
+    def test_blank_named_sub_goalie_row_creates_nothing(self):
+        sub = self._name_sub_goalie()
+        ids = self._post_data()["ss-player-ids"] + f",{sub.pk}"
+        self.client.post(self._url(), self._post_data(**{"ss-player-ids": ids}))
+        self.assertFalse(Stat.objects.filter(player=sub).exists())
+        self.assertFalse(Roster.objects.filter(player=sub).exists())
+
+    def test_named_sub_goalie_is_rejected_in_the_subs_section(self):
+        sub = self._name_sub_goalie()
+        response = self.client.post(
+            self._url(),
+            self._post_data(
+                **{
+                    "stat_set-TOTAL_FORMS": "1",
+                    "stat_set-0-matchup": self.matchup.pk,
+                    "stat_set-0-player": sub.pk,
+                    "stat_set-0-team": self.away_team.pk,
+                    "stat_set-0-goals_against": "2",
+                }
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "goalie row of the scoresheet")
+        self.assertFalse(Stat.objects.filter(player=sub).exists())
+
+    def test_regular_named_as_goalie_moves_to_the_goalie_rows(self):
+        # A wing filling in at goal needs a visible goals-against box.
+        self.matchup.away_goalie = self.away_wing
+        self.matchup.away_goalie_status = 1
+        self.matchup.save()
+        response = self.client.get(self._url())
+        away = response.context["scoresheet"]["away"]
+        self.assertEqual(away["players"], [])
+        self.assertEqual([r["player_id"] for r in away["goalies"]], [self.away_wing.pk])
+        self.assertFalse(away["goalies"][0].get("is_sub"))
+        self.assertContains(
+            response,
+            f'class="ss-input" name="ss-{self.away_wing.pk}-goals_against"',
+        )
+
     def test_quick_outcome_buttons_render(self):
         response = self.client.get(self._url())
         self.assertContains(response, 'id="qo-home"')

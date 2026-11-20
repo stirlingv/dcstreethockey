@@ -450,11 +450,57 @@ class PlayerAdmin(admin.ModelAdmin):
     list_editable = ["is_active", "can_play_goalie", "exclude_from_auto_deactivation"]
 
 
+def _named_sub_goalies(match):
+    """
+    {player_id: team_id} for a goalie named on this game (on the goalie status
+    page, or by confirming a sub offer) who isn't on either team's regular
+    roster. They get a row in the scoresheet's goalie table, so their goals
+    against is typed straight in instead of being looked up in the subs
+    section.
+    """
+    named = [
+        (match.home_goalie_id, match.hometeam_id),
+        (match.away_goalie_id, match.awayteam_id),
+    ]
+    named = [(pid, tid) for pid, tid in named if pid and tid]
+    if not named:
+        return {}
+    regulars = set(
+        Roster.objects.filter(
+            team__in=[match.hometeam_id, match.awayteam_id],
+            is_substitute=False,
+            player_id__in=[pid for pid, _ in named],
+        ).values_list("player_id", flat=True)
+    )
+    subs = {}
+    for player_id, team_id in named:
+        if player_id not in regulars:
+            subs.setdefault(player_id, team_id)
+    return subs
+
+
+def _scoresheet_team_by_player(match):
+    """{player_id: team_id} for everyone entered in the scoresheet grid: both
+    regular rosters, plus any sub goalie named on the game."""
+    team_by_player = {
+        r["player_id"]: r["team_id"]
+        for r in Roster.objects.filter(
+            team__in=[match.hometeam_id, match.awayteam_id],
+            is_substitute=False,
+            player__isnull=False,
+        ).values("player_id", "team_id")
+    }
+    for player_id, team_id in _named_sub_goalies(match).items():
+        team_by_player.setdefault(player_id, team_id)
+    return team_by_player
+
+
 class StatInlineFormSet(forms.BaseInlineFormSet):
     """
-    Rejects stats for players on either team's regular roster. Those players
-    are entered in the scoresheet grid, which saves after this section and
-    used to overwrite their rows here without any warning.
+    Rejects stats for players who have a row in the scoresheet grid: either
+    team's regular roster, and a sub goalie named on the game. The grid saves
+    after this section and used to overwrite their rows here without any
+    warning.
     """
 
     def clean(self):
@@ -469,6 +515,7 @@ class StatInlineFormSet(forms.BaseInlineFormSet):
                 team_id__in=team_ids, is_substitute=False, player__isnull=False
             ).values_list("player_id", "team__team_name")
         }
+        sub_goalies = _named_sub_goalies(match)
         problems = []
         for form in self.forms:
             data = getattr(form, "cleaned_data", None) or {}
@@ -480,6 +527,16 @@ class StatInlineFormSet(forms.BaseInlineFormSet):
                 f"{roster_team[player.id]} roster, so their stats go in the "
                 "scoresheet above. Remove them here and enter their stats there."
             )
+        for form in self.forms:
+            data = getattr(form, "cleaned_data", None) or {}
+            player = data.get("player")
+            if data.get("DELETE") or player is None or player.id not in sub_goalies:
+                continue
+            problems.append(
+                f"{player.first_name} {player.last_name} is this game's sub "
+                "goalie, so their stats go in the goalie row of the scoresheet "
+                "above. Remove them here and enter their stats there."
+            )
         if problems:
             raise forms.ValidationError(problems)
 
@@ -490,22 +547,21 @@ class StatInline(admin.TabularInline):
     extra = 1
     verbose_name = "sub / other player stat"
     verbose_name_plural = "Subs & other players (not on either roster)"
+    # Nearly every row here is a sub goalie, so the goalie numbers come first,
+    # in the same order as the goalie rows of the scoresheet above.
+    fields = ["player", "team", "goals_against", "empty_net", "goals", "assists"]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         match_id = request.resolver_match.kwargs.get("object_id")
         if match_id:
             qs = qs.filter(matchup_id=match_id)
-            # Rostered (non-substitute) players are edited via the scoresheet
-            # grid on the change form; the inline only handles subs and other
-            # players who aren't on either roster.
+            # Rostered (non-substitute) players and a sub goalie named on the
+            # game are edited via the scoresheet grid on the change form; the
+            # inline only handles other subs and players on neither roster.
             try:
                 match = MatchUp.objects.get(id=match_id)
-                rostered = Roster.objects.filter(
-                    team__in=[match.hometeam_id, match.awayteam_id],
-                    is_substitute=False,
-                ).values_list("player_id", flat=True)
-                qs = qs.exclude(player_id__in=rostered)
+                qs = qs.exclude(player_id__in=list(_scoresheet_team_by_player(match)))
             except MatchUp.DoesNotExist:
                 pass
         return qs
@@ -754,13 +810,7 @@ class MatchUpAdmin(admin.ModelAdmin):
 
         raw_ids = post.get("ss-player-ids", "")
         if raw_ids:
-            team_by_player = {
-                r["player_id"]: r["team_id"]
-                for r in Roster.objects.filter(
-                    team__in=[match.hometeam_id, match.awayteam_id],
-                    is_substitute=False,
-                ).values("player_id", "team_id")
-            }
+            team_by_player = _scoresheet_team_by_player(match)
             for raw in raw_ids.split(","):
                 if not raw.strip().isdigit():
                     continue
@@ -892,7 +942,12 @@ class MatchUpAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
         try:
             match = MatchUp.objects.select_related(
-                "hometeam", "awayteam", "week__division", "week__season"
+                "hometeam",
+                "awayteam",
+                "home_goalie",
+                "away_goalie",
+                "week__division",
+                "week__season",
             ).get(pk=object_id)
 
             roster_entries = Roster.objects.filter(
@@ -1035,7 +1090,9 @@ class MatchUpAdmin(admin.ModelAdmin):
                     return request.POST.get(f"ss-{player_id}-{field}", "")
                 return getattr(stat_row, field) if stat_row else ""
 
-            def _sheet_rows(team):
+            sub_goalies = _named_sub_goalies(match)
+
+            def _sheet_rows(team, named_goalie):
                 rows = []
                 roster_qs = (
                     Roster.objects.filter(team=team, is_substitute=False)
@@ -1046,7 +1103,12 @@ class MatchUpAdmin(admin.ModelAdmin):
                     if not entry.player_id:
                         continue
                     stat_row = existing_stats.get(entry.player_id)
-                    is_goalie = 4 in (entry.position1, entry.position2)
+                    # A regular who was named as this game's goalie (a wing
+                    # filling in, say) moves down to the goalie rows so their
+                    # goals against can be typed.
+                    is_goalie = 4 in (entry.position1, entry.position2) or (
+                        named_goalie is not None and named_goalie.pk == entry.player_id
+                    )
                     rows.append(
                         {
                             "player_id": entry.player_id,
@@ -1062,6 +1124,29 @@ class MatchUpAdmin(admin.ModelAdmin):
                             },
                         }
                     )
+                # A sub goalie named on the game gets a goalie row too, so
+                # nobody has to find them in the subs section below.
+                if (
+                    named_goalie is not None
+                    and sub_goalies.get(named_goalie.pk) == team.pk
+                ):
+                    stat_row = existing_stats.get(named_goalie.pk)
+                    rows.append(
+                        {
+                            "player_id": named_goalie.pk,
+                            "name": (
+                                f"{named_goalie.first_name} "
+                                f"{named_goalie.last_name}"
+                            ),
+                            "is_goalie": True,
+                            "is_captain": False,
+                            "is_sub": True,
+                            **{
+                                field: _cell(stat_row, named_goalie.pk, field)
+                                for field in self._SHEET_FIELDS
+                            },
+                        }
+                    )
                 # Split like a paper scoresheet: players up top, goalies
                 # at the bottom with their own GA/EN columns.
                 return {
@@ -1069,8 +1154,8 @@ class MatchUpAdmin(admin.ModelAdmin):
                     "goalies": [r for r in rows if r["is_goalie"]],
                 }
 
-            away_rows = _sheet_rows(match.awayteam)
-            home_rows = _sheet_rows(match.hometeam)
+            away_rows = _sheet_rows(match.awayteam, match.away_goalie)
+            home_rows = _sheet_rows(match.hometeam, match.home_goalie)
             extra_context["scoresheet"] = {
                 "away": {"team": match.awayteam, **away_rows},
                 "home": {"team": match.hometeam, **home_rows},
@@ -1100,13 +1185,8 @@ class MatchUpAdmin(admin.ModelAdmin):
         if not player_ids:
             return
 
-        team_by_player = {
-            r["player_id"]: r["team_id"]
-            for r in Roster.objects.filter(
-                team__in=[match.hometeam_id, match.awayteam_id],
-                is_substitute=False,
-            ).values("player_id", "team_id")
-        }
+        team_by_player = _scoresheet_team_by_player(match)
+        sub_goalies = _named_sub_goalies(match)
 
         def _parse(pid, field):
             raw = request.POST.get(f"ss-{pid}-{field}", "").strip()
@@ -1136,6 +1216,15 @@ class MatchUpAdmin(admin.ModelAdmin):
             stat.goals_against = values["goals_against"] or 0
             stat.empty_net = values["empty_net"] or 0
             stat.save()
+            # Same as a sub entered in the section below: playing for the team
+            # puts them on its roster as a substitute goalie.
+            if (
+                pid in sub_goalies
+                and not Roster.objects.filter(player_id=pid, team_id=team_id).exists()
+            ):
+                Roster.objects.create(
+                    player_id=pid, team_id=team_id, position1=4, is_substitute=True
+                )
             # Collapse accidental duplicate rows into the one we just saved.
             for dup in existing[1:]:
                 dup.delete()
