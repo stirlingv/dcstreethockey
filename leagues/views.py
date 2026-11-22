@@ -652,7 +652,10 @@ def captain_urls_list(request):
             }
         )
     # Sort divisions by their integer value.
-    divisions = sorted(grouped.keys(), key=lambda d: d.division)
+    # A team without a division (or a division without a number) goes last.
+    divisions = sorted(
+        grouped.keys(), key=lambda d: d.division if d and d.division else 99
+    )
     groups = [(div, grouped[div]) for div in divisions]
 
     return render(

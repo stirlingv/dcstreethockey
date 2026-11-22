@@ -15,7 +15,7 @@
 
             {% if groups %}
                 {% for division, entries in groups %}
-                <h3 style="margin-top: 30px; margin-bottom: 10px;">{{ division }}</h3>
+                <h3 style="margin-top: 30px; margin-bottom: 10px;">{{ division|default:"No division" }}</h3>
                 <table class="matchups-table" style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr>

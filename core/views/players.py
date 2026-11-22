@@ -393,7 +393,9 @@ def get_seasons_played(player):
 
 def get_offensive_stats_for_player(player, scope="combined"):
     return (
-        filter_stats_by_scope(Stat.objects.filter(player_id=player), scope)
+        filter_stats_by_scope(
+            Stat.objects.filter(player_id=player, team__isnull=False), scope
+        )
         .exclude((Q(goals=0) | Q(goals=None)) & (Q(assists=0) | Q(assists=None)))
         .values(
             "team__id",
@@ -453,7 +455,9 @@ def get_goalie_stats(player, scope="combined"):
     # goalie of record also scored or assisted (see leagues.goalie_of_record).
     goalie_ids = goalie_appearance_ids(Stat.objects.filter(player_id=player))
     return (
-        filter_stats_by_scope(Stat.objects.filter(id__in=goalie_ids), scope)
+        filter_stats_by_scope(
+            Stat.objects.filter(id__in=goalie_ids, team__isnull=False), scope
+        )
         .values(
             "team__id",
             "team__team_name",
@@ -689,7 +693,11 @@ def get_stats_for_past_team(team):
 def calculate_player_stats(
     player, season_mapping, scope="combined", exclude_team_ids=None
 ):
-    base_qs = filter_stats_by_scope(Stat.objects.filter(player=player), scope)
+    # A stat row saved without a team can't be filed under one, so it has no
+    # line on the player page.
+    base_qs = filter_stats_by_scope(
+        Stat.objects.filter(player=player, team__isnull=False), scope
+    )
     if exclude_team_ids:
         base_qs = base_qs.exclude(team_id__in=exclude_team_ids)
     offensive_stats = (
@@ -982,7 +990,7 @@ def player_trends_view(request):
 
             # Offensive stats — exclude teams where the player was the primary goalie
             offensive_stats = (
-                Stat.objects.filter(player=player)
+                Stat.objects.filter(player=player, team__isnull=False)
                 .exclude(team_id__in=goalie_team_ids)
                 .select_related("team__season", "team__division")
                 .values(

@@ -277,7 +277,7 @@
     <details class="se-division"{% if div.any_missing %} open{% endif %}>
       <summary class="se-division-summary">
         <span class="se-division-chevron">&#9658;</span>
-        <span class="se-division-name">{{ div.division }}</span>
+        <span class="se-division-name">{{ div.division|default:"No division set" }}</span>
         {% if div.any_missing %}
           <span class="se-status-badge se-status-pending"
                 title="One or more games in this division have no player stats entered yet.">Stats Needed</span>

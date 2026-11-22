@@ -68,6 +68,20 @@ The test database is SQLite. If a view uses a PostgreSQL-only feature (e.g., `.d
 
 Views that change data must reject GET (`@require_POST`), so links, crawlers and chat-app link previews can't trigger them.
 
+### One odd row must never take a page down
+
+`OddDataSmokeTest` in `dcstreethockey/test_smoke.py` adds rows in every shape the schema
+allows but nobody plans for (a week with no division, a team with no roster, a roster row
+whose player was deleted, a stat with no team, a record row with no team, a game on no
+week) and opens every public and admin page. In November 2026 one such row returned a 500
+on the admin home page, and the sweep found a dozen more pages with the same weakness.
+When you add a nullable field or a page, add the odd row to that fixture. When the test
+fails, make the code skip the row or show a placeholder; don't remove the row. The admin
+home page also renders each of its sections on its own (`_render_section` in
+`leagues/templatetags/admin_quick_cancel.py`): a section that raises logs its traceback
+and shows a notice, and the `dashboard-section-error` marker in that notice fails the
+smoke tests and `scripts/smoke_crawl.py`.
+
 ### Production smoke test
 
 CI also boots the site with the production settings under uvicorn, against an empty Postgres database seeded by `manage.py seed_smoke_data`, and crawls every page including the admin. To run it locally:

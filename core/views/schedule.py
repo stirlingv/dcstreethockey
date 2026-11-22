@@ -81,7 +81,7 @@ class MatchUpDetailView(ListView):
         }
         rosters_by_team = defaultdict(list)
         for r in (
-            Roster.objects.filter(team_id__in=team_ids)
+            Roster.objects.filter(team_id__in=team_ids, player__isnull=False)
             .select_related("player")
             .order_by(
                 "player_number", Lower("player__last_name"), Lower("player__first_name")
@@ -292,6 +292,8 @@ def get_detailed_matchups(matchups):
         scorers[mid].sort(key=lambda s: (-(s.goals or 0), -(s.assists or 0)))
 
     for match in matchup_list:
+        if match.week is None:
+            continue  # not on any week: no date to file it under
         date_str = str(match.week.date)
         if date_str not in result:
             result[date_str] = OrderedDict()
@@ -432,15 +434,16 @@ def teams(request, team=0):
     context["matchups"] = get_detailed_matchups(scorematchups)
     context["roster"] = []
     players = Player.objects.filter(roster__team__id=team, roster__is_substitute=False)
-    season = players.values_list("roster__team__season__id", flat=True).distinct()
     context["past_team_stats"] = get_stats_for_past_team(team)
+    # The season comes from the team itself, not from its roster: a team
+    # whose roster hasn't been entered yet (a new season) still has a page.
     context["player_list"] = get_player_stats(
-        players, int(season[0]), scope="combined"
+        players, context["team"].season_id or 0, scope="combined"
     ).order_by("-total_points", "-sum_goals", "-sum_assists", "average_goals_against")
     for rosteritem in (
-        Roster.objects.select_related("team")
-        .select_related("player")
-        .filter(team__id=team, is_substitute=False)
+        Roster.objects.select_related("team").select_related("player")
+        # A roster row whose player was deleted has nobody to show.
+        .filter(team__id=team, is_substitute=False, player__isnull=False)
     ):
         context["roster"].append(
             {
@@ -459,7 +462,7 @@ def teams(request, team=0):
 def scores(request, division=0):
     context = {}
     context["view"] = "scores"
-    context["divisions"] = Division.objects.all()
+    context["divisions"] = Division.objects.filter(division__isnull=False)
     context["matchups"] = OrderedDict()
     context["active_division"] = int(division)
     if context["active_division"] == 0:
@@ -536,6 +539,8 @@ def matchup_detail(request, matchup_id):
             away_otl=Coalesce(Max("awayteam__team_stat__otl"), 0),
         ),
         id=matchup_id,
+        # A game that isn't on any week has no date and no page.
+        week__isnull=False,
     )
 
     # Final score and box score reuse the same aggregation helpers as the
@@ -556,7 +561,8 @@ def matchup_detail(request, matchup_id):
 
     lines = None
     props = None
-    if matchup.hometeam.division.division != 1:
+    home_division = matchup.hometeam.division
+    if home_division is None or home_division.division != 1:
         lines = compute_betting_lines_for_matchups([matchup_id]).get(matchup_id)
         props = compute_player_props_for_matchups([matchup_id]).get(matchup_id)
 
@@ -585,7 +591,7 @@ def matchup_detail(request, matchup_id):
 def cups(request, division=1):
     context = {}
     context["view"] = "cups"
-    context["divisions"] = Division.objects.all()
+    context["divisions"] = Division.objects.filter(division__isnull=False)
     context["matchups"] = OrderedDict()
     context["active_division"] = int(division)
     division = [i for i in Division.DIVISION_TYPE if context["active_division"] in i]

@@ -159,7 +159,7 @@
     <details class="qc-division"{% if div.any_cancelled %} open{% endif %}>
       <summary class="qc-division-summary">
         <span class="qc-division-chevron">&#9658;</span>
-        <span class="qc-division-name">{{ div.week.division }}</span>
+        <span class="qc-division-name">{{ div.week.division|default:"No division set" }}</span>
         {% if div.all_cancelled %}
           <span class="qc-status-badge qc-status-cancelled">All Cancelled</span>
         {% elif div.some_cancelled %}

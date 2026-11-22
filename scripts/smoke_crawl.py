@@ -55,7 +55,13 @@ EXPECTED_STATUSES = [
 # Many URLs differ only by an id (every player, every matchup). Visit a few
 # of each shape rather than thousands of near-identical pages.
 DEFAULT_PER_PATTERN = 3
-ERROR_MARKERS = ("Traceback (most recent call last)", "Server Error (500)")
+ERROR_MARKERS = (
+    "Traceback (most recent call last)",
+    "Server Error (500)",
+    # A section of the admin home page that failed and showed its fallback
+    # notice (leagues/templatetags/admin_quick_cancel.py).
+    "dashboard-section-error",
+)
 CSRF_RE = re.compile(
     r'((?:csrfmiddlewaretoken" value=|name="csrf-token" content=)")[^"]+'
     r'|(csrftoken["\']?\s*[:=]\s*["\'])[^"\']+'

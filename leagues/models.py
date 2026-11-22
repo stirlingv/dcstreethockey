@@ -623,7 +623,8 @@ class MatchUp(models.Model):
         self._loaded_week_id = self.week_id
 
     def __str__(self):
-        return f"{self.awayteam} vs {self.hometeam} on {self.week.date}"
+        when = self.week.date if self.week_id else "no date"
+        return f"{self.awayteam} vs {self.hometeam} on {when}"
 
 
 class MatchUpGoalieStatus(MatchUp):
@@ -763,7 +764,13 @@ class Stat(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.matchup.week.date} - {self.team.team_name} {self.player.last_name}: G:{self.goals} A:{self.assists}"
+        matchup = self.matchup if self.matchup_id else None
+        when = matchup.week.date if matchup and matchup.week_id else "no game"
+        team = self.team.team_name if self.team_id else "no team"
+        return (
+            f"{when} - {team} {self.player.last_name}: "
+            f"G:{self.goals} A:{self.assists}"
+        )
 
 
 class Ref(models.Model):

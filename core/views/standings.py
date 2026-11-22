@@ -224,7 +224,9 @@ class TeamStatDetailView(TemplateView):
             displayed[division] = season_id
             stats = list(
                 Team_Stat.objects.filter(
-                    division__division=division, season_id=season_id
+                    division__division=division,
+                    season_id=season_id,
+                    team__isnull=False,
                 ).select_related("team", "season")
             )
             return apply_tiebreakers(stats), season_display_name(seasons[season_id])

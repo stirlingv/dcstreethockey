@@ -3299,3 +3299,125 @@ class StatsEntryWidgetComputedSeasonTest(TestCase):
         self.assertIn(f"/admin/leagues/matchup/{old.pk}/change/", html)
         self.assertIn(">Cancel<", html)
         self.assertIn(">Move<", html)
+
+
+class AdminHomePageSurvivesBadDataTest(TestCase):
+    """The admin home page is the way into every other admin screen, so no
+    row in an odd shape may turn it into a 500.
+
+    Regression for the Nov 2026 outage report: the page returned a 500 and
+    locked the admin out of the screens needed to repair the data.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(
+            User.objects.create_superuser("admin", "a@example.com", "password")
+        )
+        self.today = datetime.date.today()
+        self.season = Season.objects.create(
+            year=self.today.year, season_type=3, standings_from_games=False
+        )
+        self.division = Division.objects.create(division=3)
+        self.home, self.away = (
+            Team.objects.create(
+                team_name=name,
+                team_color="Blue",
+                division=self.division,
+                season=self.season,
+                is_active=True,
+            )
+            for name in ("Home Side", "Away Side")
+        )
+        self.player = Player.objects.create(first_name="Pat", last_name="Player")
+
+    def _game(self, days_from_today, division="same"):
+        week = Week.objects.create(
+            division=self.division if division == "same" else division,
+            season=self.season,
+            date=self.today + datetime.timedelta(days=days_from_today),
+        )
+        return MatchUp.objects.create(
+            week=week, time=datetime.time(19, 0), hometeam=self.home, awayteam=self.away
+        )
+
+    def _home_page(self):
+        response = self.client.get(reverse("admin:index"))
+        self.assertEqual(response.status_code, 200)
+        return response.content.decode()
+
+    def test_upcoming_week_without_a_division(self):
+        self._game(2, division=None)
+        self._game(2)
+        html = self._home_page()
+        self.assertIn("No division set", html)
+        self.assertNotIn("dashboard-section-error", html)
+
+    def test_recent_week_without_a_division(self):
+        self._game(-2, division=None)
+        self._game(-2)
+        html = self._home_page()
+        self.assertIn("No division set", html)
+        self.assertNotIn("dashboard-section-error", html)
+
+    def test_stat_credited_to_a_team_not_in_the_game(self):
+        # A sub's stat filed under a team from another division. That team
+        # has no game of its own to fix, so it is not a record to chase, and
+        # there must be no link to a game that doesn't exist.
+        other_division = Division.objects.create(division=4)
+        outsider = Team.objects.create(
+            team_name="Outsiders",
+            team_color="Red",
+            division=other_division,
+            season=self.season,
+            is_active=True,
+        )
+        game = self._game(-3)
+        for team in (self.home, self.away, outsider):
+            Stat.objects.create(matchup=game, team=team, player=self.player, goals=1)
+        html = self._home_page()
+        self.assertNotIn("Outsiders", html)
+        self.assertNotIn("/matchup/None/", html)
+        self.assertNotIn("dashboard-section-error", html)
+
+    def test_a_section_that_fails_shows_a_notice_and_the_rest_still_loads(self):
+        from unittest.mock import patch
+
+        with (
+            patch(
+                "leagues.templatetags.admin_quick_cancel._records_behind_scores",
+                side_effect=RuntimeError("unexpected data"),
+            ),
+            self.assertLogs("leagues.templatetags.admin_quick_cancel", "ERROR") as logs,
+        ):
+            html = self._home_page()
+        self.assertIn("dashboard-section-error", html)
+        self.assertIn("Enter Stats", html)
+        self.assertIn("This section couldn", html)
+        # The other section, the tools and the model list are all still there.
+        self.assertIn("Quick Game Cancellation", html)
+        self.assertIn("Manage Schedule", html)
+        self.assertIn(reverse("admin:leagues_matchup_changelist"), html)
+        # The traceback is logged so the cause can be found.
+        self.assertIn("unexpected data", logs.output[0])
+
+    def test_a_template_error_in_a_section_is_contained_too(self):
+        from unittest.mock import patch
+
+        from django.urls import NoReverseMatch
+
+        with (
+            patch(
+                "leagues.templatetags.admin_quick_cancel.render_to_string",
+                side_effect=NoReverseMatch("bad link"),
+            ),
+            self.assertLogs("leagues.templatetags.admin_quick_cancel", "ERROR"),
+        ):
+            html = self._home_page()
+        self.assertEqual(html.count("dashboard-section-error"), 2)
+        self.assertIn("Manage Schedule", html)
+
+    def test_healthy_page_has_no_error_notice(self):
+        self._game(-2)
+        self._game(2)
+        self.assertNotIn("dashboard-section-error", self._home_page())

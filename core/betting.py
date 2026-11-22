@@ -754,7 +754,9 @@ def compute_player_props_for_matchups(matchup_ids: list) -> dict:
     roster_entries: list[tuple] = []
 
     for r in (
-        Roster.objects.filter(team_id__in=team_ids, is_substitute=False)
+        Roster.objects.filter(
+            team_id__in=team_ids, is_substitute=False, player__isnull=False
+        )
         .select_related("player")
         .order_by("team_id", "player__last_name", "player__first_name")
     ):

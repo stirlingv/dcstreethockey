@@ -1,9 +1,12 @@
+import logging
 from collections import defaultdict
 from datetime import date, timedelta
 
 from django import template
 from django.db.models import Count, F, Q, Sum
+from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.html import format_html
 from django.utils.http import urlencode
 
 from leagues.models import Division, MatchUp, Season, Stat, Team, Team_Stat, Week
@@ -12,9 +15,62 @@ from leagues.seasons import active_season_ids
 from leagues.templatetags.helpers import team_record
 
 register = template.Library()
+logger = logging.getLogger(__name__)
+
+# Present in the page only when a dashboard section failed to load. The smoke
+# tests and scripts/smoke_crawl.py look for it, so a broken section still
+# fails CI even though the page itself now returns 200.
+SECTION_ERROR_MARKER = "dashboard-section-error"
 
 
-@register.inclusion_tag("admin/quick_cancel_widget.html", takes_context=True)
+def _render_section(template_name, build, context, title):
+    """Render one section of the admin home page, and never let it take the
+    page down.
+
+    The home page is the only way into the rest of the admin, and its
+    sections read whatever the schedule holds that week. One row in a shape
+    nobody expected used to return a 500 for the whole page, locking the
+    admin out of the screens needed to fix that row. A section that fails
+    now logs its traceback and shows a short notice in its place.
+    """
+    try:
+        return render_to_string(template_name, build(context))
+    except Exception:
+        logger.exception("Admin home page section %r failed to load", title)
+        return format_html(
+            '<div class="module {}" style="margin-bottom:20px;">'
+            "<h2>{}</h2>"
+            '<p style="padding:12px;margin:0;font-size:14px;line-height:1.5;'
+            'color:#7f1d1d;background:#fce4e4;">'
+            "This section couldn\u2019t load. Everything else in the admin "
+            "still works: use <strong>All models</strong> below.</p></div>",
+            SECTION_ERROR_MARKER,
+            title,
+        )
+
+
+def _division_order(division):
+    """Sort key for a week's division; a week filed without one goes last."""
+    return division.division if division and division.division else 99
+
+
+@register.simple_tag(takes_context=True, name="quick_cancel_widget")
+def _quick_cancel_widget_tag(context):
+    return _render_section(
+        "admin/quick_cancel_widget.html",
+        quick_cancel_widget,
+        context,
+        "Quick Game Cancellation",
+    )
+
+
+@register.simple_tag(takes_context=True, name="stats_entry_widget")
+def _stats_entry_widget_tag(context):
+    return _render_section(
+        "admin/stats_entry_widget.html", stats_entry_widget, context, "Enter Stats"
+    )
+
+
 def quick_cancel_widget(context):
     today = date.today()
     cutoff = today + timedelta(days=7)
@@ -42,7 +98,7 @@ def quick_cancel_widget(context):
     grouped = {}
     for week_date in sorted(date_buckets.keys()):
         division_weeks = list(date_buckets[week_date].values())
-        division_weeks.sort(key=lambda w: w.division.division)
+        division_weeks.sort(key=lambda w: _division_order(w.division))
         week_data = []
         for week in division_weeks:
             games = matchups_by_week[week.pk]
@@ -66,7 +122,7 @@ def quick_cancel_widget(context):
     return {
         "grouped_weeks": grouped,
         "today": today,
-        "csrf_token": context.get("csrf_token"),
+        "csrf_token": (context or {}).get("csrf_token"),
     }
 
 
@@ -185,7 +241,9 @@ def _records_behind_scores(today):
         gp = row.win + row.otw + row.loss + row.otl + row.tie if row else 0
         if gp >= games or team_id not in teams:
             continue
-        season = seasons_by_id[season_id]
+        season = seasons_by_id.get(season_id)
+        if season is None:
+            continue
         latest_game_id = (
             MatchUp.objects.filter(
                 Q(hometeam_id=team_id) | Q(awayteam_id=team_id),
@@ -200,6 +258,11 @@ def _records_behind_scores(today):
             .values_list("pk", flat=True)
             .first()
         )
+        if latest_game_id is None:
+            # A stat credited to a team that isn't one of the two playing
+            # (a sub filed under their own team, say). That is not a missing
+            # result for that team, and there is no game of theirs to fix.
+            continue
         behind.append(
             {
                 "team": teams[team_id],
@@ -237,7 +300,6 @@ def _records_behind_scores(today):
     return behind
 
 
-@register.inclusion_tag("admin/stats_entry_widget.html", takes_context=True)
 def stats_entry_widget(context=None):
     today = date.today()
     since = today - timedelta(days=7)
@@ -367,7 +429,7 @@ def stats_entry_widget(context=None):
     for game_date in sorted(date_buckets.keys(), reverse=True):
         divisions = []
         for division, games in sorted(
-            date_buckets[game_date].items(), key=lambda x: x[0].division
+            date_buckets[game_date].items(), key=lambda x: _division_order(x[0])
         ):
             divisions.append(
                 {

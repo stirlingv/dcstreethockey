@@ -732,13 +732,16 @@ class MatchUpAdmin(admin.ModelAdmin):
                     # The game's own week is always offered, even when it is
                     # filed under another division, so the field never shows
                     # blank and the wrong-division banner can explain it.
-                    week_qs = Week.objects.filter(
-                        Q(
-                            division=matchup.hometeam.division,
-                            season=matchup.week.season,
+                    if matchup.week_id:
+                        week_qs = Week.objects.filter(
+                            Q(
+                                division=matchup.hometeam.division,
+                                season=matchup.week.season,
+                            )
+                            | Q(pk=matchup.week_id)
                         )
-                        | Q(pk=matchup.week_id)
-                    )
+                    # A game on no week falls through to the weeks of the
+                    # seasons in play, so one can be picked.
                 except MatchUp.DoesNotExist:
                     logger.warning("Could not find the matchup to filter weeks.")
             if week_qs is None:
@@ -949,6 +952,10 @@ class MatchUpAdmin(admin.ModelAdmin):
                 "week__division",
                 "week__season",
             ).get(pk=object_id)
+            if match.week is None:
+                # Not on any week yet: show the plain form so one can be
+                # picked. The scoresheet and records need a week to exist.
+                raise MatchUp.DoesNotExist
 
             roster_entries = Roster.objects.filter(
                 team__in=[match.hometeam_id, match.awayteam_id]
@@ -2845,7 +2852,7 @@ class StatAdmin(admin.ModelAdmin):
     list_per_page = 50
 
     def game(self, obj):
-        if obj.matchup_id:
+        if obj.matchup_id and obj.matchup.week_id:
             return obj.matchup.week.date
         return None
 
