@@ -75,6 +75,9 @@ class AdminSmokeTest(TestCase):
     def test_admin_index_lists_every_app(self):
         response = self._get(reverse("admin:index"))
         self.assertEqual(response.status_code, 200)
+        # A dashboard section that fails shows a notice instead of a 500, so
+        # check here that every section actually rendered.
+        self.assertNotContains(response, "dashboard-section-error")
         for model in admin.site._registry:
             if model.__name__ in _DRAFT_OBJECT_NAMES:
                 continue  # folded into the single "Setup Draft" entry
